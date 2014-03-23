@@ -1,0 +1,109 @@
+@import (inline) "less/_reset.css";
+
+@-ms-viewport {
+  width: device-width;
+}
+
+a, input, button {
+  -ms-touch-action: none !important;
+}
+
+*, *:before, *:after {
+  -moz-box-sizing: border-box;
+  -webkit-box-sizing: border-box;
+  box-sizing: border-box;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: #2980b9;
+}
+
+.teams_view {
+  background: #fff;
+  padding: 1em;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+
+  .team {
+    font-family: 'Exo 2', sans-serif;
+    font-weight: 300;
+    font-size: 2rem;
+    padding: 1em 1em;
+    height: 3em;
+    background-size: auto 60%;
+    background-position: center;
+    background-repeat: no-repeat;
+    color: #2c3e50;
+    cursor: pointer;
+
+    &:hover {
+      background-color: #ecf0f1;
+      background-size: auto 70%;
+    }
+
+  } // .team
+
+  .assat {
+    background-image: url("../svg/assat.svg");
+  }
+
+  .blues {
+    background-image: url("../svg/blues.svg");
+  }
+
+  .hifk {
+    background-image: url("../svg/hifk.svg");
+  }
+
+  .hpk {
+    background-image: url("../svg/hpk.svg");
+  }
+
+  .ilves {
+    background-image: url("../svg/ilves.svg");
+  }
+
+  .jokerit {
+    background-image: url("../svg/jokerit.svg");
+  }
+
+  .jyp {
+    background-image: url("../svg/jyp.svg");
+  }
+
+  .kalpa {
+    background-image: url("../svg/kalpa.svg");
+  }
+
+  .karpat {
+    background-image: url("../svg/karpat.svg");
+  }
+
+  .lukko {
+    background-image: url("../svg/lukko.svg");
+  }
+
+  .pelicans {
+    background-image: url("../svg/pelicans.svg");
+  }
+
+  .saipa {
+    background-image: url("../svg/saipa.svg");
+  }
+
+  .tappara {
+    background-image: url("../svg/tappara.svg");
+  }
+
+  .tps {
+    background-image: url("../svg/tps.svg");
+  }
+
+} // .teams_view

@@ -1,0 +1,58 @@
+[
+  {
+    "id": "karpat",
+    "name": "Kärpät"
+  },
+  {
+    "id": "tappara",
+    "name": "Tappara"
+  },
+  {
+    "id": "jyp",
+    "name": "JYP"
+  },
+  {
+    "id": "saipa",
+    "name": "SaiPa"
+  },
+  {
+    "id": "lukko",
+    "name": "Lukko"
+  },
+  {
+    "id": "jokerit",
+    "name": "Jokerit"
+  },
+  {
+    "id": "pelicans",
+    "name": "Pelicans"
+  },
+  {
+    "id": "blues",
+    "name": "Blues"
+  },
+  {
+    "id": "hifk",
+    "name": "HIFK"
+  },
+  {
+    "id": "ilves",
+    "name": "Ilves"
+  },
+  {
+    "id": "hpk",
+    "name": "HPK"
+  },
+  {
+    "id": "assat",
+    "name": "Ässät"
+  },
+  {
+    "id": "kalpa",
+    "name": "KalPa"
+  },
+  {
+    "id": "tps",
+    "name": "TPS"
+  }
+]

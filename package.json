@@ -1,0 +1,55 @@
+{
+  "name": "liiga_frontend",
+  "version": "0.1.0",
+  "description": "",
+  "main": "main.js",
+  "scripts": {
+    "build": "browserify client.coffee -t coffeeify --extension='.coffee' -o public/js/app.js",
+    "build_min": "npm run build | uglifyjs public/js/app.js -o public/js/app.min.js",
+    "build_dev": "npm run build_dev_lib & npm run build_dev_app",
+    "build_dev_lib": "browserify -r backbone -r underscore -r jquery -r react -t coffeeify --extension='.coffee' -o public/js/lib.js",
+    "build_dev_app": "browserify -x backbone -x underscore -x jquery -x react client.coffee -d -t coffeeify --extension='.coffee' -o public/js/app-dev.js",
+    "watch_lib": "watchify -r browser-request -r q -r exoskeleton -r director -r react -t coffeeify --extension='.coffee' -o public/js/lib.js -v",
+    "watch_app": "watchify -x browser-request -x q -x exoskeleton -x director -x react client.coffee -d -t coffeeify --extension='.coffee' -o public/js/app-dev.js -v",
+    "watch_less": "catw -c 'lessc -' 'less/styles.less' -o public/css/styles.css -v",
+    "watch": "npm run watch_app & npm run watch_lib & npm run watch_less"
+  },
+  "author": "Lari Hoppula",
+  "license": "MIT",
+  "devDependencies": {
+    "browserify": "~3.1.3",
+    "browserify-shim": "~3.0.0",
+    "uglify-js": "~2.4.7",
+    "watchify": "~0.4.1",
+    "coffeeify": "~0.5.2",
+    "coffee-script": "~1.7.1",
+    "less": "~1.6.2",
+    "reactify": "~0.7.0",
+    "catw": "~0.2.0",
+    "express": "~3.4.8",
+    "jsdom": "~0.10.3",
+    "director": "~1.2.3",
+    "q": "~1.0.1",
+    "lodash": "~2.4.1",
+    "browser-request": "~0.3.1",
+    "request": "~2.34.0",
+    "envify": "~1.2.1",
+    "react": "~0.10.0",
+    "cheerio": "~0.13.1"
+  },
+  "dependencies": {
+    "express": "~3.4.8"
+  },
+  "browser": {
+    "exoskeleton": "./lib/exoskeleton/exoskeleton.js",
+    "react": "./lib/components/react/react.min.js",
+    "events": "./instances/events.coffee",
+    "director": "./node_modules/director/build/director.min.js"
+  },
+  "browserify-shim": {},
+  "browserify": {
+    "transform": [
+      "browserify-shim"
+    ]
+  }
+}

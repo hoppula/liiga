@@ -1,0 +1,22 @@
+{
+  "name": "liiga_frontend",
+  "version": "0.1.0",
+  "authors": [
+    "Lari Hoppula <lari@sc5.io>"
+  ],
+  "license": "MIT",
+  "private": true,
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "lib/components",
+    "test",
+    "tests"
+  ],
+  "devDependencies": {
+    "jquery": "~2.0.3",
+    "backbone": "~1.1.0",
+    "react": "~0.10.0"
+  }
+}
