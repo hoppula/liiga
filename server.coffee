@@ -1,18 +1,18 @@
-express = require 'express'
+require('node-cjsx').transform()
+fs = require 'fs'
 path = require 'path'
-app = express()
+express = require 'express'
+cheerio = require 'cheerio'
 
 React = require 'react'
 Backbone = require 'exoskeleton'
 Backbone.ajax = require './lib/exoskeleton/server_ajax'
 
-fs = require "fs"
-cheerio = require 'cheerio'
-#jsdom = require("jsdom").jsdom
-#document = jsdom(fs.readFileSync('./public/index.html', encoding: "UTF-8"))
-#window = document.parentWindow
-#appContainer = document.getElementById 'app'
+# shared routes between client & server, basically all public
+# GET routes that should get indexed by search engines
+sharedRoutes = require './routes'
 
+app = express()
 document = cheerio.load(fs.readFileSync('./public/index.html', encoding: "UTF-8"))
 
 extractParams = (params) ->
@@ -26,16 +26,14 @@ render = (options={}) ->
   document("#app").html React.renderComponentToString(options.component)
   document.html()
 
-# shared routes between client & server, basically all public
-# GET routes that should get indexed by search engines
-sharedRoutes = require './routes'
-
 for route, action of sharedRoutes
-  ((route, action) ->
+  do (route, action) ->
     app.get route, (req, res) ->
       action.apply(@, extractParams(req.params)).then (options) ->
         res.send render(options)
-  )(route, action)
+      .fail (error) ->
+        console.log "error", error
+      .done()
 
 app.use express.static("#{__dirname}/public")
 app.listen 4000

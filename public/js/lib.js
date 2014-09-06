@@ -1327,8 +1327,6 @@ if (Backbone.$) Backbone.Deferred = function() {
   return Backbone;
 });
 
-},{}],"browser-request":[function(require,module,exports){
-module.exports=require('GeoHbi');
 },{}],"GeoHbi":[function(require,module,exports){
 // Browser Request
 //
@@ -1742,6 +1740,8 @@ function b64_enc (data) {
     return enc;
 }
 
+},{}],"browser-request":[function(require,module,exports){
+module.exports=require('GeoHbi');
 },{}],"Me1FqV":[function(require,module,exports){
 
 

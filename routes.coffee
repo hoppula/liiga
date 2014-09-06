@@ -8,9 +8,11 @@ module.exports =
   "/": ->
     teamsCollection.fetched.then ->
       title: "Etusivu"
-      component: TeamsListView(teams: teamsCollection)
+      component: TeamsListView(teams: teamsCollection.toJSON())
 
   "/joukkueet/:id": (id) ->
     teamsCollection.fetched.then ->
-      title: "Joukkueet - #{id}"
-      component: TeamView(team: teamsCollection.get(id))
+      team = teamsCollection.get(id)
+      team.fetch().then ->
+        title: "Joukkueet - #{id}"
+        component: TeamView(team: team.toJSON())

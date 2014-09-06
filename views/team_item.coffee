@@ -1,17 +1,13 @@
+# @cjsx React.DOM
 React = require 'react'
-navigateMixin = require './mixins/navigate'
-{div} = React.DOM
+#navigateMixin = require './mixins/navigate'
 
 TeamItem = React.createClass
-  mixins: [navigateMixin]
-
-  url: ->
-    "/joukkueet/#{@props.team.get('id')}"
+#  mixins: [navigateMixin]
 
   render: ->
-    div
-      className: "team #{@props.team.get('id')}"
-      onClick: @navigate
-    , @props.team.get('name')
+    <a className="team #{@props.team.id}" href="/joukkueet/#{@props.team.id}">
+      {@props.team.name}
+    </a>
 
 module.exports = TeamItem

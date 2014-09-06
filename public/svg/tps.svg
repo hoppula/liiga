@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!-- Created with Inkscape (http://www.inkscape.org/) -->
+
 <svg
    xmlns:dc="http://purl.org/dc/elements/1.1/"
-   xmlns:cc="http://web.resource.org/cc/"
+   xmlns:cc="http://creativecommons.org/ns#"
    xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
    xmlns:svg="http://www.w3.org/2000/svg"
    xmlns="http://www.w3.org/2000/svg"
@@ -10,12 +11,11 @@
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    id="svg2223"
    sodipodi:version="0.32"
-   inkscape:version="0.45.1"
+   inkscape:version="0.48.2 r9819"
    width="289"
    height="288"
    version="1.0"
-   sodipodi:docbase="/home/str4nd/kuvat/wikipedia"
-   sodipodi:docname="TPS.svg"
+   sodipodi:docname="tps.svg"
    inkscape:output_extension="org.inkscape.output.svg.inkscape">
   <metadata
      id="metadata2228">
@@ -43,11 +43,23 @@
      pagecolor="#ffffff"
      id="base"
      inkscape:zoom="1.6076389"
-     inkscape:cx="144.5"
+     inkscape:cx="69.234342"
      inkscape:cy="144"
      inkscape:window-x="0"
      inkscape:window-y="24"
-     inkscape:current-layer="svg2223" />
+     inkscape:current-layer="svg2223"
+     showgrid="false"
+     inkscape:window-maximized="0" />
+  <path
+     sodipodi:type="arc"
+     style="fill:#ffffff"
+     id="path3066"
+     sodipodi:cx="119.11879"
+     sodipodi:cy="190.65227"
+     sodipodi:rx="64.380127"
+     sodipodi:ry="132.18143"
+     d="m 183.49892,190.65227 a 64.380127,132.18143 0 1 1 -128.760257,0 64.380127,132.18143 0 1 1 128.760257,0 z"
+     transform="matrix(1.7584542,0,-0.00470588,0.85176471,-66.122818,-19.323919)" />
   <g
      id="g2287">
     <path
