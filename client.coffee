@@ -1,13 +1,9 @@
 director = require 'director'
-
 React = require 'react'
-Backbone = require 'exoskeleton'
-Backbone.ajax = require './lib/exoskeleton/client_ajax'
 
-events = require 'events'
 # shared routes between client & server, basically all public
 # GET routes that should get indexed by search engines
-sharedRoutes = require './routes'
+sharedRoutes = require('./routes')(require('./lib/ajax'))
 
 appContainer = document.getElementById 'app'
 
@@ -29,7 +25,7 @@ document.addEventListener "DOMContentLoaded", ->
           console.log "error", error
         .done()
 
-  router.init()
+  router.init("/")
 
   # TODO: load all team data in one big request,
   # start loading concurrently with teams.json

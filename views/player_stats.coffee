@@ -1,10 +1,9 @@
-# @cjsx React.DOM
 React = require 'react'
 
 PlayerStats = React.createClass
 
   render: ->
-    <table>
+    <table className="table table-striped">
       <thead>
         <tr>
           <th>First name</th>

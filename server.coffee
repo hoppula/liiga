@@ -1,16 +1,13 @@
 require('node-cjsx').transform()
 fs = require 'fs'
-path = require 'path'
 express = require 'express'
 cheerio = require 'cheerio'
 
 React = require 'react'
-Backbone = require 'exoskeleton'
-Backbone.ajax = require './lib/exoskeleton/server_ajax'
 
 # shared routes between client & server, basically all public
 # GET routes that should get indexed by search engines
-sharedRoutes = require './routes'
+sharedRoutes = require('./routes')(require('./lib/server_ajax'))
 
 app = express()
 document = cheerio.load(fs.readFileSync('./public/index.html', encoding: "UTF-8"))

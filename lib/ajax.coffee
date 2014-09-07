@@ -6,8 +6,8 @@ module.exports = (options) ->
 
   opts =
     url: options.url
-    method: options.type || "GET"
-    json: options.dataType is "json"
+    method: options.method or "GET"
+    json: true
 
   opts.body if options.data
 

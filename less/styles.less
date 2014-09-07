@@ -1,5 +1,5 @@
-@import (inline) "less/_reset.css";
 @import (inline) "less/_icomoon.css";
+@import (inline) "less/_bootstrap.min.css";
 
 @-ms-viewport {
   width: device-width;
@@ -21,17 +21,10 @@ a, input, button {
 }
 
 body {
-  background: #2980b9;
-}
 
-h1 {
-  font-family: 'Open Sans Condensed', sans-serif;
-  font-weight: 700;
-  font-size: 5rem;
 }
 
 .teams_view {
-  background: #3498db;
   padding: 1em;
   -webkit-user-select: none;
   -moz-user-select: none;
@@ -39,13 +32,11 @@ h1 {
   user-select: none;
 
   .team {
-    font-family: 'Open Sans Condensed', sans-serif;
     font-weight: 700;
     font-size: 2rem;
     padding: 1em 1em;
-    height: 3em;
-    background-size: auto 60%;
-    background-position: center;
+    background-size: auto 80%;
+    background-position: 20px center;
     background-repeat: no-repeat;
     color: #ecf0f1;
     cursor: pointer;
@@ -85,6 +76,7 @@ h1 {
 
   .jyp {
     background-image: url("../svg/jyp.svg");
+    background-position-x: 24px;
   }
 
   .kalpa {
@@ -109,6 +101,7 @@ h1 {
 
   .tappara {
     background-image: url("../svg/tappara.svg");
+    background-position-x: 31px;
   }
 
   .tps {

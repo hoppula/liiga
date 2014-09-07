@@ -1,4 +1,4 @@
-Backbone = require 'backbone'
+#Backbone = require 'backbone'
 
 # {@number, @nationality, @position, @birthPlace, @height,
 # @weight, @shoots, @birthday, @firstName, @lastName, @rookie}

@@ -1,9 +1,0 @@
-{
-  "name": "exoskeleton",
-  "version": "0.1.0",
-  "description": "",
-  "main": "exoskeleton.js",
-  "author": "Lari Hoppula",
-  "license": "MIT",
-  "private": true
-}
