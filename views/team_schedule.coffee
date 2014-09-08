@@ -6,10 +6,10 @@ TeamSchedule = React.createClass
     <table className="table table-striped">
       <thead>
         <tr>
-          <th>Date</th>
-          <th>Teams</th>
-          <th>Score</th>
-          <th>Attendance</th>
+          <th>Päivämäärä</th>
+          <th>Joukkueet</th>
+          <th>Tulos</th>
+          <th>Yleisömäärä</th>
         </tr>
       </thead>
       {@props.schedule.map (match) ->

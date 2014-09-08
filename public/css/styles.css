@@ -566,6 +566,9 @@ button {
   margin: 0;
   padding: 0;
 }
+body {
+  padding-top: 90px;
+}
 .teams_view {
   padding: 1em;
   -webkit-user-select: none;
@@ -604,8 +607,8 @@ button {
 .teams_view .ilves {
   background-image: url("../svg/ilves.svg");
 }
-.teams_view .jokerit {
-  background-image: url("../svg/jokerit.svg");
+.teams_view .sport {
+  background-image: url("../svg/sport.svg");
 }
 .teams_view .jyp {
   background-image: url("../svg/jyp.svg");

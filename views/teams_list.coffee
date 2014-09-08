@@ -6,11 +6,6 @@ TeamsList = React.createClass
 
   render: ->
     <div>
-      <div className="navbar navbar-default">
-        <div className="navbar-header">
-        <p className="navbar-brand">Liiga</p>
-        </div>
-      </div>
       <div className="jumbotron">
         <h1>Liiga.pw</h1>
         <p>Kaikki Liigasta nopeasti ja vaivattomasti</p>

@@ -1,18 +1,18 @@
 React = require 'react'
 PlayerStats = require './player_stats'
 TeamSchedule = require './team_schedule'
+TeamRoster = require './team_roster'
 
 Team = React.createClass
 
   render: ->
+    console.log "team", @props.team
     <div className="team">
-      <div>{@props.team.name}</div>
-      <h1>Pelaajatilastot</h1>
-      <PlayerStats stats={@props.team.playerStats} />
+      <div>{@props.team.info.name}</div>
       <h1>Ottelut</h1>
       <TeamSchedule schedule={@props.team.schedule} />
-
-      <div>{@props.team.teamStats.city}</div>
+      <h1>Pelaajat</h1>
+      <TeamRoster roster={@props.team.roster} />
     </div>
 
 module.exports = Team

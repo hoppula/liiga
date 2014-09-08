@@ -25,7 +25,7 @@ document.addEventListener "DOMContentLoaded", ->
           console.log "error", error
         .done()
 
-  router.init("/")
+  router.init()
 
   # TODO: load all team data in one big request,
   # start loading concurrently with teams.json

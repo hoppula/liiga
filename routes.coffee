@@ -6,12 +6,12 @@ TeamView = require './views/team'
 
 module.exports = (ajax) ->
 
-  teams = ajax(url: "http://192.168.11.6:4000/json/teams.json")
+  teams = ajax(url: "http://localhost:4000/json/teams.json")
 
   team = (id) ->
-    ajax(url: "http://192.168.11.6:4000/json/#{id}.json")
+    ajax(url: "http://localhost:4000/json/#{id}.json")
 
-  stats = ajax(url: "http://192.168.11.6:4000/json/stats.json")
+  stats = ajax(url: "http://localhost:4000/json/stats.json")
 
   "/": ->
     Q.spread([teams, stats], (teamsList, statsList) ->

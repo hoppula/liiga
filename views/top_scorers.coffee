@@ -6,10 +6,11 @@ TopScorers = React.createClass
     <table className="table table-striped">
       <thead>
         <tr>
-          <th>Name</th>
-          <th>Games</th>
-          <th>Goals</th>
-          <th></th>
+          <th>Nimi</th>
+          <th>Ottelut</th>
+          <th>Maalit</th>
+          <th>Syötöt</th>
+          <th>Pisteet</th>
         </tr>
       </thead>
       {@props.stats.scoringStats.map (player) ->
@@ -17,7 +18,8 @@ TopScorers = React.createClass
           <td>{player.firstName} {player.lastName}</td>
           <td>{player.games}</td>
           <td>{player.goals}</td>
-          <td></td>
+          <td>{player.assists}</td>
+          <td>{player.points}</td>
         </tr>
       }
     </table>
