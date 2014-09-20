@@ -17,7 +17,7 @@ PlayerStats = React.createClass
       </thead>
       {@props.stats.map (player) ->
         <tr key={player.id}>
-          <td>{player.firstName} >{player.lastName}</td>
+          <td><a href="/joukkueet">{player.firstName} >{player.lastName}</a></td>
           <td>{player.games}</td>
           <td>{player.goals}</td>
           <td>{player.assists}</td>

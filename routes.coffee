@@ -27,3 +27,8 @@ module.exports = (ajax) ->
     Store.get("team", id).then (team) ->
       title: "Pelaajat - #{pid}"
       component: PlayerView(id: pid, teamId: id, team: team)
+
+  "/ottelut/:id": (id) ->
+    Store.get("match", id).then (match) ->
+      title: "Ottelu - #{id}"
+      component: MatchView(id: id, match: match)

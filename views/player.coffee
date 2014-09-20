@@ -1,6 +1,5 @@
 React = require 'react/addons'
 
-Dropdown = require './components/dropdown'
 Navigation = require './navigation'
 
 Player = React.createClass
@@ -15,8 +14,6 @@ Player = React.createClass
         title: "#{player.firstName} #{player.lastName}"
         url: "/joukkueet/#{teamId}/#{player.id}"
 
-    console.log @props.id
-
     player = @props.team.roster.filter((player) =>
       [id, slug] = player.id.split("/")
       id is @props.id
@@ -25,7 +22,7 @@ Player = React.createClass
     console.log "player", player
 
     <div>
-      <Navigation dropdown={players} />
+      <Navigation dropdown={players} team={@props.team} />
 
       <h1>{player.firstName} {player.lastName}</h1>
     </div>

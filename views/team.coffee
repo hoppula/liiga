@@ -2,10 +2,15 @@ React = require 'react/addons'
 PlayerStats = require './player_stats'
 TeamSchedule = require './team_schedule'
 TeamRoster = require './team_roster'
-Dropdown = require './components/dropdown'
 Navigation = require './navigation'
+Teams = require '../lib/teams'
+
+{TabbedArea, TabPane, Jumbotron, ButtonToolbar, Button} = require "react-bootstrap"
 
 Team = React.createClass
+
+  logo: ->
+    <img src={Teams.logo(@props.team.info.name)} alt={@props.team.info.name} />
 
   render: ->
     teams =
@@ -18,22 +23,32 @@ Team = React.createClass
       <Navigation dropdown={teams} />
 
       <div className="team">
-        <h1>{@props.team.info.name}</h1>
-        <div className="team-container">
-          <ul>
-            <li>{@props.team.info.longName}</li>
-            <li>{@props.team.info.address}</li>
-            <li>{@props.team.info.email}</li>
-          </ul>
-          <a href={@props.team.info.ticketsUrl}>Liput</a>
-          <a href={@props.team.info.locationUrl}>Hallin sijainti</a>
-        </div>
+        <Jumbotron>
+          <h1>{@logo()} {@props.team.info.name}</h1>
+          <div className="team-container">
+            <ul>
+              <li>{@props.team.info.longName}</li>
+              <li>{@props.team.info.address}</li>
+              <li>{@props.team.info.email}</li>
+            </ul>
 
-        <h1>Ottelut</h1>
-        <TeamSchedule schedule={@props.team.schedule} />
+            <ButtonToolbar>
+              <Button bsStyle="primary" bsSize="large" href={@props.team.info.ticketsUrl}>Liput</Button>
+              <Button bsStyle="primary" bsSize="large" href={@props.team.info.locationUrl}>Hallin sijainti</Button>
+            </ButtonToolbar>
+          </div>
+        </Jumbotron>
 
-        <h1>Pelaajat</h1>
-        <TeamRoster teamId={@props.id} roster={@props.team.roster} />
+        <TabbedArea defaultActiveKey={1} animation={false}>
+          <TabPane key={1} tab="Ottelut">
+            <h1>Ottelut</h1>
+            <TeamSchedule team={@props.team} />
+          </TabPane>
+          <TabPane key={2} tab="Pelaajat">
+            <h1>Pelaajat</h1>
+            <TeamRoster teamId={@props.id} roster={@props.team.roster} />
+          </TabPane>
+        </TabbedArea>
       </div>
     </div>
 

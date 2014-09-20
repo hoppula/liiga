@@ -8,6 +8,10 @@ Navigation = React.createClass
   render: ->
     brand = <a href="/" className="navbar-brand">Liiga</a>
 
+    if @props.team
+      console.log "team", @props.team
+      team = <NavItem href={@props.team.info.url}>{@props.team.info.name}</NavItem>
+
     if @props.dropdown
       dropdown = <DropdownButton title={@props.dropdown.title} onSelect={->}>
         {@props.dropdown.items.map (item) ->
@@ -17,6 +21,7 @@ Navigation = React.createClass
 
     <Navbar brand={brand} fixedTop toggleNavKey={0}>
       <Nav className="bs-navbar-collapse" key={0} role="navigation">
+        {team}
         {dropdown}
       </Nav>
     </Navbar>
