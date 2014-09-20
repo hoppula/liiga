@@ -1,22 +1,25 @@
 Q = require 'q'
 request = require 'request'
 
-module.exports = (options) ->
-  deferred = Q.defer()
+module.exports =
+  environment: "server"
 
-  opts =
-    url: options.url
-    method: options.method or "GET"
-    json: true
+  fetch: (options) ->
+    deferred = Q.defer()
 
-  opts.body if options.data
+    opts =
+      url: options.url
+      method: options.method or "GET"
+      json: true
 
-  request opts, (err, resp, body) ->
-    if err
-      deferred.reject(err)
-      options.error(err) if options.error
-    else
-      deferred.resolve(body)
-      options.success(body) if options.success
+    opts.body if options.data
 
-  deferred.promise
+    request opts, (err, resp, body) ->
+      if err
+        deferred.reject(err)
+        options.error(err) if options.error
+      else
+        deferred.resolve(body)
+        options.success(body) if options.success
+
+    deferred.promise

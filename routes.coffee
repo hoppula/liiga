@@ -1,25 +1,29 @@
-React = require 'react'
+React = require 'react/addons'
 Q = require 'q'
 
-TeamsListView = require './views/teams_list'
+IndexView = require './views/index'
 TeamView = require './views/team'
+PlayerView = require './views/player'
 
 module.exports = (ajax) ->
-
-  teams = ajax(url: "http://localhost:4000/json/teams.json")
-
-  team = (id) ->
-    ajax(url: "http://localhost:4000/json/#{id}.json")
-
-  stats = ajax(url: "http://localhost:4000/json/stats.json")
+  Store = require("./lib/store")(ajax)
 
   "/": ->
-    Q.spread([teams, stats], (teamsList, statsList) ->
+    # TODO: when required stores for front page are loaded,
+    # start loading other frequently accessed stores
+    # in background, so they're in cache when needed
+    Q.spread([Store.get("teams"), Store.get("stats")], (teamsList, statsList) ->
       title: "Etusivu"
-      component: TeamsListView(teams: teamsList, stats: statsList)
+      component: IndexView(teams: teamsList, stats: statsList)
     )
 
   "/joukkueet/:id": (id) ->
-    team(id).then (team) ->
+    Q.spread([Store.get("teams"), Store.get("team", id)], (teamsList, team) ->
       title: "Joukkueet - #{id}"
-      component: TeamView(team: team)
+      component: TeamView(id: id, teams: teamsList, team: team)
+    )
+
+  "/joukkueet/:id/:pid/:slug": (id, pid) ->
+    Store.get("team", id).then (team) ->
+      title: "Pelaajat - #{pid}"
+      component: PlayerView(id: pid, teamId: id, team: team)

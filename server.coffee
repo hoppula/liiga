@@ -3,7 +3,7 @@ fs = require 'fs'
 express = require 'express'
 cheerio = require 'cheerio'
 
-React = require 'react'
+React = require 'react/addons'
 
 # shared routes between client & server, basically all public
 # GET routes that should get indexed by search engines

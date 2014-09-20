@@ -1,4 +1,4 @@
-React = require 'react'
+React = require 'react/addons'
 
 TeamRoster = React.createClass
 
@@ -13,9 +13,11 @@ TeamRoster = React.createClass
           <th>Kätisyys</th>
         </tr>
       </thead>
-      {@props.roster.map (player) ->
-        <tr>
-          <td>{player.firstName} {player.lastName}</td>
+      {@props.roster.map (player) =>
+        url = "/joukkueet/#{@props.teamId}/#{player.id}"
+        title = "#{player.firstName} #{player.lastName}"
+        <tr key={player.id}>
+          <td><a href={url}>{title}</a></td>
           <td>{player.number}</td>
           <td>{player.height}</td>
           <td>{player.weight}</td>

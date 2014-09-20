@@ -1,4 +1,4 @@
-React = require 'react'
+React = require 'react/addons'
 
 TeamItem = React.createClass
 

@@ -1,4 +1,4 @@
-React = require 'react'
+React = require 'react/addons'
 
 TopScorers = React.createClass
 
@@ -13,8 +13,10 @@ TopScorers = React.createClass
           <th>Pisteet</th>
         </tr>
       </thead>
-      {@props.stats.scoringStats.map (player) ->
-        <tr>
+      {@props.stats.scoringStats.filter (player, index) ->
+        index < 20
+      .map (player) ->
+        <tr key={player.id}>
           <td>{player.firstName} {player.lastName}</td>
           <td>{player.games}</td>
           <td>{player.goals}</td>
