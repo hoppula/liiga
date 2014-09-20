@@ -36,7 +36,8 @@
     "node-cjsx": "~0.1.2",
     "coffee-reactify": "~0.5.2",
     "browser-request": "~0.3.2",
-    "moment": "~2.8.3"
+    "moment": "~2.8.3",
+    "react-bootstrap": "~0.12.0"
   },
   "dependencies": {
     "express": "~4.9.0"
