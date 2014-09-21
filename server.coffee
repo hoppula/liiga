@@ -1,6 +1,7 @@
 require('node-cjsx').transform()
 fs = require 'fs'
 express = require 'express'
+compress = require 'compression'
 cheerio = require 'cheerio'
 
 React = require 'react/addons'
@@ -32,6 +33,7 @@ for route, action of sharedRoutes
         console.log "error", error
       .done()
 
+app.use(compress())
 app.use express.static("#{__dirname}/public")
 app.listen 4000
 

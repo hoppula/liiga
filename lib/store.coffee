@@ -28,7 +28,7 @@ Store = (ajax) ->
       @data.teams = teams
 
   team: (id) ->
-    ajax.fetch(url: "#{@rootUrl}#{id}.json").then (team) =>
+    ajax.fetch(url: "#{@rootUrl}teams/#{id}.json").then (team) =>
       @data.team[id] = team
 
   stats: ->
