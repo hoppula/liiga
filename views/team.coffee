@@ -5,7 +5,7 @@ TeamRoster = require './team_roster'
 Navigation = require './navigation'
 Teams = require '../lib/teams'
 
-{TabbedArea, TabPane, Jumbotron, ButtonToolbar, Button} = require "react-bootstrap"
+{TabbedArea, TabPane, Jumbotron, ButtonToolbar, Button, Col, Row} = require "react-bootstrap"
 
 Team = React.createClass
 
@@ -24,19 +24,25 @@ Team = React.createClass
 
       <div className="team">
         <Jumbotron>
-          <h1>{@logo()} {@props.team.info.name}</h1>
-          <div className="team-container">
-            <ul>
-              <li>{@props.team.info.longName}</li>
-              <li>{@props.team.info.address}</li>
-              <li>{@props.team.info.email}</li>
-            </ul>
+          <Row>
+            <Col xs={12} md={6}>
+              <h1>{@logo()} {@props.team.info.name}</h1>
+            </Col>
+            <Col xs={12} md={6}>
+              <div className="team-container">
+                <ul>
+                  <li>{@props.team.info.longName}</li>
+                  <li>{@props.team.info.address}</li>
+                  <li>{@props.team.info.email}</li>
+                </ul>
 
-            <ButtonToolbar>
-              <Button bsStyle="primary" bsSize="large" href={@props.team.info.ticketsUrl}>Liput</Button>
-              <Button bsStyle="primary" bsSize="large" href={@props.team.info.locationUrl}>Hallin sijainti</Button>
-            </ButtonToolbar>
-          </div>
+                <ButtonToolbar>
+                  <Button bsStyle="primary" bsSize="large" href={@props.team.info.ticketsUrl}>Liput</Button>
+                  <Button bsStyle="primary" bsSize="large" href={@props.team.info.locationUrl}>Hallin sijainti</Button>
+                </ButtonToolbar>
+              </div>
+            </Col>
+          </Row>
         </Jumbotron>
 
         <TabbedArea defaultActiveKey={1} animation={false}>

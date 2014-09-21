@@ -645,3 +645,6 @@ body {
 .team-roster strong {
   font-size: 16px;
 }
+.team-container ul {
+  list-style: none;
+}
