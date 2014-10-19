@@ -1,4 +1,6 @@
-require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js":[function(require,module,exports){
+require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/browser-resolve/empty.js":[function(require,module,exports){
+
+},{}],"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js":[function(require,module,exports){
 // shim for using process in browser
 
 var process = module.exports = {};
@@ -63,6 +65,9218 @@ process.chdir = function (dir) {
     throw new Error('process.chdir is not supported');
 };
 
+},{}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/client.js":[function(require,module,exports){
+var director = require('director');
+var Store = require('./store');
+var Gator = require('./vendor/gator.shim');
+require('native-promise-only');
+
+var DOMReady = new Promise(function(resolve, reject) {
+  if (document.readyState === 'complete') {
+    resolve();
+  } else {
+    function onReady() {
+      resolve();
+      document.removeEventListener('DOMContentLoaded', onReady, true);
+    }
+    document.addEventListener('DOMContentLoaded', onReady, true);
+  }
+});
+
+function Client(options) {
+  var stores = options.stores;
+  var routes = options.routes;
+  var storeId = options.storeId;
+  var initializeCallback = options.initialize;
+  var render = options.render;
+  var passthrough = options.passthrough || [];
+
+  var store = new Store(stores);
+
+  DOMReady.then(function() {
+    store.import( document.getElementById(storeId).innerHTML );
+
+    var router = director.Router().configure({
+      html5history: true,
+      notfound: function() {
+        console.warn("Route handler for "+ this.path +" was not found.");
+      }
+    });
+
+    var route;
+    var action;
+    for (route in routes) {
+      action = routes[route];
+      (function(route, action) {
+        router.on(route, function() {
+          var routeThis = {
+            store: store
+          };
+          return action.apply(routeThis, arguments).then(function(options) {
+            return render(options);
+          }).catch(function(error) {
+            console.error("Render error while processing route "+ route +":", error);
+          });
+        });
+      })(route, action);
+    }
+
+    router.init();
+
+    Gator(document).on('click', 'a', function(event) {
+      var target = this;
+      var href = target.href;
+      var protocol = target.protocol +"//";
+      var local = document.location.host === target.host;
+      var relativeUrl = href != null ? href.slice(protocol.length + target.host.length) : void 0;
+      var properLocal = local && relativeUrl.match(/^\//) && !relativeUrl.match(/#$/);
+
+      var passThrough = passthrough.filter(function(url) {
+        return (href && href.indexOf(url) > -1);
+      }).length > 0;
+
+      if (!passThrough && properLocal && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
+        event.preventDefault();
+        router.setRoute(target.href);
+      }
+    });
+
+    if (initializeCallback && typeof initializeCallback === "function") {
+      initializeCallback.call(null, {
+        router: router,
+        store: store
+      });
+    }
+
+  });
+};
+
+module.exports = Client;
+
+},{"./store":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/store.js","./vendor/gator.shim":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/vendor/gator.shim.js","director":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/director/build/director.js","native-promise-only":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/native-promise-only/npo.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/store.js":[function(require,module,exports){
+var exoskeleton = require("./wrapper/exoskeleton");
+require('native-promise-only');
+
+var Store = (function() {
+  function Store(stores, options) {
+    var store, id;
+    if (options == null) {
+      options = {};
+    }
+
+    // store cookie for server side API request authentication
+    if (options.cookie) {
+      this.cookie = options.cookie;
+    }
+
+    // this.cached is used for storing actual instances
+    this.cached = {};
+
+    // empty instances of stores
+    // clone actual instances from these
+    this.stores = {};
+
+    for (id in stores) {
+      store = stores[id];
+      this.stores[id] = new store();
+      this.cached[id] = {};
+    }
+  }
+
+  // allows Store to be used as event bus
+  exoskeleton.utils.extend(Store.prototype, exoskeleton.Events);
+
+  Store.prototype.clearCookie = function() {
+    this.cookie = null;
+  };
+
+  // set caches from initial JSON
+  Store.prototype.import = function(json) {
+    var cachedStores, stores, storeId, id;
+
+    if (!json) {
+      return;
+    }
+
+    cachedStores = JSON.parse(json);
+    for (storeId in cachedStores) {
+      stores = cachedStores[storeId];
+      this.cached[storeId] = {};
+
+      for (id in stores) {
+        this.cached[storeId][id] = this.get(storeId).clone();
+        this.cached[storeId][id].set(stores[id]);
+      }
+    }
+
+    return true;
+  };
+
+  // export current cached stores to JSON
+  Store.prototype.export = function() {
+    var stores, cachedStores, storeId, id;
+
+    cachedStores = {};
+    for (storeId in this.cached) {
+      stores = this.cached[storeId];
+      cachedStores[storeId] = {};
+      for (id in stores) {
+        cachedStores[storeId][id] = stores[id].toJSON();
+      }
+    }
+    return JSON.stringify(cachedStores);
+  };
+
+  // returns empty store instance, clone from result of this
+  Store.prototype.get = function(storeId) {
+    return this.stores[storeId];
+  };
+
+  // get store from cache or fetch from server
+  Store.prototype.fetch = function(storeId, options) {
+    var fetchOptions = {};
+    var self = this;
+    var store, key, cacheKey, cachedStore;
+
+    if (this.cookie) {
+      fetchOptions.headers = {'cookie': this.cookie};
+    }
+
+    return new Promise(function(resolve, reject) {
+      store = self.get(storeId);
+      if (!store) {
+        reject(new Error("Store " + storeId + " not registered."));
+      }
+
+      // don't modify the original store instance
+      store = store.clone();
+      store.storeOptions = {};
+      for (key in options) {
+        if (options.hasOwnProperty(key)) {
+          store.storeOptions[key] = options[key];
+        }
+      }
+
+      if (!store.cacheKey) {
+        reject(new Error("Store " + storeId + " has no cacheKey method."));
+      }
+
+      cacheKey = store.cacheKey();
+      cachedStore = self.cached[storeId][cacheKey];
+
+      if (cachedStore) {
+        return resolve(cachedStore);
+      } else {
+        return store.fetch(fetchOptions).then(function() {
+          self.cached[storeId][cacheKey] = store;
+          return resolve(store);
+        }).catch(function(err) {
+          // We can't reject here, should resolve with 401 & 403 etc.
+          // TODO: handle other error statuses somehow
+          return resolve(store);
+        });
+      }
+    });
+  };
+
+  return Store;
+})();
+
+module.exports = Store;
+
+},{"./wrapper/exoskeleton":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/wrapper/exoskeleton.js","native-promise-only":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/native-promise-only/npo.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/vendor/gator.js":[function(require,module,exports){
+(function (global){
+/**
+ * Copyright 2014 Craig Campbell
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * GATOR.JS
+ * Simple Event Delegation
+ *
+ * @version 1.2.3
+ *
+ * Compatible with IE 9+, FF 3.6+, Safari 5+, Chrome
+ *
+ * Include legacy.js for compatibility with older browsers
+ *
+ *             .-._   _ _ _ _ _ _ _ _
+ *  .-''-.__.-'00  '-' ' ' ' ' ' ' ' '-.
+ * '.___ '    .   .--_'-' '-' '-' _'-' '._
+ *  V: V 'vv-'   '_   '.       .'  _..' '.'.
+ *    '=.____.=_.--'   :_.__.__:_   '.   : :
+ *            (((____.-'        '-.  /   : :
+ *                              (((-'\ .' /
+ *                            _____..'  .'
+ *                           '-._____.-'
+ */
+(function(window) {
+    var _matcher,
+        _level = 0,
+        _id = 0,
+        _handlers = {},
+        _gatorInstances = {};
+
+    function _addEvent(gator, type, callback) {
+
+        // blur and focus do not bubble up but if you use event capturing
+        // then you will get them
+        var useCapture = type == 'blur' || type == 'focus';
+        gator.element.addEventListener(type, callback, useCapture);
+    }
+
+    function _cancel(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    /**
+     * returns function to use for determining if an element
+     * matches a query selector
+     *
+     * @returns {Function}
+     */
+    function _getMatcher(element) {
+        if (_matcher) {
+            return _matcher;
+        }
+
+        if (element.matches) {
+            _matcher = element.matches;
+            return _matcher;
+        }
+
+        if (element.webkitMatchesSelector) {
+            _matcher = element.webkitMatchesSelector;
+            return _matcher;
+        }
+
+        if (element.mozMatchesSelector) {
+            _matcher = element.mozMatchesSelector;
+            return _matcher;
+        }
+
+        if (element.msMatchesSelector) {
+            _matcher = element.msMatchesSelector;
+            return _matcher;
+        }
+
+        if (element.oMatchesSelector) {
+            _matcher = element.oMatchesSelector;
+            return _matcher;
+        }
+
+        // if it doesn't match a native browser method
+        // fall back to the gator function
+        _matcher = Gator.matchesSelector;
+        return _matcher;
+    }
+
+    /**
+     * determines if the specified element matches a given selector
+     *
+     * @param {Node} element - the element to compare against the selector
+     * @param {string} selector
+     * @param {Node} boundElement - the element the listener was attached to
+     * @returns {void|Node}
+     */
+    function _matchesSelector(element, selector, boundElement) {
+
+        // no selector means this event was bound directly to this element
+        if (selector == '_root') {
+            return boundElement;
+        }
+
+        // if we have moved up to the element you bound the event to
+        // then we have come too far
+        if (element === boundElement) {
+            return;
+        }
+
+        // if this is a match then we are done!
+        if (_getMatcher(element).call(element, selector)) {
+            return element;
+        }
+
+        // if this element did not match but has a parent we should try
+        // going up the tree to see if any of the parent elements match
+        // for example if you are looking for a click on an <a> tag but there
+        // is a <span> inside of the a tag that it is the target,
+        // it should still work
+        if (element.parentNode) {
+            _level++;
+            return _matchesSelector(element.parentNode, selector, boundElement);
+        }
+    }
+
+    function _addHandler(gator, event, selector, callback) {
+        if (!_handlers[gator.id]) {
+            _handlers[gator.id] = {};
+        }
+
+        if (!_handlers[gator.id][event]) {
+            _handlers[gator.id][event] = {};
+        }
+
+        if (!_handlers[gator.id][event][selector]) {
+            _handlers[gator.id][event][selector] = [];
+        }
+
+        _handlers[gator.id][event][selector].push(callback);
+    }
+
+    function _removeHandler(gator, event, selector, callback) {
+
+        // if there are no events tied to this element at all
+        // then don't do anything
+        if (!_handlers[gator.id]) {
+            return;
+        }
+
+        // if there is no event type specified then remove all events
+        // example: Gator(element).off()
+        if (!event) {
+            for (var type in _handlers[gator.id]) {
+                if (_handlers[gator.id].hasOwnProperty(type)) {
+                    _handlers[gator.id][type] = {};
+                }
+            }
+            return;
+        }
+
+        // if no callback or selector is specified remove all events of this type
+        // example: Gator(element).off('click')
+        if (!callback && !selector) {
+            _handlers[gator.id][event] = {};
+            return;
+        }
+
+        // if a selector is specified but no callback remove all events
+        // for this selector
+        // example: Gator(element).off('click', '.sub-element')
+        if (!callback) {
+            delete _handlers[gator.id][event][selector];
+            return;
+        }
+
+        // if we have specified an event type, selector, and callback then we
+        // need to make sure there are callbacks tied to this selector to
+        // begin with.  if there aren't then we can stop here
+        if (!_handlers[gator.id][event][selector]) {
+            return;
+        }
+
+        // if there are then loop through all the callbacks and if we find
+        // one that matches remove it from the array
+        for (var i = 0; i < _handlers[gator.id][event][selector].length; i++) {
+            if (_handlers[gator.id][event][selector][i] === callback) {
+                _handlers[gator.id][event][selector].splice(i, 1);
+                break;
+            }
+        }
+    }
+
+    function _handleEvent(id, e, type) {
+        if (!_handlers[id][type]) {
+            return;
+        }
+
+        var target = e.target || e.srcElement,
+            selector,
+            match,
+            matches = {},
+            i = 0,
+            j = 0;
+
+        // find all events that match
+        _level = 0;
+        for (selector in _handlers[id][type]) {
+            if (_handlers[id][type].hasOwnProperty(selector)) {
+                match = _matchesSelector(target, selector, _gatorInstances[id].element);
+
+                if (match && Gator.matchesEvent(type, _gatorInstances[id].element, match, selector == '_root', e)) {
+                    _level++;
+                    _handlers[id][type][selector].match = match;
+                    matches[_level] = _handlers[id][type][selector];
+                }
+            }
+        }
+
+        // stopPropagation() fails to set cancelBubble to true in Webkit
+        // @see http://code.google.com/p/chromium/issues/detail?id=162270
+        e.stopPropagation = function() {
+            e.cancelBubble = true;
+        };
+
+        for (i = 0; i <= _level; i++) {
+            if (matches[i]) {
+                for (j = 0; j < matches[i].length; j++) {
+                    if (matches[i][j].call(matches[i].match, e) === false) {
+                        Gator.cancel(e);
+                        return;
+                    }
+
+                    if (e.cancelBubble) {
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * binds the specified events to the element
+     *
+     * @param {string|Array} events
+     * @param {string} selector
+     * @param {Function} callback
+     * @param {boolean=} remove
+     * @returns {Object}
+     */
+    function _bind(events, selector, callback, remove) {
+
+        // fail silently if you pass null or undefined as an alement
+        // in the Gator constructor
+        if (!this.element) {
+            return;
+        }
+
+        if (!(events instanceof Array)) {
+            events = [events];
+        }
+
+        if (!callback && typeof(selector) == 'function') {
+            callback = selector;
+            selector = '_root';
+        }
+
+        var id = this.id,
+            i;
+
+        function _getGlobalCallback(type) {
+            return function(e) {
+                _handleEvent(id, e, type);
+            };
+        }
+
+        for (i = 0; i < events.length; i++) {
+            if (remove) {
+                _removeHandler(this, events[i], selector, callback);
+                continue;
+            }
+
+            if (!_handlers[id] || !_handlers[id][events[i]]) {
+                Gator.addEvent(this, events[i], _getGlobalCallback(events[i]));
+            }
+
+            _addHandler(this, events[i], selector, callback);
+        }
+
+        return this;
+    }
+
+    /**
+     * Gator object constructor
+     *
+     * @param {Node} element
+     */
+    function Gator(element, id) {
+
+        // called as function
+        if (!(this instanceof Gator)) {
+            // only keep one Gator instance per node to make sure that
+            // we don't create a ton of new objects if you want to delegate
+            // multiple events from the same node
+            //
+            // for example: Gator(document).on(...
+            for (var key in _gatorInstances) {
+                if (_gatorInstances[key].element === element) {
+                    return _gatorInstances[key];
+                }
+            }
+
+            _id++;
+            _gatorInstances[_id] = new Gator(element, _id);
+
+            return _gatorInstances[_id];
+        }
+
+        this.element = element;
+        this.id = id;
+    }
+
+    /**
+     * adds an event
+     *
+     * @param {string|Array} events
+     * @param {string} selector
+     * @param {Function} callback
+     * @returns {Object}
+     */
+    Gator.prototype.on = function(events, selector, callback) {
+        return _bind.call(this, events, selector, callback);
+    };
+
+    /**
+     * removes an event
+     *
+     * @param {string|Array} events
+     * @param {string} selector
+     * @param {Function} callback
+     * @returns {Object}
+     */
+    Gator.prototype.off = function(events, selector, callback) {
+        return _bind.call(this, events, selector, callback, true);
+    };
+
+    Gator.matchesSelector = function() {};
+    Gator.cancel = _cancel;
+    Gator.addEvent = _addEvent;
+    Gator.matchesEvent = function() {
+        return true;
+    };
+
+    window.Gator = Gator;
+}) (global || window);
+
+}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/vendor/gator.shim.js":[function(require,module,exports){
+(function (global){
+require('./gator');
+module.exports = global.Gator;
+}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{"./gator":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/vendor/gator.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/wrapper/exoskeleton.js":[function(require,module,exports){
+var exoskeleton = require('exoskeleton');
+exoskeleton.$ = require("./sync");
+module.exports = exoskeleton;
+},{"./sync":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/wrapper/sync.js","exoskeleton":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/exoskeleton/exoskeleton.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/wrapper/sync.js":[function(require,module,exports){
+require('native-promise-only');
+var axios = require('axios');
+
+var Sync = {
+  ajax: function(settings) {
+    return new Promise(function(resolve, reject) {
+      var options = {
+        method: settings.type.toLowerCase(),
+        url: settings.url,
+        responseType: "text"
+      };
+      if (settings.headers) {
+        options.headers = settings.headers;
+      }
+      if (settings.processData) {
+        options.params = settings.data;
+      } else {
+        options.data = settings.data;
+      }
+      return axios(options).then(function(response) {
+        settings.success(response.data);
+        return resolve(response);
+      }).catch(function(response) {
+        settings.error(response.data);
+        return reject(response);
+      });
+    });
+  }
+};
+
+module.exports = Sync;
+
+},{"axios":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/index.js","native-promise-only":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/native-promise-only/npo.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/index.js":[function(require,module,exports){
+module.exports = require('./lib/axios');
+},{"./lib/axios":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/axios.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/adapters/xhr.js":[function(require,module,exports){
+var buildUrl = require('./../buildUrl');
+var cookies = require('./../cookies');
+var defaults = require('./../defaults');
+var parseHeaders = require('./../parseHeaders');
+var transformData = require('./../transformData');
+var urlIsSameOrigin = require('./../urlIsSameOrigin');
+var utils = require('./../utils');
+
+module.exports = function xhrAdapter(resolve, reject, config) {
+  // Transform request data
+  var data = transformData(
+    config.data,
+    config.headers,
+    config.transformRequest
+  );
+
+  // Merge headers
+  var headers = utils.merge(
+    defaults.headers.common,
+    defaults.headers[config.method] || {},
+    config.headers || {}
+  );
+
+  // Create the request
+  var request = new(XMLHttpRequest || ActiveXObject)('Microsoft.XMLHTTP');
+  request.open(config.method, buildUrl(config.url, config.params), true);
+
+  // Listen for ready state
+  request.onreadystatechange = function () {
+    if (request && request.readyState === 4) {
+      // Prepare the response
+      var headers = parseHeaders(request.getAllResponseHeaders());
+      var response = {
+        data: transformData(
+          request.responseText,
+          headers,
+          config.transformResponse
+        ),
+        status: request.status,
+        headers: headers,
+        config: config
+      };
+
+      // Resolve or reject the Promise based on the status
+      (request.status >= 200 && request.status < 300
+        ? resolve
+        : reject)(response);
+
+      // Clean up request
+      request = null;
+    }
+  };
+
+  // Add xsrf header
+  var xsrfValue = urlIsSameOrigin(config.url)
+    ? cookies.read(config.xsrfCookieName || defaults.xsrfCookieName)
+    : undefined;
+  if (xsrfValue) {
+    headers[config.xsrfHeaderName || defaults.xsrfHeaderName] = xsrfValue;
+  }
+
+  // Add headers to the request
+  utils.forEach(headers, function (val, key) {
+    // Remove Content-Type if data is undefined
+    if (!data && key.toLowerCase() === 'content-type') {
+      delete headers[key];
+    }
+    // Otherwise add header to the request
+    else {
+      request.setRequestHeader(key, val);
+    }
+  });
+
+  // Add withCredentials to request if needed
+  if (config.withCredentials) {
+    request.withCredentials = true;
+  }
+
+  // Add responseType to request if needed
+  if (config.responseType) {
+    try {
+      request.responseType = config.responseType;
+    } catch (e) {
+      if (request.responseType !== 'json') {
+        throw e;
+      }
+    }
+  }
+
+  // Send the request
+  request.send(data);
+};
+},{"./../buildUrl":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/buildUrl.js","./../cookies":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/cookies.js","./../defaults":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/defaults.js","./../parseHeaders":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/parseHeaders.js","./../transformData":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/transformData.js","./../urlIsSameOrigin":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/urlIsSameOrigin.js","./../utils":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/utils.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/axios.js":[function(require,module,exports){
+(function (process){
+var Promise = require('es6-promise').Promise;
+var defaults = require('./defaults');
+var utils = require('./utils');
+var spread = require('./spread');
+
+var axios = module.exports = function axios(config) {
+  config = utils.merge({
+    method: 'get',
+    transformRequest: defaults.transformRequest,
+    transformResponse: defaults.transformResponse
+  }, config);
+
+  // Don't allow overriding defaults.withCredentials
+  config.withCredentials = config.withCredentials || defaults.withCredentials;
+
+  var promise = new Promise(function (resolve, reject) {
+    try {
+      // For browsers use XHR adapter
+      if (typeof window !== 'undefined') {
+        require('./adapters/xhr')(resolve, reject, config);
+      }
+      // For node use HTTP adapter
+      else if (typeof process !== 'undefined') {
+        require('./adapters/http')(resolve, reject, config);
+      }
+    } catch (e) {
+      reject(e);
+    }
+  });
+
+  // Provide alias for success
+  promise.success = function success(fn) {
+    promise.then(function(response) {
+      fn(response.data, response.status, response.headers, response.config);
+    });
+    return promise;
+  };
+
+  // Provide alias for error
+  promise.error = function error(fn) {
+    promise.then(null, function(response) {
+      fn(response.data, response.status, response.headers, response.config);
+    });
+    return promise;
+  };
+
+  return promise;
+};
+
+// Expose defaults
+axios.defaults = defaults;
+
+// Expose all/spread
+axios.all = function (promises) {
+  return Promise.all(promises);
+};
+axios.spread = spread;
+
+// Provide aliases for supported request methods
+createShortMethods('delete', 'get', 'head');
+createShortMethodsWithData('post', 'put', 'patch');
+
+function createShortMethods() {
+  utils.forEach(arguments, function (method) {
+    axios[method] = function (url, config) {
+      return axios(utils.merge(config || {}, {
+        method: method,
+        url: url
+      }));
+    };
+  });
+}
+
+function createShortMethodsWithData() {
+  utils.forEach(arguments, function (method) {
+    axios[method] = function (url, data, config) {
+      return axios(utils.merge(config || {}, {
+        method: method,
+        url: url,
+        data: data
+      }));
+    };
+  });
+}
+}).call(this,require('_process'))
+},{"./adapters/http":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/adapters/xhr.js","./adapters/xhr":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/adapters/xhr.js","./defaults":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/defaults.js","./spread":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/spread.js","./utils":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/utils.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js","es6-promise":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/main.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/buildUrl.js":[function(require,module,exports){
+'use strict';
+
+var utils = require('./utils');
+
+function encode(val) {
+  return encodeURIComponent(val).
+    replace(/%40/gi, '@').
+    replace(/%3A/gi, ':').
+    replace(/%24/g, '$').
+    replace(/%2C/gi, ',').
+    replace(/%20/g, '+');
+}
+
+module.exports = function buildUrl(url, params) {
+  if (!params) {
+    return url;
+  }
+
+  var parts = [];
+
+  utils.forEach(params, function (val, key) {
+    if (val === null || typeof val === 'undefined') {
+      return;
+    }
+    if (!utils.isArray(val)) {
+      val = [val];
+    }
+
+    utils.forEach(val, function (v) {
+      if (utils.isDate(v)) {
+        v = v.toISOString();
+      }
+      else if (utils.isObject(v)) {
+        v = JSON.stringify(v);
+      }
+      parts.push(encode(key) + '=' + encode(v));
+    });
+  });
+
+  if (parts.length > 0) {
+    url += (url.indexOf('?') === -1 ? '?' : '&') + parts.join('&');
+  }
+
+  return url;
+};
+},{"./utils":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/utils.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/cookies.js":[function(require,module,exports){
+'use strict';
+
+var utils = require('./utils');
+
+module.exports = {
+  write: function write(name, value, expires, path, domain, secure) {
+    var cookie = [];
+    cookie.push(name + '=' + encodeURIComponent(value));
+
+    if (utils.isNumber(expires)) {
+      cookie.push('expires=' + new Date(expires).toGMTString());
+    }
+
+    if (utils.isString(path)) {
+      cookie.push('path=' + path);
+    }
+
+    if (utils.isString(domain)) {
+      cookie.push('domain=' + domain);
+    }
+
+    if (secure === true) {
+      cookie.push('secure');
+    }
+
+    document.cookie = cookie.join('; ');
+  },
+
+  read: function read(name) {
+    var match = document.cookie.match(new RegExp('(^|;\\s*)(' + name + ')=([^;]*)'));
+    return (match ? decodeURIComponent(match[3]) : null);
+  },
+
+  remove: function remove(name) {
+    this.write(name, '', Date.now() - 86400000);
+  }
+};
+},{"./utils":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/utils.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/defaults.js":[function(require,module,exports){
+'use strict';
+
+var utils = require('./utils');
+
+var JSON_START = /^\s*(\[|\{[^\{])/;
+var JSON_END = /[\}\]]\s*$/;
+var PROTECTION_PREFIX = /^\)\]\}',?\n/;
+var CONTENT_TYPE_APPLICATION_JSON = {
+  'Content-Type': 'application/json;charset=utf-8'
+};
+
+module.exports = {
+  transformRequest: [function (data) {
+    return utils.isObject(data) &&
+          !utils.isFile(data) &&
+          !utils.isBlob(data) ?
+            JSON.stringify(data) : data;
+  }],
+
+  transformResponse: [function (data) {
+    if (typeof data === 'string') {
+      data = data.replace(PROTECTION_PREFIX, '');
+      if (JSON_START.test(data) && JSON_END.test(data)) {
+        data = JSON.parse(data);
+      }
+    }
+    return data;
+  }],
+
+  headers: {
+    common: {
+      'Accept': 'application/json, text/plain, */*'
+    },
+    patch: utils.merge(CONTENT_TYPE_APPLICATION_JSON),
+    post: utils.merge(CONTENT_TYPE_APPLICATION_JSON),
+    put: utils.merge(CONTENT_TYPE_APPLICATION_JSON)
+  },
+
+  xsrfCookieName: 'XSRF-TOKEN',
+  xsrfHeaderName: 'X-XSRF-TOKEN'
+};
+},{"./utils":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/utils.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/parseHeaders.js":[function(require,module,exports){
+'use strict';
+
+var utils = require('./utils');
+
+/**
+ * Parse headers into an object
+ *
+ * ```
+ * Date: Wed, 27 Aug 2014 08:58:49 GMT
+ * Content-Type: application/json
+ * Connection: keep-alive
+ * Transfer-Encoding: chunked
+ * ```
+ *
+ * @param {String} headers Headers needing to be parsed
+ * @returns {Object} Headers parsed into an object
+ */
+module.exports = function parseHeaders(headers) {
+  var parsed = {}, key, val, i;
+
+  if (!headers) return parsed;
+
+  utils.forEach(headers.split('\n'), function(line) {
+    i = line.indexOf(':');
+    key = utils.trim(line.substr(0, i)).toLowerCase();
+    val = utils.trim(line.substr(i + 1));
+
+    if (key) {
+      parsed[key] = parsed[key] ? parsed[key] + ', ' + val : val;
+    }
+  });
+
+  return parsed;
+};
+},{"./utils":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/utils.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/spread.js":[function(require,module,exports){
+/**
+ * Syntactic sugar for invoking a function and expanding an array for arguments.
+ *
+ * Common use case would be to use `Function.prototype.apply`.
+ *
+ *  ```js
+ *  function f(x, y, z) {}
+ *  var args = [1, 2, 3];
+ *  f.apply(null, args);
+ *  ```
+ *
+ * With `spread` this example can be re-written.
+ *
+ *  ```js
+ *  spread(function(x, y, z) {})([1, 2, 3]);
+ *  ```
+ *
+ * @param {Function} callback
+ * @returns {Function}
+ */
+module.exports = function spread(callback) {
+  return function (arr) {
+    callback.apply(null, arr);
+  };
+};
+},{}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/transformData.js":[function(require,module,exports){
+'use strict';
+
+var utils = require('./utils');
+
+/**
+ * Transform the data for a request or a response
+ *
+ * @param {Object|String} data The data to be transformed
+ * @param {Array} headers The headers for the request or response
+ * @param {Array|Function} fns A single function or Array of functions
+ * @returns {*} The resulting transformed data
+ */
+module.exports = function transformData(data, headers, fns) {
+  utils.forEach(fns, function (fn) {
+    data = fn(data, headers);
+  });
+
+  return data;
+};
+},{"./utils":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/utils.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/urlIsSameOrigin.js":[function(require,module,exports){
+'use strict';
+
+var msie = /(msie|trident)/i.test(navigator.userAgent);
+var utils = require('./utils');
+var urlParsingNode = document.createElement('a');
+var originUrl = urlResolve(window.location.href);
+
+/**
+ * Parse a URL to discover it's components
+ *
+ * @param {String} url The URL to be parsed
+ * @returns {Object}
+ */
+function urlResolve(url) {
+  var href = url;
+
+  if (msie) {
+    // IE needs attribute set twice to normalize properties
+    urlParsingNode.setAttribute('href', href);
+    href = urlParsingNode.href;
+  }
+
+  urlParsingNode.setAttribute('href', href);
+
+  // urlParsingNode provides the UrlUtils interface - http://url.spec.whatwg.org/#urlutils
+  return {
+    href: urlParsingNode.href,
+    protocol: urlParsingNode.protocol ? urlParsingNode.protocol.replace(/:$/, '') : '',
+    host: urlParsingNode.host,
+    search: urlParsingNode.search ? urlParsingNode.search.replace(/^\?/, '') : '',
+    hash: urlParsingNode.hash ? urlParsingNode.hash.replace(/^#/, '') : '',
+    hostname: urlParsingNode.hostname,
+    port: urlParsingNode.port,
+    pathname: (urlParsingNode.pathname.charAt(0) === '/')
+      ? urlParsingNode.pathname
+      : '/' + urlParsingNode.pathname
+  };
+}
+
+/**
+ * Determine if a URL shares the same origin as the current location
+ *
+ * @param {String} requestUrl The URL to test
+ * @returns {boolean} True if URL shares the same origin, otherwise false
+ */
+module.exports = function urlIsSameOrigin(requestUrl) {
+  var parsed = (utils.isString(requestUrl)) ? urlResolve(requestUrl) : requestUrl;
+  return (parsed.protocol === originUrl.protocol &&
+        parsed.host === originUrl.host);
+};
+},{"./utils":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/utils.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/utils.js":[function(require,module,exports){
+// utils is a library of generic helper functions non-specific to axios
+
+var toString = Object.prototype.toString;
+
+/**
+ * Determine if a value is an Array
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is an Array, otherwise false
+ */
+function isArray(val) {
+  return toString.call(val) === '[object Array]';
+}
+
+/**
+ * Determine if a value is a String
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is a String, otherwise false
+ */
+function isString(val) {
+  return typeof val === 'string';
+}
+
+/**
+ * Determine if a value is a Number
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is a Number, otherwise false
+ */
+function isNumber(val) {
+  return typeof val === 'number';
+}
+
+/**
+ * Determine if a value is an Object
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is an Object, otherwise false
+ */
+function isObject(val) {
+  return val !== null && typeof val === 'object';
+}
+
+/**
+ * Determine if a value is a Date
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is a Date, otherwise false
+ */
+function isDate(val) {
+  return toString.call(val) === '[object Date]';
+}
+
+/**
+ * Determine if a value is a File
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is a File, otherwise false
+ */
+function isFile(val) {
+  return toString.call(val) === '[object File]';
+}
+
+/**
+ * Determine if a value is a Blob
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is a Blob, otherwise false
+ */
+function isBlob(val) {
+  return toString.call(val) === '[object Blob]';
+}
+
+/**
+ * Trim excess whitespace off the beginning and end of a string
+ *
+ * @param {String} str The String to trim
+ * @returns {String} The String freed of excess whitespace
+ */
+function trim(str) {
+  return str.replace(/^\s*/, '').replace(/\s*$/, '');
+}
+
+/**
+ * Iterate over an Array or an Object invoking a function for each item.
+ *
+ * If `obj` is an Array or arguments callback will be called passing
+ * the value, index, and complete array for each item.
+ *
+ * If 'obj' is an Object callback will be called passing
+ * the value, key, and complete object for each property.
+ *
+ * @param {Object|Array} obj The object to iterate
+ * @param {Function} fn The callback to invoke for each item
+ */
+function forEach(obj, fn) {
+  // Don't bother if no value provided
+  if (obj === null || typeof obj === 'undefined') {
+    return;
+  }
+
+  // Check if obj is array-like
+  var isArray = obj.constructor === Array || typeof obj.callee === 'function';
+
+  // Force an array if not already something iterable
+  if (typeof obj !== 'object' && !isArray) {
+    obj = [obj];
+  }
+
+  // Iterate over array values
+  if (isArray) {
+    for (var i=0, l=obj.length; i<l; i++) {
+      fn.call(null, obj[i], i, obj);
+    }
+  }
+  // Iterate over object keys
+  else {
+    for (var key in obj) {
+      if (obj.hasOwnProperty(key)) {
+        fn.call(null, obj[key], key, obj);
+      }
+    }
+  }
+}
+
+/**
+ * Accepts varargs expecting each argument to be an object, then
+ * immutably merges the properties of each object and returns result.
+ *
+ * When multiple objects contain the same key the later object in
+ * the arguments list will take precedence.
+ *
+ * Example:
+ *
+ * ```js
+ * var result = merge({foo: 123}, {foo: 456});
+ * console.log(result.foo); // outputs 456
+ * ```
+ *
+ * @param {Object} obj1 Object to merge
+ * @returns {Object} Result of all merge properties
+ */
+function merge(obj1/*, obj2, obj3, ...*/) {
+  var result = {};
+  forEach(arguments, function (obj) {
+    forEach(obj, function (val, key) {
+      result[key] = val;
+    });
+  });
+  return result;
+}
+
+module.exports = {
+  isArray: isArray,
+  isString: isString,
+  isNumber: isNumber,
+  isObject: isObject,
+  isDate: isDate,
+  isFile: isFile,
+  isBlob: isBlob,
+  forEach: forEach,
+  merge: merge,
+  trim: trim
+};
+},{}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/main.js":[function(require,module,exports){
+"use strict";
+var Promise = require("./promise/promise").Promise;
+var polyfill = require("./promise/polyfill").polyfill;
+exports.Promise = Promise;
+exports.polyfill = polyfill;
+},{"./promise/polyfill":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/promise/polyfill.js","./promise/promise":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/promise/promise.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/promise/all.js":[function(require,module,exports){
+"use strict";
+/* global toString */
+
+var isArray = require("./utils").isArray;
+var isFunction = require("./utils").isFunction;
+
+/**
+  Returns a promise that is fulfilled when all the given promises have been
+  fulfilled, or rejected if any of them become rejected. The return promise
+  is fulfilled with an array that gives all the values in the order they were
+  passed in the `promises` array argument.
+
+  Example:
+
+  ```javascript
+  var promise1 = RSVP.resolve(1);
+  var promise2 = RSVP.resolve(2);
+  var promise3 = RSVP.resolve(3);
+  var promises = [ promise1, promise2, promise3 ];
+
+  RSVP.all(promises).then(function(array){
+    // The array here would be [ 1, 2, 3 ];
+  });
+  ```
+
+  If any of the `promises` given to `RSVP.all` are rejected, the first promise
+  that is rejected will be given as an argument to the returned promises's
+  rejection handler. For example:
+
+  Example:
+
+  ```javascript
+  var promise1 = RSVP.resolve(1);
+  var promise2 = RSVP.reject(new Error("2"));
+  var promise3 = RSVP.reject(new Error("3"));
+  var promises = [ promise1, promise2, promise3 ];
+
+  RSVP.all(promises).then(function(array){
+    // Code here never runs because there are rejected promises!
+  }, function(error) {
+    // error.message === "2"
+  });
+  ```
+
+  @method all
+  @for RSVP
+  @param {Array} promises
+  @param {String} label
+  @return {Promise} promise that is fulfilled when all `promises` have been
+  fulfilled, or rejected if any of them become rejected.
+*/
+function all(promises) {
+  /*jshint validthis:true */
+  var Promise = this;
+
+  if (!isArray(promises)) {
+    throw new TypeError('You must pass an array to all.');
+  }
+
+  return new Promise(function(resolve, reject) {
+    var results = [], remaining = promises.length,
+    promise;
+
+    if (remaining === 0) {
+      resolve([]);
+    }
+
+    function resolver(index) {
+      return function(value) {
+        resolveAll(index, value);
+      };
+    }
+
+    function resolveAll(index, value) {
+      results[index] = value;
+      if (--remaining === 0) {
+        resolve(results);
+      }
+    }
+
+    for (var i = 0; i < promises.length; i++) {
+      promise = promises[i];
+
+      if (promise && isFunction(promise.then)) {
+        promise.then(resolver(i), reject);
+      } else {
+        resolveAll(i, promise);
+      }
+    }
+  });
+}
+
+exports.all = all;
+},{"./utils":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/promise/utils.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/promise/asap.js":[function(require,module,exports){
+(function (process,global){
+"use strict";
+var browserGlobal = (typeof window !== 'undefined') ? window : {};
+var BrowserMutationObserver = browserGlobal.MutationObserver || browserGlobal.WebKitMutationObserver;
+var local = (typeof global !== 'undefined') ? global : (this === undefined? window:this);
+
+// node
+function useNextTick() {
+  return function() {
+    process.nextTick(flush);
+  };
+}
+
+function useMutationObserver() {
+  var iterations = 0;
+  var observer = new BrowserMutationObserver(flush);
+  var node = document.createTextNode('');
+  observer.observe(node, { characterData: true });
+
+  return function() {
+    node.data = (iterations = ++iterations % 2);
+  };
+}
+
+function useSetTimeout() {
+  return function() {
+    local.setTimeout(flush, 1);
+  };
+}
+
+var queue = [];
+function flush() {
+  for (var i = 0; i < queue.length; i++) {
+    var tuple = queue[i];
+    var callback = tuple[0], arg = tuple[1];
+    callback(arg);
+  }
+  queue = [];
+}
+
+var scheduleFlush;
+
+// Decide what async method to use to triggering processing of queued callbacks:
+if (typeof process !== 'undefined' && {}.toString.call(process) === '[object process]') {
+  scheduleFlush = useNextTick();
+} else if (BrowserMutationObserver) {
+  scheduleFlush = useMutationObserver();
+} else {
+  scheduleFlush = useSetTimeout();
+}
+
+function asap(callback, arg) {
+  var length = queue.push([callback, arg]);
+  if (length === 1) {
+    // If length is 1, that means that we need to schedule an async flush.
+    // If additional callbacks are queued before the queue is flushed, they
+    // will be processed by this flush that we are scheduling.
+    scheduleFlush();
+  }
+}
+
+exports.asap = asap;
+}).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{"_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/promise/config.js":[function(require,module,exports){
+"use strict";
+var config = {
+  instrument: false
+};
+
+function configure(name, value) {
+  if (arguments.length === 2) {
+    config[name] = value;
+  } else {
+    return config[name];
+  }
+}
+
+exports.config = config;
+exports.configure = configure;
+},{}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/promise/polyfill.js":[function(require,module,exports){
+(function (global){
+"use strict";
+/*global self*/
+var RSVPPromise = require("./promise").Promise;
+var isFunction = require("./utils").isFunction;
+
+function polyfill() {
+  var local;
+
+  if (typeof global !== 'undefined') {
+    local = global;
+  } else if (typeof window !== 'undefined' && window.document) {
+    local = window;
+  } else {
+    local = self;
+  }
+
+  var es6PromiseSupport = 
+    "Promise" in local &&
+    // Some of these methods are missing from
+    // Firefox/Chrome experimental implementations
+    "resolve" in local.Promise &&
+    "reject" in local.Promise &&
+    "all" in local.Promise &&
+    "race" in local.Promise &&
+    // Older version of the spec had a resolver object
+    // as the arg rather than a function
+    (function() {
+      var resolve;
+      new local.Promise(function(r) { resolve = r; });
+      return isFunction(resolve);
+    }());
+
+  if (!es6PromiseSupport) {
+    local.Promise = RSVPPromise;
+  }
+}
+
+exports.polyfill = polyfill;
+}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{"./promise":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/promise/promise.js","./utils":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/promise/utils.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/promise/promise.js":[function(require,module,exports){
+"use strict";
+var config = require("./config").config;
+var configure = require("./config").configure;
+var objectOrFunction = require("./utils").objectOrFunction;
+var isFunction = require("./utils").isFunction;
+var now = require("./utils").now;
+var all = require("./all").all;
+var race = require("./race").race;
+var staticResolve = require("./resolve").resolve;
+var staticReject = require("./reject").reject;
+var asap = require("./asap").asap;
+
+var counter = 0;
+
+config.async = asap; // default async is asap;
+
+function Promise(resolver) {
+  if (!isFunction(resolver)) {
+    throw new TypeError('You must pass a resolver function as the first argument to the promise constructor');
+  }
+
+  if (!(this instanceof Promise)) {
+    throw new TypeError("Failed to construct 'Promise': Please use the 'new' operator, this object constructor cannot be called as a function.");
+  }
+
+  this._subscribers = [];
+
+  invokeResolver(resolver, this);
+}
+
+function invokeResolver(resolver, promise) {
+  function resolvePromise(value) {
+    resolve(promise, value);
+  }
+
+  function rejectPromise(reason) {
+    reject(promise, reason);
+  }
+
+  try {
+    resolver(resolvePromise, rejectPromise);
+  } catch(e) {
+    rejectPromise(e);
+  }
+}
+
+function invokeCallback(settled, promise, callback, detail) {
+  var hasCallback = isFunction(callback),
+      value, error, succeeded, failed;
+
+  if (hasCallback) {
+    try {
+      value = callback(detail);
+      succeeded = true;
+    } catch(e) {
+      failed = true;
+      error = e;
+    }
+  } else {
+    value = detail;
+    succeeded = true;
+  }
+
+  if (handleThenable(promise, value)) {
+    return;
+  } else if (hasCallback && succeeded) {
+    resolve(promise, value);
+  } else if (failed) {
+    reject(promise, error);
+  } else if (settled === FULFILLED) {
+    resolve(promise, value);
+  } else if (settled === REJECTED) {
+    reject(promise, value);
+  }
+}
+
+var PENDING   = void 0;
+var SEALED    = 0;
+var FULFILLED = 1;
+var REJECTED  = 2;
+
+function subscribe(parent, child, onFulfillment, onRejection) {
+  var subscribers = parent._subscribers;
+  var length = subscribers.length;
+
+  subscribers[length] = child;
+  subscribers[length + FULFILLED] = onFulfillment;
+  subscribers[length + REJECTED]  = onRejection;
+}
+
+function publish(promise, settled) {
+  var child, callback, subscribers = promise._subscribers, detail = promise._detail;
+
+  for (var i = 0; i < subscribers.length; i += 3) {
+    child = subscribers[i];
+    callback = subscribers[i + settled];
+
+    invokeCallback(settled, child, callback, detail);
+  }
+
+  promise._subscribers = null;
+}
+
+Promise.prototype = {
+  constructor: Promise,
+
+  _state: undefined,
+  _detail: undefined,
+  _subscribers: undefined,
+
+  then: function(onFulfillment, onRejection) {
+    var promise = this;
+
+    var thenPromise = new this.constructor(function() {});
+
+    if (this._state) {
+      var callbacks = arguments;
+      config.async(function invokePromiseCallback() {
+        invokeCallback(promise._state, thenPromise, callbacks[promise._state - 1], promise._detail);
+      });
+    } else {
+      subscribe(this, thenPromise, onFulfillment, onRejection);
+    }
+
+    return thenPromise;
+  },
+
+  'catch': function(onRejection) {
+    return this.then(null, onRejection);
+  }
+};
+
+Promise.all = all;
+Promise.race = race;
+Promise.resolve = staticResolve;
+Promise.reject = staticReject;
+
+function handleThenable(promise, value) {
+  var then = null,
+  resolved;
+
+  try {
+    if (promise === value) {
+      throw new TypeError("A promises callback cannot return that same promise.");
+    }
+
+    if (objectOrFunction(value)) {
+      then = value.then;
+
+      if (isFunction(then)) {
+        then.call(value, function(val) {
+          if (resolved) { return true; }
+          resolved = true;
+
+          if (value !== val) {
+            resolve(promise, val);
+          } else {
+            fulfill(promise, val);
+          }
+        }, function(val) {
+          if (resolved) { return true; }
+          resolved = true;
+
+          reject(promise, val);
+        });
+
+        return true;
+      }
+    }
+  } catch (error) {
+    if (resolved) { return true; }
+    reject(promise, error);
+    return true;
+  }
+
+  return false;
+}
+
+function resolve(promise, value) {
+  if (promise === value) {
+    fulfill(promise, value);
+  } else if (!handleThenable(promise, value)) {
+    fulfill(promise, value);
+  }
+}
+
+function fulfill(promise, value) {
+  if (promise._state !== PENDING) { return; }
+  promise._state = SEALED;
+  promise._detail = value;
+
+  config.async(publishFulfillment, promise);
+}
+
+function reject(promise, reason) {
+  if (promise._state !== PENDING) { return; }
+  promise._state = SEALED;
+  promise._detail = reason;
+
+  config.async(publishRejection, promise);
+}
+
+function publishFulfillment(promise) {
+  publish(promise, promise._state = FULFILLED);
+}
+
+function publishRejection(promise) {
+  publish(promise, promise._state = REJECTED);
+}
+
+exports.Promise = Promise;
+},{"./all":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/promise/all.js","./asap":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/promise/asap.js","./config":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/promise/config.js","./race":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/promise/race.js","./reject":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/promise/reject.js","./resolve":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/promise/resolve.js","./utils":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/promise/utils.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/promise/race.js":[function(require,module,exports){
+"use strict";
+/* global toString */
+var isArray = require("./utils").isArray;
+
+/**
+  `RSVP.race` allows you to watch a series of promises and act as soon as the
+  first promise given to the `promises` argument fulfills or rejects.
+
+  Example:
+
+  ```javascript
+  var promise1 = new RSVP.Promise(function(resolve, reject){
+    setTimeout(function(){
+      resolve("promise 1");
+    }, 200);
+  });
+
+  var promise2 = new RSVP.Promise(function(resolve, reject){
+    setTimeout(function(){
+      resolve("promise 2");
+    }, 100);
+  });
+
+  RSVP.race([promise1, promise2]).then(function(result){
+    // result === "promise 2" because it was resolved before promise1
+    // was resolved.
+  });
+  ```
+
+  `RSVP.race` is deterministic in that only the state of the first completed
+  promise matters. For example, even if other promises given to the `promises`
+  array argument are resolved, but the first completed promise has become
+  rejected before the other promises became fulfilled, the returned promise
+  will become rejected:
+
+  ```javascript
+  var promise1 = new RSVP.Promise(function(resolve, reject){
+    setTimeout(function(){
+      resolve("promise 1");
+    }, 200);
+  });
+
+  var promise2 = new RSVP.Promise(function(resolve, reject){
+    setTimeout(function(){
+      reject(new Error("promise 2"));
+    }, 100);
+  });
+
+  RSVP.race([promise1, promise2]).then(function(result){
+    // Code here never runs because there are rejected promises!
+  }, function(reason){
+    // reason.message === "promise2" because promise 2 became rejected before
+    // promise 1 became fulfilled
+  });
+  ```
+
+  @method race
+  @for RSVP
+  @param {Array} promises array of promises to observe
+  @param {String} label optional string for describing the promise returned.
+  Useful for tooling.
+  @return {Promise} a promise that becomes fulfilled with the value the first
+  completed promises is resolved with if the first completed promise was
+  fulfilled, or rejected with the reason that the first completed promise
+  was rejected with.
+*/
+function race(promises) {
+  /*jshint validthis:true */
+  var Promise = this;
+
+  if (!isArray(promises)) {
+    throw new TypeError('You must pass an array to race.');
+  }
+  return new Promise(function(resolve, reject) {
+    var results = [], promise;
+
+    for (var i = 0; i < promises.length; i++) {
+      promise = promises[i];
+
+      if (promise && typeof promise.then === 'function') {
+        promise.then(resolve, reject);
+      } else {
+        resolve(promise);
+      }
+    }
+  });
+}
+
+exports.race = race;
+},{"./utils":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/promise/utils.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/promise/reject.js":[function(require,module,exports){
+"use strict";
+/**
+  `RSVP.reject` returns a promise that will become rejected with the passed
+  `reason`. `RSVP.reject` is essentially shorthand for the following:
+
+  ```javascript
+  var promise = new RSVP.Promise(function(resolve, reject){
+    reject(new Error('WHOOPS'));
+  });
+
+  promise.then(function(value){
+    // Code here doesn't run because the promise is rejected!
+  }, function(reason){
+    // reason.message === 'WHOOPS'
+  });
+  ```
+
+  Instead of writing the above, your code now simply becomes the following:
+
+  ```javascript
+  var promise = RSVP.reject(new Error('WHOOPS'));
+
+  promise.then(function(value){
+    // Code here doesn't run because the promise is rejected!
+  }, function(reason){
+    // reason.message === 'WHOOPS'
+  });
+  ```
+
+  @method reject
+  @for RSVP
+  @param {Any} reason value that the returned promise will be rejected with.
+  @param {String} label optional string for identifying the returned promise.
+  Useful for tooling.
+  @return {Promise} a promise that will become rejected with the given
+  `reason`.
+*/
+function reject(reason) {
+  /*jshint validthis:true */
+  var Promise = this;
+
+  return new Promise(function (resolve, reject) {
+    reject(reason);
+  });
+}
+
+exports.reject = reject;
+},{}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/promise/resolve.js":[function(require,module,exports){
+"use strict";
+function resolve(value) {
+  /*jshint validthis:true */
+  if (value && typeof value === 'object' && value.constructor === this) {
+    return value;
+  }
+
+  var Promise = this;
+
+  return new Promise(function(resolve) {
+    resolve(value);
+  });
+}
+
+exports.resolve = resolve;
+},{}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/promise/utils.js":[function(require,module,exports){
+"use strict";
+function objectOrFunction(x) {
+  return isFunction(x) || (typeof x === "object" && x !== null);
+}
+
+function isFunction(x) {
+  return typeof x === "function";
+}
+
+function isArray(x) {
+  return Object.prototype.toString.call(x) === "[object Array]";
+}
+
+// Date.now is not available in browsers < IE9
+// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/now#Compatibility
+var now = Date.now || function() { return new Date().getTime(); };
+
+
+exports.objectOrFunction = objectOrFunction;
+exports.isFunction = isFunction;
+exports.isArray = isArray;
+exports.now = now;
+},{}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/director/build/director.js":[function(require,module,exports){
+
+
+//
+// Generated on Fri Dec 27 2013 12:02:11 GMT-0500 (EST) by Nodejitsu, Inc (Using Codesurgeon).
+// Version 1.2.2
+//
+
+(function (exports) {
+
+/*
+ * browser.js: Browser specific functionality for director.
+ *
+ * (C) 2011, Nodejitsu Inc.
+ * MIT LICENSE
+ *
+ */
+
+if (!Array.prototype.filter) {
+  Array.prototype.filter = function(filter, that) {
+    var other = [], v;
+    for (var i = 0, n = this.length; i < n; i++) {
+      if (i in this && filter.call(that, v = this[i], i, this)) {
+        other.push(v);
+      }
+    }
+    return other;
+  };
+}
+
+if (!Array.isArray){
+  Array.isArray = function(obj) {
+    return Object.prototype.toString.call(obj) === '[object Array]';
+  };
+}
+
+var dloc = document.location;
+
+function dlocHashEmpty() {
+  // Non-IE browsers return '' when the address bar shows '#'; Director's logic
+  // assumes both mean empty.
+  return dloc.hash === '' || dloc.hash === '#';
+}
+
+var listener = {
+  mode: 'modern',
+  hash: dloc.hash,
+  history: false,
+
+  check: function () {
+    var h = dloc.hash;
+    if (h != this.hash) {
+      this.hash = h;
+      this.onHashChanged();
+    }
+  },
+
+  fire: function () {
+    if (this.mode === 'modern') {
+      this.history === true ? window.onpopstate() : window.onhashchange();
+    }
+    else {
+      this.onHashChanged();
+    }
+  },
+
+  init: function (fn, history) {
+    var self = this;
+    this.history = history;
+
+    if (!Router.listeners) {
+      Router.listeners = [];
+    }
+
+    function onchange(onChangeEvent) {
+      for (var i = 0, l = Router.listeners.length; i < l; i++) {
+        Router.listeners[i](onChangeEvent);
+      }
+    }
+
+    //note IE8 is being counted as 'modern' because it has the hashchange event
+    if ('onhashchange' in window && (document.documentMode === undefined
+      || document.documentMode > 7)) {
+      // At least for now HTML5 history is available for 'modern' browsers only
+      if (this.history === true) {
+        // There is an old bug in Chrome that causes onpopstate to fire even
+        // upon initial page load. Since the handler is run manually in init(),
+        // this would cause Chrome to run it twise. Currently the only
+        // workaround seems to be to set the handler after the initial page load
+        // http://code.google.com/p/chromium/issues/detail?id=63040
+        setTimeout(function() {
+          window.onpopstate = onchange;
+        }, 500);
+      }
+      else {
+        window.onhashchange = onchange;
+      }
+      this.mode = 'modern';
+    }
+    else {
+      //
+      // IE support, based on a concept by Erik Arvidson ...
+      //
+      var frame = document.createElement('iframe');
+      frame.id = 'state-frame';
+      frame.style.display = 'none';
+      document.body.appendChild(frame);
+      this.writeFrame('');
+
+      if ('onpropertychange' in document && 'attachEvent' in document) {
+        document.attachEvent('onpropertychange', function () {
+          if (event.propertyName === 'location') {
+            self.check();
+          }
+        });
+      }
+
+      window.setInterval(function () { self.check(); }, 50);
+
+      this.onHashChanged = onchange;
+      this.mode = 'legacy';
+    }
+
+    Router.listeners.push(fn);
+
+    return this.mode;
+  },
+
+  destroy: function (fn) {
+    if (!Router || !Router.listeners) {
+      return;
+    }
+
+    var listeners = Router.listeners;
+
+    for (var i = listeners.length - 1; i >= 0; i--) {
+      if (listeners[i] === fn) {
+        listeners.splice(i, 1);
+      }
+    }
+  },
+
+  setHash: function (s) {
+    // Mozilla always adds an entry to the history
+    if (this.mode === 'legacy') {
+      this.writeFrame(s);
+    }
+
+    if (this.history === true) {
+      window.history.pushState({}, document.title, s);
+      // Fire an onpopstate event manually since pushing does not obviously
+      // trigger the pop event.
+      this.fire();
+    } else {
+      dloc.hash = (s[0] === '/') ? s : '/' + s;
+    }
+    return this;
+  },
+
+  writeFrame: function (s) {
+    // IE support...
+    var f = document.getElementById('state-frame');
+    var d = f.contentDocument || f.contentWindow.document;
+    d.open();
+    d.write("<script>_hash = '" + s + "'; onload = parent.listener.syncHash;<script>");
+    d.close();
+  },
+
+  syncHash: function () {
+    // IE support...
+    var s = this._hash;
+    if (s != dloc.hash) {
+      dloc.hash = s;
+    }
+    return this;
+  },
+
+  onHashChanged: function () {}
+};
+
+var Router = exports.Router = function (routes) {
+  if (!(this instanceof Router)) return new Router(routes);
+
+  this.params   = {};
+  this.routes   = {};
+  this.methods  = ['on', 'once', 'after', 'before'];
+  this.scope    = [];
+  this._methods = {};
+
+  this._insert = this.insert;
+  this.insert = this.insertEx;
+
+  this.historySupport = (window.history != null ? window.history.pushState : null) != null
+
+  this.configure();
+  this.mount(routes || {});
+};
+
+Router.prototype.init = function (r) {
+  var self = this;
+  this.handler = function(onChangeEvent) {
+    var newURL = onChangeEvent && onChangeEvent.newURL || window.location.hash;
+    var url = self.history === true ? self.getPath() : newURL.replace(/.*#/, '');
+    self.dispatch('on', url.charAt(0) === '/' ? url : '/' + url);
+  };
+
+  listener.init(this.handler, this.history);
+
+  if (this.history === false) {
+    if (dlocHashEmpty() && r) {
+      dloc.hash = r;
+    } else if (!dlocHashEmpty()) {
+      self.dispatch('on', '/' + dloc.hash.replace(/^(#\/|#|\/)/, ''));
+    }
+  }
+  else {
+    var routeTo = dlocHashEmpty() && r ? r : !dlocHashEmpty() ? dloc.hash.replace(/^#/, '') : null;
+    if (routeTo) {
+      window.history.replaceState({}, document.title, routeTo);
+    }
+
+    // Router has been initialized, but due to the chrome bug it will not
+    // yet actually route HTML5 history state changes. Thus, decide if should route.
+    if (routeTo || this.run_in_init === true) {
+      this.handler();
+    }
+  }
+
+  return this;
+};
+
+Router.prototype.explode = function () {
+  var v = this.history === true ? this.getPath() : dloc.hash;
+  if (v.charAt(1) === '/') { v=v.slice(1) }
+  return v.slice(1, v.length).split("/");
+};
+
+Router.prototype.setRoute = function (i, v, val) {
+  var url = this.explode();
+
+  if (typeof i === 'number' && typeof v === 'string') {
+    url[i] = v;
+  }
+  else if (typeof val === 'string') {
+    url.splice(i, v, s);
+  }
+  else {
+    url = [i];
+  }
+
+  listener.setHash(url.join('/'));
+  return url;
+};
+
+//
+// ### function insertEx(method, path, route, parent)
+// #### @method {string} Method to insert the specific `route`.
+// #### @path {Array} Parsed path to insert the `route` at.
+// #### @route {Array|function} Route handlers to insert.
+// #### @parent {Object} **Optional** Parent "routes" to insert into.
+// insert a callback that will only occur once per the matched route.
+//
+Router.prototype.insertEx = function(method, path, route, parent) {
+  if (method === "once") {
+    method = "on";
+    route = function(route) {
+      var once = false;
+      return function() {
+        if (once) return;
+        once = true;
+        return route.apply(this, arguments);
+      };
+    }(route);
+  }
+  return this._insert(method, path, route, parent);
+};
+
+Router.prototype.getRoute = function (v) {
+  var ret = v;
+
+  if (typeof v === "number") {
+    ret = this.explode()[v];
+  }
+  else if (typeof v === "string"){
+    var h = this.explode();
+    ret = h.indexOf(v);
+  }
+  else {
+    ret = this.explode();
+  }
+
+  return ret;
+};
+
+Router.prototype.destroy = function () {
+  listener.destroy(this.handler);
+  return this;
+};
+
+Router.prototype.getPath = function () {
+  var path = window.location.pathname;
+  if (path.substr(0, 1) !== '/') {
+    path = '/' + path;
+  }
+  return path;
+};
+function _every(arr, iterator) {
+  for (var i = 0; i < arr.length; i += 1) {
+    if (iterator(arr[i], i, arr) === false) {
+      return;
+    }
+  }
+}
+
+function _flatten(arr) {
+  var flat = [];
+  for (var i = 0, n = arr.length; i < n; i++) {
+    flat = flat.concat(arr[i]);
+  }
+  return flat;
+}
+
+function _asyncEverySeries(arr, iterator, callback) {
+  if (!arr.length) {
+    return callback();
+  }
+  var completed = 0;
+  (function iterate() {
+    iterator(arr[completed], function(err) {
+      if (err || err === false) {
+        callback(err);
+        callback = function() {};
+      } else {
+        completed += 1;
+        if (completed === arr.length) {
+          callback();
+        } else {
+          iterate();
+        }
+      }
+    });
+  })();
+}
+
+function paramifyString(str, params, mod) {
+  mod = str;
+  for (var param in params) {
+    if (params.hasOwnProperty(param)) {
+      mod = params[param](str);
+      if (mod !== str) {
+        break;
+      }
+    }
+  }
+  return mod === str ? "([._a-zA-Z0-9-]+)" : mod;
+}
+
+function regifyString(str, params) {
+  var matches, last = 0, out = "";
+  while (matches = str.substr(last).match(/[^\w\d\- %@&]*\*[^\w\d\- %@&]*/)) {
+    last = matches.index + matches[0].length;
+    matches[0] = matches[0].replace(/^\*/, "([_.()!\\ %@&a-zA-Z0-9-]+)");
+    out += str.substr(0, matches.index) + matches[0];
+  }
+  str = out += str.substr(last);
+  var captures = str.match(/:([^\/]+)/ig), capture, length;
+  if (captures) {
+    length = captures.length;
+    for (var i = 0; i < length; i++) {
+      capture = captures[i];
+      if (capture.slice(0, 2) === "::") {
+        str = capture.slice(1);
+      } else {
+        str = str.replace(capture, paramifyString(capture, params));
+      }
+    }
+  }
+  return str;
+}
+
+function terminator(routes, delimiter, start, stop) {
+  var last = 0, left = 0, right = 0, start = (start || "(").toString(), stop = (stop || ")").toString(), i;
+  for (i = 0; i < routes.length; i++) {
+    var chunk = routes[i];
+    if (chunk.indexOf(start, last) > chunk.indexOf(stop, last) || ~chunk.indexOf(start, last) && !~chunk.indexOf(stop, last) || !~chunk.indexOf(start, last) && ~chunk.indexOf(stop, last)) {
+      left = chunk.indexOf(start, last);
+      right = chunk.indexOf(stop, last);
+      if (~left && !~right || !~left && ~right) {
+        var tmp = routes.slice(0, (i || 1) + 1).join(delimiter);
+        routes = [ tmp ].concat(routes.slice((i || 1) + 1));
+      }
+      last = (right > left ? right : left) + 1;
+      i = 0;
+    } else {
+      last = 0;
+    }
+  }
+  return routes;
+}
+
+Router.prototype.configure = function(options) {
+  options = options || {};
+  for (var i = 0; i < this.methods.length; i++) {
+    this._methods[this.methods[i]] = true;
+  }
+  this.recurse = options.recurse || this.recurse || false;
+  this.async = options.async || false;
+  this.delimiter = options.delimiter || "/";
+  this.strict = typeof options.strict === "undefined" ? true : options.strict;
+  this.notfound = options.notfound;
+  this.resource = options.resource;
+  this.history = options.html5history && this.historySupport || false;
+  this.run_in_init = this.history === true && options.run_handler_in_init !== false;
+  this.every = {
+    after: options.after || null,
+    before: options.before || null,
+    on: options.on || null
+  };
+  return this;
+};
+
+Router.prototype.param = function(token, matcher) {
+  if (token[0] !== ":") {
+    token = ":" + token;
+  }
+  var compiled = new RegExp(token, "g");
+  this.params[token] = function(str) {
+    return str.replace(compiled, matcher.source || matcher);
+  };
+};
+
+Router.prototype.on = Router.prototype.route = function(method, path, route) {
+  var self = this;
+  if (!route && typeof path == "function") {
+    route = path;
+    path = method;
+    method = "on";
+  }
+  if (Array.isArray(path)) {
+    return path.forEach(function(p) {
+      self.on(method, p, route);
+    });
+  }
+  if (path.source) {
+    path = path.source.replace(/\\\//ig, "/");
+  }
+  if (Array.isArray(method)) {
+    return method.forEach(function(m) {
+      self.on(m.toLowerCase(), path, route);
+    });
+  }
+  path = path.split(new RegExp(this.delimiter));
+  path = terminator(path, this.delimiter);
+  this.insert(method, this.scope.concat(path), route);
+};
+
+Router.prototype.dispatch = function(method, path, callback) {
+  var self = this, fns = this.traverse(method, path, this.routes, ""), invoked = this._invoked, after;
+  this._invoked = true;
+  if (!fns || fns.length === 0) {
+    this.last = [];
+    if (typeof this.notfound === "function") {
+      this.invoke([ this.notfound ], {
+        method: method,
+        path: path
+      }, callback);
+    }
+    return false;
+  }
+  if (this.recurse === "forward") {
+    fns = fns.reverse();
+  }
+  function updateAndInvoke() {
+    self.last = fns.after;
+    self.invoke(self.runlist(fns), self, callback);
+  }
+  after = this.every && this.every.after ? [ this.every.after ].concat(this.last) : [ this.last ];
+  if (after && after.length > 0 && invoked) {
+    if (this.async) {
+      this.invoke(after, this, updateAndInvoke);
+    } else {
+      this.invoke(after, this);
+      updateAndInvoke();
+    }
+    return true;
+  }
+  updateAndInvoke();
+  return true;
+};
+
+Router.prototype.invoke = function(fns, thisArg, callback) {
+  var self = this;
+  var apply;
+  if (this.async) {
+    apply = function(fn, next) {
+      if (Array.isArray(fn)) {
+        return _asyncEverySeries(fn, apply, next);
+      } else if (typeof fn == "function") {
+        fn.apply(thisArg, fns.captures.concat(next));
+      }
+    };
+    _asyncEverySeries(fns, apply, function() {
+      if (callback) {
+        callback.apply(thisArg, arguments);
+      }
+    });
+  } else {
+    apply = function(fn) {
+      if (Array.isArray(fn)) {
+        return _every(fn, apply);
+      } else if (typeof fn === "function") {
+        return fn.apply(thisArg, fns.captures || []);
+      } else if (typeof fn === "string" && self.resource) {
+        self.resource[fn].apply(thisArg, fns.captures || []);
+      }
+    };
+    _every(fns, apply);
+  }
+};
+
+Router.prototype.traverse = function(method, path, routes, regexp, filter) {
+  var fns = [], current, exact, match, next, that;
+  function filterRoutes(routes) {
+    if (!filter) {
+      return routes;
+    }
+    function deepCopy(source) {
+      var result = [];
+      for (var i = 0; i < source.length; i++) {
+        result[i] = Array.isArray(source[i]) ? deepCopy(source[i]) : source[i];
+      }
+      return result;
+    }
+    function applyFilter(fns) {
+      for (var i = fns.length - 1; i >= 0; i--) {
+        if (Array.isArray(fns[i])) {
+          applyFilter(fns[i]);
+          if (fns[i].length === 0) {
+            fns.splice(i, 1);
+          }
+        } else {
+          if (!filter(fns[i])) {
+            fns.splice(i, 1);
+          }
+        }
+      }
+    }
+    var newRoutes = deepCopy(routes);
+    newRoutes.matched = routes.matched;
+    newRoutes.captures = routes.captures;
+    newRoutes.after = routes.after.filter(filter);
+    applyFilter(newRoutes);
+    return newRoutes;
+  }
+  if (path === this.delimiter && routes[method]) {
+    next = [ [ routes.before, routes[method] ].filter(Boolean) ];
+    next.after = [ routes.after ].filter(Boolean);
+    next.matched = true;
+    next.captures = [];
+    return filterRoutes(next);
+  }
+  for (var r in routes) {
+    if (routes.hasOwnProperty(r) && (!this._methods[r] || this._methods[r] && typeof routes[r] === "object" && !Array.isArray(routes[r]))) {
+      current = exact = regexp + this.delimiter + r;
+      if (!this.strict) {
+        exact += "[" + this.delimiter + "]?";
+      }
+      match = path.match(new RegExp("^" + exact));
+      if (!match) {
+        continue;
+      }
+      if (match[0] && match[0] == path && routes[r][method]) {
+        next = [ [ routes[r].before, routes[r][method] ].filter(Boolean) ];
+        next.after = [ routes[r].after ].filter(Boolean);
+        next.matched = true;
+        next.captures = match.slice(1);
+        if (this.recurse && routes === this.routes) {
+          next.push([ routes.before, routes.on ].filter(Boolean));
+          next.after = next.after.concat([ routes.after ].filter(Boolean));
+        }
+        return filterRoutes(next);
+      }
+      next = this.traverse(method, path, routes[r], current);
+      if (next.matched) {
+        if (next.length > 0) {
+          fns = fns.concat(next);
+        }
+        if (this.recurse) {
+          fns.push([ routes[r].before, routes[r].on ].filter(Boolean));
+          next.after = next.after.concat([ routes[r].after ].filter(Boolean));
+          if (routes === this.routes) {
+            fns.push([ routes["before"], routes["on"] ].filter(Boolean));
+            next.after = next.after.concat([ routes["after"] ].filter(Boolean));
+          }
+        }
+        fns.matched = true;
+        fns.captures = next.captures;
+        fns.after = next.after;
+        return filterRoutes(fns);
+      }
+    }
+  }
+  return false;
+};
+
+Router.prototype.insert = function(method, path, route, parent) {
+  var methodType, parentType, isArray, nested, part;
+  path = path.filter(function(p) {
+    return p && p.length > 0;
+  });
+  parent = parent || this.routes;
+  part = path.shift();
+  if (/\:|\*/.test(part) && !/\\d|\\w/.test(part)) {
+    part = regifyString(part, this.params);
+  }
+  if (path.length > 0) {
+    parent[part] = parent[part] || {};
+    return this.insert(method, path, route, parent[part]);
+  }
+  if (!part && !path.length && parent === this.routes) {
+    methodType = typeof parent[method];
+    switch (methodType) {
+     case "function":
+      parent[method] = [ parent[method], route ];
+      return;
+     case "object":
+      parent[method].push(route);
+      return;
+     case "undefined":
+      parent[method] = route;
+      return;
+    }
+    return;
+  }
+  parentType = typeof parent[part];
+  isArray = Array.isArray(parent[part]);
+  if (parent[part] && !isArray && parentType == "object") {
+    methodType = typeof parent[part][method];
+    switch (methodType) {
+     case "function":
+      parent[part][method] = [ parent[part][method], route ];
+      return;
+     case "object":
+      parent[part][method].push(route);
+      return;
+     case "undefined":
+      parent[part][method] = route;
+      return;
+    }
+  } else if (parentType == "undefined") {
+    nested = {};
+    nested[method] = route;
+    parent[part] = nested;
+    return;
+  }
+  throw new Error("Invalid route context: " + parentType);
+};
+
+
+
+Router.prototype.extend = function(methods) {
+  var self = this, len = methods.length, i;
+  function extend(method) {
+    self._methods[method] = true;
+    self[method] = function() {
+      var extra = arguments.length === 1 ? [ method, "" ] : [ method ];
+      self.on.apply(self, extra.concat(Array.prototype.slice.call(arguments)));
+    };
+  }
+  for (i = 0; i < len; i++) {
+    extend(methods[i]);
+  }
+};
+
+Router.prototype.runlist = function(fns) {
+  var runlist = this.every && this.every.before ? [ this.every.before ].concat(_flatten(fns)) : _flatten(fns);
+  if (this.every && this.every.on) {
+    runlist.push(this.every.on);
+  }
+  runlist.captures = fns.captures;
+  runlist.source = fns.source;
+  return runlist;
+};
+
+Router.prototype.mount = function(routes, path) {
+  if (!routes || typeof routes !== "object" || Array.isArray(routes)) {
+    return;
+  }
+  var self = this;
+  path = path || [];
+  if (!Array.isArray(path)) {
+    path = path.split(self.delimiter);
+  }
+  function insertOrMount(route, local) {
+    var rename = route, parts = route.split(self.delimiter), routeType = typeof routes[route], isRoute = parts[0] === "" || !self._methods[parts[0]], event = isRoute ? "on" : rename;
+    if (isRoute) {
+      rename = rename.slice((rename.match(new RegExp("^" + self.delimiter)) || [ "" ])[0].length);
+      parts.shift();
+    }
+    if (isRoute && routeType === "object" && !Array.isArray(routes[route])) {
+      local = local.concat(parts);
+      self.mount(routes[route], local);
+      return;
+    }
+    if (isRoute) {
+      local = local.concat(rename.split(self.delimiter));
+      local = terminator(local, self.delimiter);
+    }
+    self.insert(event, local, routes[route]);
+  }
+  for (var route in routes) {
+    if (routes.hasOwnProperty(route)) {
+      insertOrMount(route, path.slice(0));
+    }
+  }
+};
+
+
+
+}(typeof exports === "object" ? exports : window));
+},{}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/exoskeleton/exoskeleton.js":[function(require,module,exports){
+/*!
+ * Exoskeleton.js 0.7.0
+ * (c) 2013 Paul Miller <http://paulmillr.com>
+ * Based on Backbone.js
+ * (c) 2010-2013 Jeremy Ashkenas, DocumentCloud
+ * Exoskeleton may be freely distributed under the MIT license.
+ * For all details and documentation: <http://exosjs.com>
+ */
+
+(function(root, factory) {
+  // Set up Backbone appropriately for the environment.
+  if (typeof define === 'function' && define.amd) {
+    define(['underscore', 'jquery', 'exports'], function(_, $, exports) {
+      root.Backbone = root.Exoskeleton = factory(root, exports, _, $);
+    });
+  } else if (typeof exports !== 'undefined') {
+    var _, $;
+    try { _ = require('underscore'); } catch(e) { }
+    try { $ = require('jquery'); } catch(e) { }
+    factory(root, exports, _, $);
+  } else {
+    root.Backbone = root.Exoskeleton = factory(root, {}, root._, (root.jQuery || root.Zepto || root.ender || root.$));
+  }
+
+})(this, function(root, Backbone, _, $) {
+  'use strict';
+
+  // Initial Setup
+  // -------------
+
+  // Save the previous value of the `Backbone` variable, so that it can be
+  // restored later on, if `noConflict` is used.
+  var previousBackbone = root.Backbone;
+  var previousExoskeleton = root.Exoskeleton;
+
+  // Underscore replacement.
+  var utils = Backbone.utils = _ = (_ || {});
+
+  // Hold onto a local reference to `$`. Can be changed at any point.
+  Backbone.$ = $;
+
+  // Create local references to array methods we'll want to use later.
+  var array = [];
+  var push = array.push;
+  var slice = array.slice;
+  var toString = ({}).toString;
+
+  // Current version of the library. Keep in sync with `package.json`.
+  // Backbone.VERSION = '1.0.0';
+
+  // Runs Backbone.js in *noConflict* mode, returning the `Backbone` variable
+  // to its previous owner. Returns a reference to this Backbone object.
+  Backbone.noConflict = function() {
+    root.Backbone = previousBackbone;
+    root.Exoskeleton = previousExoskeleton;
+    return this;
+  };
+
+  // Helpers
+  // -------
+
+  // Helper function to correctly set up the prototype chain, for subclasses.
+  // Similar to `goog.inherits`, but uses a hash of prototype properties and
+  // class properties to be extended.
+  Backbone.extend = function(protoProps, staticProps) {
+    var parent = this;
+    var child;
+
+    // The constructor function for the new subclass is either defined by you
+    // (the "constructor" property in your `extend` definition), or defaulted
+    // by us to simply call the parent's constructor.
+    if (protoProps && _.has(protoProps, 'constructor')) {
+      child = protoProps.constructor;
+    } else {
+      child = function(){ return parent.apply(this, arguments); };
+    }
+
+    // Add static properties to the constructor function, if supplied.
+    _.extend(child, parent, staticProps);
+
+    // Set the prototype chain to inherit from `parent`, without calling
+    // `parent`'s constructor function.
+    var Surrogate = function(){ this.constructor = child; };
+    Surrogate.prototype = parent.prototype;
+    child.prototype = new Surrogate;
+
+    // Add prototype properties (instance properties) to the subclass,
+    // if supplied.
+    if (protoProps) _.extend(child.prototype, protoProps);
+
+    // Set a convenience property in case the parent's prototype is needed
+    // later.
+    child.__super__ = parent.prototype;
+
+    return child;
+  };
+
+  // Throw an error when a URL is needed, and none is supplied.
+  var urlError = function() {
+    throw new Error('A "url" property or function must be specified');
+  };
+
+  // Wrap an optional error callback with a fallback error event.
+  var wrapError = function(model, options) {
+    var error = options.error;
+    options.error = function(resp) {
+      if (error) error(model, resp, options);
+      model.trigger('error', model, resp, options);
+    };
+  };
+
+  // Checker for utility methods. Useful for custom builds.
+  var utilExists = function(method) {
+    return typeof _[method] === 'function';
+  };
+utils.result = function result(object, property) {
+  var value = object ? object[property] : undefined;
+  return typeof value === 'function' ? object[property]() : value;
+};
+
+utils.defaults = function defaults(obj) {
+  slice.call(arguments, 1).forEach(function(item) {
+    for (var key in item) if (obj[key] === undefined)
+      obj[key] = item[key];
+  });
+  return obj;
+};
+
+utils.extend = function extend(obj) {
+  slice.call(arguments, 1).forEach(function(item) {
+    for (var key in item) obj[key] = item[key];
+  });
+  return obj;
+};
+
+var htmlEscapes = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#39;'
+};
+
+utils.escape = function escape(string) {
+  return string == null ? '' : String(string).replace(/[&<>"']/g, function(match) {
+    return htmlEscapes[match];
+  });
+};
+
+utils.sortBy = function(obj, value, context) {
+  var iterator = typeof value === 'function' ? value : function(obj){ return obj[value]; };
+  return obj
+    .map(function(value, index, list) {
+      return {
+        value: value,
+        index: index,
+        criteria: iterator.call(context, value, index, list)
+      };
+    })
+    .sort(function(left, right) {
+      var a = left.criteria;
+      var b = right.criteria;
+      if (a !== b) {
+        if (a > b || a === void 0) return 1;
+        if (a < b || b === void 0) return -1;
+      }
+      return left.index - right.index;
+    })
+    .map(function(item) {
+      return item.value;
+    });
+};
+
+/** Used to generate unique IDs */
+var idCounter = 0;
+
+utils.uniqueId = function uniqueId(prefix) {
+  var id = ++idCounter + '';
+  return prefix ? prefix + id : id;
+};
+
+utils.has = function(obj, key) {
+  return Object.hasOwnProperty.call(obj, key);
+};
+
+var eq = function(a, b, aStack, bStack) {
+  // Identical objects are equal. `0 === -0`, but they aren't identical.
+  // See the [Harmony `egal` proposal](http://wiki.ecmascript.org/doku.php?id=harmony:egal).
+  if (a === b) return a !== 0 || 1 / a == 1 / b;
+  // A strict comparison is necessary because `null == undefined`.
+  if (a == null || b == null) return a === b;
+  // Unwrap any wrapped objects.
+  //if (a instanceof _) a = a._wrapped;
+  //if (b instanceof _) b = b._wrapped;
+  // Compare `[[Class]]` names.
+  var className = toString.call(a);
+  if (className != toString.call(b)) return false;
+  switch (className) {
+    // Strings, numbers, dates, and booleans are compared by value.
+    case '[object String]':
+      // Primitives and their corresponding object wrappers are equivalent; thus, `"5"` is
+      // equivalent to `new String("5")`.
+      return a == String(b);
+    case '[object Number]':
+      // `NaN`s are equivalent, but non-reflexive. An `egal` comparison is performed for
+      // other numeric values.
+      return a !== +a ? b !== +b : (a === 0 ? 1 / a === 1 / b : a === +b);
+    case '[object Date]':
+    case '[object Boolean]':
+      // Coerce dates and booleans to numeric primitive values. Dates are compared by their
+      // millisecond representations. Note that invalid dates with millisecond representations
+      // of `NaN` are not equivalent.
+      return +a == +b;
+    // RegExps are compared by their source patterns and flags.
+    case '[object RegExp]':
+      return a.source == b.source &&
+             a.global == b.global &&
+             a.multiline == b.multiline &&
+             a.ignoreCase == b.ignoreCase;
+  }
+  if (typeof a != 'object' || typeof b != 'object') return false;
+  // Assume equality for cyclic structures. The algorithm for detecting cyclic
+  // structures is adapted from ES 5.1 section 15.12.3, abstract operation `JO`.
+  var length = aStack.length;
+  while (length--) {
+    // Linear search. Performance is inversely proportional to the number of
+    // unique nested structures.
+    if (aStack[length] == a) return bStack[length] == b;
+  }
+  // Objects with different constructors are not equivalent, but `Object`s
+  // from different frames are.
+  var aCtor = a.constructor, bCtor = b.constructor;
+  if (aCtor !== bCtor && !(typeof aCtor === 'function' && (aCtor instanceof aCtor) &&
+                           typeof bCtor === 'function' && (bCtor instanceof bCtor))) {
+    return false;
+  }
+  // Add the first object to the stack of traversed objects.
+  aStack.push(a);
+  bStack.push(b);
+  var size = 0, result = true;
+  // Recursively compare objects and arrays.
+  if (className === '[object Array]') {
+    // Compare array lengths to determine if a deep comparison is necessary.
+    size = a.length;
+    result = size === b.length;
+    if (result) {
+      // Deep compare the contents, ignoring non-numeric properties.
+      while (size--) {
+        if (!(result = eq(a[size], b[size], aStack, bStack))) break;
+      }
+    }
+  } else {
+    // Deep compare objects.
+    for (var key in a) {
+      if (_.has(a, key)) {
+        // Count the expected number of properties.
+        size++;
+        // Deep compare each member.
+        if (!(result = _.has(b, key) && eq(a[key], b[key], aStack, bStack))) break;
+      }
+    }
+    // Ensure that both objects contain the same number of properties.
+    if (result) {
+      for (key in b) {
+        if (_.has(b, key) && !(size--)) break;
+      }
+      result = !size;
+    }
+  }
+  // Remove the first object from the stack of traversed objects.
+  aStack.pop();
+  bStack.pop();
+  return result;
+};
+
+// Perform a deep comparison to check if two objects are equal.
+utils.isEqual = function(a, b) {
+  return eq(a, b, [], []);
+};
+// Backbone.Events
+// ---------------
+
+// A module that can be mixed in to *any object* in order to provide it with
+// custom events. You may bind with `on` or remove with `off` callback
+// functions to an event; `trigger`-ing an event fires all callbacks in
+// succession.
+//
+//     var object = {};
+//     _.extend(object, Backbone.Events);
+//     object.on('expand', function(){ alert('expanded'); });
+//     object.trigger('expand');
+//
+var Events = Backbone.Events = {
+
+  // Bind an event to a `callback` function. Passing `"all"` will bind
+  // the callback to all events fired.
+  on: function(name, callback, context) {
+    if (!eventsApi(this, 'on', name, [callback, context]) || !callback) return this;
+    this._events || (this._events = {});
+    var events = this._events[name] || (this._events[name] = []);
+    events.push({callback: callback, context: context, ctx: context || this});
+    return this;
+  },
+
+  // Bind an event to only be triggered a single time. After the first time
+  // the callback is invoked, it will be removed.
+  once: function(name, callback, context) {
+    if (!eventsApi(this, 'once', name, [callback, context]) || !callback) return this;
+    var self = this;
+    var ran;
+    var once = function() {
+      if (ran) return;
+      ran = true;
+      self.off(name, once);
+      callback.apply(this, arguments);
+    };
+    once._callback = callback;
+    return this.on(name, once, context);
+  },
+
+  // Remove one or many callbacks. If `context` is null, removes all
+  // callbacks with that function. If `callback` is null, removes all
+  // callbacks for the event. If `name` is null, removes all bound
+  // callbacks for all events.
+  off: function(name, callback, context) {
+    var retain, ev, events, names, i, l, j, k;
+    if (!this._events || !eventsApi(this, 'off', name, [callback, context])) return this;
+    if (!name && !callback && !context) {
+      this._events = void 0;
+      return this;
+    }
+    names = name ? [name] : Object.keys(this._events);
+    for (i = 0, l = names.length; i < l; i++) {
+      name = names[i];
+      if (events = this._events[name]) {
+        this._events[name] = retain = [];
+        if (callback || context) {
+          for (j = 0, k = events.length; j < k; j++) {
+            ev = events[j];
+            if ((callback && callback !== ev.callback && callback !== ev.callback._callback) ||
+                (context && context !== ev.context)) {
+              retain.push(ev);
+            }
+          }
+        }
+        if (!retain.length) delete this._events[name];
+      }
+    }
+
+    return this;
+  },
+
+  // Trigger one or many events, firing all bound callbacks. Callbacks are
+  // passed the same arguments as `trigger` is, apart from the event name
+  // (unless you're listening on `"all"`, which will cause your callback to
+  // receive the true name of the event as the first argument).
+  trigger: function(name) {
+    if (!this._events) return this;
+    var args = slice.call(arguments, 1);
+    if (!eventsApi(this, 'trigger', name, args)) return this;
+    var events = this._events[name];
+    var allEvents = this._events.all;
+    if (events) triggerEvents(events, args);
+    if (allEvents) triggerEvents(allEvents, arguments);
+    return this;
+  },
+
+  // Tell this object to stop listening to either specific events ... or
+  // to every object it's currently listening to.
+  stopListening: function(obj, name, callback) {
+    var listeningTo = this._listeningTo;
+    if (!listeningTo) return this;
+    var remove = !name && !callback;
+    if (!callback && typeof name === 'object') callback = this;
+    if (obj) (listeningTo = {})[obj._listenId] = obj;
+    for (var id in listeningTo) {
+      obj = listeningTo[id];
+      obj.off(name, callback, this);
+      if (remove || !Object.keys(obj._events).length) delete this._listeningTo[id];
+    }
+    return this;
+  }
+
+};
+
+// Regular expression used to split event strings.
+var eventSplitter = /\s+/;
+
+// Implement fancy features of the Events API such as multiple event
+// names `"change blur"` and jQuery-style event maps `{change: action}`
+// in terms of the existing API.
+var eventsApi = function(obj, action, name, rest) {
+  if (!name) return true;
+
+  // Handle event maps.
+  if (typeof name === 'object') {
+    for (var key in name) {
+      obj[action].apply(obj, [key, name[key]].concat(rest));
+    }
+    return false;
+  }
+
+  // Handle space separated event names.
+  if (eventSplitter.test(name)) {
+    var names = name.split(eventSplitter);
+    for (var i = 0, l = names.length; i < l; i++) {
+      obj[action].apply(obj, [names[i]].concat(rest));
+    }
+    return false;
+  }
+
+  return true;
+};
+
+// A difficult-to-believe, but optimized internal dispatch function for
+// triggering events. Tries to keep the usual cases speedy (most internal
+// Backbone events have 3 arguments).
+var triggerEvents = function(events, args) {
+  var ev, i = -1, l = events.length, a1 = args[0], a2 = args[1], a3 = args[2];
+  switch (args.length) {
+    case 0: while (++i < l) (ev = events[i]).callback.call(ev.ctx); return;
+    case 1: while (++i < l) (ev = events[i]).callback.call(ev.ctx, a1); return;
+    case 2: while (++i < l) (ev = events[i]).callback.call(ev.ctx, a1, a2); return;
+    case 3: while (++i < l) (ev = events[i]).callback.call(ev.ctx, a1, a2, a3); return;
+    default: while (++i < l) (ev = events[i]).callback.apply(ev.ctx, args); return;
+  }
+};
+
+var listenMethods = {listenTo: 'on', listenToOnce: 'once'};
+
+// Inversion-of-control versions of `on` and `once`. Tell *this* object to
+// listen to an event in another object ... keeping track of what it's
+// listening to.
+Object.keys(listenMethods).forEach(function(method) {
+  var implementation = listenMethods[method];
+  Events[method] = function(obj, name, callback) {
+    var listeningTo = this._listeningTo || (this._listeningTo = {});
+    var id = obj._listenId || (obj._listenId = _.uniqueId('l'));
+    listeningTo[id] = obj;
+    if (!callback && typeof name === 'object') callback = this;
+    obj[implementation](name, callback, this);
+    return this;
+  };
+});
+
+// Aliases for backwards compatibility.
+Events.bind   = Events.on;
+Events.unbind = Events.off;
+
+// Allow the `Backbone` object to serve as a global event bus, for folks who
+// want global "pubsub" in a convenient place.
+_.extend(Backbone, Events);
+// Backbone.Model
+// --------------
+
+// Backbone **Models** are the basic data object in the framework --
+// frequently representing a row in a table in a database on your server.
+// A discrete chunk of data and a bunch of useful, related methods for
+// performing computations and transformations on that data.
+
+// Create a new model with the specified attributes. A client id (`cid`)
+// is automatically generated and assigned for you.
+var Model = Backbone.Model = function(attributes, options) {
+  var attrs = attributes || {};
+  options || (options = {});
+  this.cid = _.uniqueId('c');
+  this.attributes = Object.create(null);
+  if (options.collection) this.collection = options.collection;
+  if (options.parse) attrs = this.parse(attrs, options) || {};
+  attrs = _.defaults({}, attrs, _.result(this, 'defaults'));
+  this.set(attrs, options);
+  this.changed = Object.create(null);
+  this.initialize.apply(this, arguments);
+};
+
+// Attach all inheritable methods to the Model prototype.
+_.extend(Model.prototype, Events, {
+
+  // A hash of attributes whose current and previous value differ.
+  changed: null,
+
+  // The value returned during the last failed validation.
+  validationError: null,
+
+  // The default name for the JSON `id` attribute is `"id"`. MongoDB and
+  // CouchDB users may want to set this to `"_id"`.
+  idAttribute: 'id',
+
+  // Initialize is an empty function by default. Override it with your own
+  // initialization logic.
+  initialize: function(){},
+
+  // Return a copy of the model's `attributes` object.
+  toJSON: function(options) {
+    return _.extend({}, this.attributes);
+  },
+
+  // Proxy `Backbone.sync` by default -- but override this if you need
+  // custom syncing semantics for *this* particular model.
+  sync: function() {
+    return Backbone.sync.apply(this, arguments);
+  },
+
+  // Get the value of an attribute.
+  get: function(attr) {
+    return this.attributes[attr];
+  },
+
+  // Get the HTML-escaped value of an attribute.
+  escape: function(attr) {
+    return _.escape(this.get(attr));
+  },
+
+  // Returns `true` if the attribute contains a value that is not null
+  // or undefined.
+  has: function(attr) {
+    return this.get(attr) != null;
+  },
+
+  // Set a hash of model attributes on the object, firing `"change"`. This is
+  // the core primitive operation of a model, updating the data and notifying
+  // anyone who needs to know about the change in state. The heart of the beast.
+  set: function(key, val, options) {
+    var attr, attrs, unset, changes, silent, changing, prev, current;
+    if (key == null) return this;
+
+    // Handle both `"key", value` and `{key: value}` -style arguments.
+    if (typeof key === 'object') {
+      attrs = key;
+      options = val;
+    } else {
+      (attrs = {})[key] = val;
+    }
+
+    options || (options = {});
+
+    // Run validation.
+    if (!this._validate(attrs, options)) return false;
+
+    // Extract attributes and options.
+    unset           = options.unset;
+    silent          = options.silent;
+    changes         = [];
+    changing        = this._changing;
+    this._changing  = true;
+
+    if (!changing) {
+      this._previousAttributes = _.extend(Object.create(null), this.attributes);
+      this.changed = {};
+    }
+    current = this.attributes, prev = this._previousAttributes;
+
+    // Check for changes of `id`.
+    if (this.idAttribute in attrs) this.id = attrs[this.idAttribute];
+
+    // For each `set` attribute, update or delete the current value.
+    for (attr in attrs) {
+      val = attrs[attr];
+      if (!_.isEqual(current[attr], val)) changes.push(attr);
+      if (!_.isEqual(prev[attr], val)) {
+        this.changed[attr] = val;
+      } else {
+        delete this.changed[attr];
+      }
+      unset ? delete current[attr] : current[attr] = val;
+    }
+
+    // Trigger all relevant attribute changes.
+    if (!silent) {
+      if (changes.length) this._pending = options;
+      for (var i = 0, l = changes.length; i < l; i++) {
+        this.trigger('change:' + changes[i], this, current[changes[i]], options);
+      }
+    }
+
+    // You might be wondering why there's a `while` loop here. Changes can
+    // be recursively nested within `"change"` events.
+    if (changing) return this;
+    if (!silent) {
+      while (this._pending) {
+        options = this._pending;
+        this._pending = false;
+        this.trigger('change', this, options);
+      }
+    }
+    this._pending = false;
+    this._changing = false;
+    return this;
+  },
+
+  // Remove an attribute from the model, firing `"change"`. `unset` is a noop
+  // if the attribute doesn't exist.
+  unset: function(attr, options) {
+    return this.set(attr, void 0, _.extend({}, options, {unset: true}));
+  },
+
+  // Clear all attributes on the model, firing `"change"`.
+  clear: function(options) {
+    var attrs = {};
+    for (var key in this.attributes) attrs[key] = void 0;
+    return this.set(attrs, _.extend({}, options, {unset: true}));
+  },
+
+  // Determine if the model has changed since the last `"change"` event.
+  // If you specify an attribute name, determine if that attribute has changed.
+  hasChanged: function(attr) {
+    if (attr == null) return !!Object.keys(this.changed).length;
+    return _.has(this.changed, attr);
+  },
+
+  // Return an object containing all the attributes that have changed, or
+  // false if there are no changed attributes. Useful for determining what
+  // parts of a view need to be updated and/or what attributes need to be
+  // persisted to the server. Unset attributes will be set to undefined.
+  // You can also pass an attributes object to diff against the model,
+  // determining if there *would be* a change.
+  changedAttributes: function(diff) {
+    if (!diff) return this.hasChanged() ? _.extend(Object.create(null), this.changed) : false;
+    var val, changed = false;
+    var old = this._changing ? this._previousAttributes : this.attributes;
+    for (var attr in diff) {
+      if (_.isEqual(old[attr], (val = diff[attr]))) continue;
+      (changed || (changed = {}))[attr] = val;
+    }
+    return changed;
+  },
+
+  // Get the previous value of an attribute, recorded at the time the last
+  // `"change"` event was fired.
+  previous: function(attr) {
+    if (attr == null || !this._previousAttributes) return null;
+    return this._previousAttributes[attr];
+  },
+
+  // Get all of the attributes of the model at the time of the previous
+  // `"change"` event.
+  previousAttributes: function() {
+    return _.extend(Object.create(null), this._previousAttributes);
+  },
+
+  // Fetch the model from the server. If the server's representation of the
+  // model differs from its current attributes, they will be overridden,
+  // triggering a `"change"` event.
+  fetch: function(options) {
+    options = options ? _.extend({}, options) : {};
+    if (options.parse === void 0) options.parse = true;
+    var model = this;
+    var success = options.success;
+    options.success = function(resp) {
+      if (!model.set(model.parse(resp, options), options)) return false;
+      if (success) success(model, resp, options);
+      model.trigger('sync', model, resp, options);
+    };
+    wrapError(this, options);
+    return this.sync('read', this, options);
+  },
+
+  // Set a hash of model attributes, and sync the model to the server.
+  // If the server returns an attributes hash that differs, the model's
+  // state will be `set` again.
+  save: function(key, val, options) {
+    var attrs, method, xhr, attributes = this.attributes;
+
+    // Handle both `"key", value` and `{key: value}` -style arguments.
+    if (key == null || typeof key === 'object') {
+      attrs = key;
+      options = val;
+    } else {
+      (attrs = {})[key] = val;
+    }
+
+    options = _.extend({validate: true}, options);
+
+    // If we're not waiting and attributes exist, save acts as
+    // `set(attr).save(null, opts)` with validation. Otherwise, check if
+    // the model will be valid when the attributes, if any, are set.
+    if (attrs && !options.wait) {
+      if (!this.set(attrs, options)) return false;
+    } else {
+      if (!this._validate(attrs, options)) return false;
+    }
+
+    // Set temporary attributes if `{wait: true}`.
+    if (attrs && options.wait) {
+      this.attributes = _.extend(Object.create(null), attributes, attrs);
+    }
+
+    // After a successful server-side save, the client is (optionally)
+    // updated with the server-side state.
+    if (options.parse === void 0) options.parse = true;
+    var model = this;
+    var success = options.success;
+    options.success = function(resp) {
+      // Ensure attributes are restored during synchronous saves.
+      model.attributes = attributes;
+      var serverAttrs = model.parse(resp, options);
+      if (options.wait) serverAttrs = _.extend(attrs || {}, serverAttrs);
+      if (serverAttrs && typeof serverAttrs === 'object' && !model.set(serverAttrs, options)) {
+        return false;
+      }
+      if (success) success(model, resp, options);
+      model.trigger('sync', model, resp, options);
+    };
+    wrapError(this, options);
+
+    method = this.isNew() ? 'create' : (options.patch ? 'patch' : 'update');
+    if (method === 'patch') options.attrs = attrs;
+    xhr = this.sync(method, this, options);
+
+    // Restore attributes.
+    if (attrs && options.wait) this.attributes = attributes;
+
+    return xhr;
+  },
+
+  // Destroy this model on the server if it was already persisted.
+  // Optimistically removes the model from its collection, if it has one.
+  // If `wait: true` is passed, waits for the server to respond before removal.
+  destroy: function(options) {
+    options = options ? _.extend({}, options) : {};
+    var model = this;
+    var success = options.success;
+
+    var destroy = function() {
+      model.trigger('destroy', model, model.collection, options);
+    };
+
+    options.success = function(resp) {
+      if (options.wait || model.isNew()) destroy();
+      if (success) success(model, resp, options);
+      if (!model.isNew()) model.trigger('sync', model, resp, options);
+    };
+
+    if (this.isNew()) {
+      options.success();
+      return false;
+    }
+    wrapError(this, options);
+
+    var xhr = this.sync('delete', this, options);
+    if (!options.wait) destroy();
+    return xhr;
+  },
+
+  // Default URL for the model's representation on the server -- if you're
+  // using Backbone's restful methods, override this to change the endpoint
+  // that will be called.
+  url: function() {
+    var base =
+      _.result(this, 'urlRoot') ||
+      _.result(this.collection, 'url') ||
+      urlError();
+    if (this.isNew()) return base;
+    return base.replace(/([^\/])$/, '$1/') + encodeURIComponent(this.id);
+  },
+
+  // **parse** converts a response into the hash of attributes to be `set` on
+  // the model. The default implementation is just to pass the response along.
+  parse: function(resp, options) {
+    return resp;
+  },
+
+  // Create a new model with identical attributes to this one.
+  clone: function() {
+    return new this.constructor(this.attributes);
+  },
+
+  // A model is new if it has never been saved to the server, and lacks an id.
+  isNew: function() {
+    return !this.has(this.idAttribute);
+  },
+
+  // Check if the model is currently in a valid state.
+  isValid: function(options) {
+    return this._validate({}, _.extend(options || {}, { validate: true }));
+  },
+
+  // Run validation against the next complete set of model attributes,
+  // returning `true` if all is well. Otherwise, fire an `"invalid"` event.
+  _validate: function(attrs, options) {
+    if (!options.validate || !this.validate) return true;
+    attrs = _.extend(Object.create(null), this.attributes, attrs);
+    var error = this.validationError = this.validate(attrs, options) || null;
+    if (!error) return true;
+    this.trigger('invalid', this, error, _.extend(options, {validationError: error}));
+    return false;
+  }
+
+});
+
+if (_.keys) {
+  // Underscore methods that we want to implement on the Model.
+  var modelMethods = ['keys', 'values', 'pairs', 'invert', 'pick', 'omit'];
+
+  // Mix in each Underscore method as a proxy to `Model#attributes`.
+  modelMethods.filter(utilExists).forEach(function(method) {
+    Model.prototype[method] = function() {
+      var args = slice.call(arguments);
+      args.unshift(this.attributes);
+      return _[method].apply(_, args);
+    };
+  });
+}
+// Backbone.Collection
+// -------------------
+
+// If models tend to represent a single row of data, a Backbone Collection is
+// more analagous to a table full of data ... or a small slice or page of that
+// table, or a collection of rows that belong together for a particular reason
+// -- all of the messages in this particular folder, all of the documents
+// belonging to this particular author, and so on. Collections maintain
+// indexes of their models, both in order, and for lookup by `id`.
+
+// Create a new **Collection**, perhaps to contain a specific type of `model`.
+// If a `comparator` is specified, the Collection will maintain
+// its models in sort order, as they're added and removed.
+var Collection = Backbone.Collection = function(models, options) {
+  options || (options = {});
+  if (options.model) this.model = options.model;
+  if (options.comparator !== void 0) this.comparator = options.comparator;
+  this._reset();
+  this.initialize.apply(this, arguments);
+  if (models) this.reset(models, _.extend({silent: true}, options));
+};
+
+// Default options for `Collection#set`.
+var setOptions = {add: true, remove: true, merge: true};
+var addOptions = {add: true, remove: false};
+
+// Define the Collection's inheritable methods.
+_.extend(Collection.prototype, Events, {
+
+  // The default model for a collection is just a **Backbone.Model**.
+  // This should be overridden in most cases.
+  model: typeof Model === 'undefined' ? null : Model,
+
+  // Initialize is an empty function by default. Override it with your own
+  // initialization logic.
+  initialize: function(){},
+
+  // The JSON representation of a Collection is an array of the
+  // models' attributes.
+  toJSON: function(options) {
+    return this.map(function(model){ return model.toJSON(options); });
+  },
+
+  // Proxy `Backbone.sync` by default.
+  sync: function() {
+    return Backbone.sync.apply(this, arguments);
+  },
+
+  // Add a model, or list of models to the set.
+  add: function(models, options) {
+    return this.set(models, _.extend({merge: false}, options, addOptions));
+  },
+
+  // Remove a model, or a list of models from the set.
+  remove: function(models, options) {
+    var singular = !Array.isArray(models);
+    models = singular ? [models] : models.slice();
+    options || (options = {});
+    var i, l, index, model;
+    for (i = 0, l = models.length; i < l; i++) {
+      model = models[i] = this.get(models[i]);
+      if (!model) continue;
+      delete this._byId[model.id];
+      delete this._byId[model.cid];
+      index = this.indexOf(model);
+      this.models.splice(index, 1);
+      this.length--;
+      if (!options.silent) {
+        options.index = index;
+        model.trigger('remove', model, this, options);
+      }
+      this._removeReference(model, options);
+    }
+    return singular ? models[0] : models;
+  },
+
+  // Update a collection by `set`-ing a new list of models, adding new ones,
+  // removing models that are no longer present, and merging models that
+  // already exist in the collection, as necessary. Similar to **Model#set**,
+  // the core operation for updating the data contained by the collection.
+  set: function(models, options) {
+    options = _.defaults({}, options, setOptions);
+    if (options.parse) models = this.parse(models, options);
+    var singular = !Array.isArray(models);
+    models = singular ? (models ? [models] : []) : models.slice();
+    var i, l, id, model, attrs, existing, sort;
+    var at = options.at;
+    var targetModel = this.model;
+    var sortable = this.comparator && (at == null) && options.sort !== false;
+    var sortAttr = typeof this.comparator === 'string' ? this.comparator : null;
+    var toAdd = [], toRemove = [], modelMap = {};
+    var add = options.add, merge = options.merge, remove = options.remove;
+    var order = !sortable && add && remove ? [] : false;
+
+    // Turn bare objects into model references, and prevent invalid models
+    // from being added.
+    for (i = 0, l = models.length; i < l; i++) {
+      attrs = models[i] || {};
+      if (attrs instanceof Model) {
+        id = model = attrs;
+      } else {
+        id = attrs[targetModel.prototype.idAttribute || 'id'];
+      }
+
+      // If a duplicate is found, prevent it from being added and
+      // optionally merge it into the existing model.
+      if (existing = this.get(id)) {
+        if (remove) modelMap[existing.cid] = true;
+        if (merge) {
+          attrs = attrs === model ? model.attributes : attrs;
+          if (options.parse) attrs = existing.parse(attrs, options);
+          existing.set(attrs, options);
+          if (sortable && !sort && existing.hasChanged(sortAttr)) sort = true;
+        }
+        models[i] = existing;
+
+      // If this is a new, valid model, push it to the `toAdd` list.
+      } else if (add) {
+        model = models[i] = this._prepareModel(attrs, options);
+        if (!model) continue;
+        toAdd.push(model);
+        this._addReference(model, options);
+      }
+
+      // Do not add multiple models with the same `id`.
+      model = existing || model;
+      if (order && (model.isNew() || !modelMap[model.id])) order.push(model);
+      modelMap[model.id] = true;
+    }
+
+    // Remove nonexistent models if appropriate.
+    if (remove) {
+      for (i = 0, l = this.length; i < l; ++i) {
+        if (!modelMap[(model = this.models[i]).cid]) toRemove.push(model);
+      }
+      if (toRemove.length) this.remove(toRemove, options);
+    }
+
+    // See if sorting is needed, update `length` and splice in new models.
+    if (toAdd.length || (order && order.length)) {
+      if (sortable) sort = true;
+      this.length += toAdd.length;
+      if (at != null) {
+        for (i = 0, l = toAdd.length; i < l; i++) {
+          this.models.splice(at + i, 0, toAdd[i]);
+        }
+      } else {
+        if (order) this.models.length = 0;
+        var orderedModels = order || toAdd;
+        for (i = 0, l = orderedModels.length; i < l; i++) {
+          this.models.push(orderedModels[i]);
+        }
+      }
+    }
+
+    // Silently sort the collection if appropriate.
+    if (sort) this.sort({silent: true});
+
+    // Unless silenced, it's time to fire all appropriate add/sort events.
+    if (!options.silent) {
+      for (i = 0, l = toAdd.length; i < l; i++) {
+        (model = toAdd[i]).trigger('add', model, this, options);
+      }
+      if (sort || (order && order.length)) this.trigger('sort', this, options);
+    }
+
+    // Return the added (or merged) model (or models).
+    return singular ? models[0] : models;
+  },
+
+  // When you have more items than you want to add or remove individually,
+  // you can reset the entire set with a new list of models, without firing
+  // any granular `add` or `remove` events. Fires `reset` when finished.
+  // Useful for bulk operations and optimizations.
+  reset: function(models, options) {
+    options || (options = {});
+    for (var i = 0, l = this.models.length; i < l; i++) {
+      this._removeReference(this.models[i], options);
+    }
+    options.previousModels = this.models;
+    this._reset();
+    models = this.add(models, _.extend({silent: true}, options));
+    if (!options.silent) this.trigger('reset', this, options);
+    return models;
+  },
+
+  // Add a model to the end of the collection.
+  push: function(model, options) {
+    return this.add(model, _.extend({at: this.length}, options));
+  },
+
+  // Remove a model from the end of the collection.
+  pop: function(options) {
+    var model = this.at(this.length - 1);
+    this.remove(model, options);
+    return model;
+  },
+
+  // Add a model to the beginning of the collection.
+  unshift: function(model, options) {
+    return this.add(model, _.extend({at: 0}, options));
+  },
+
+  // Remove a model from the beginning of the collection.
+  shift: function(options) {
+    var model = this.at(0);
+    this.remove(model, options);
+    return model;
+  },
+
+  // Slice out a sub-array of models from the collection.
+  slice: function() {
+    return slice.apply(this.models, arguments);
+  },
+
+  // Get a model from the set by id.
+  get: function(obj) {
+    if (obj == null) return void 0;
+    return this._byId[obj] || this._byId[obj.id] || this._byId[obj.cid];
+  },
+
+  // Get the model at the given index.
+  at: function(index) {
+    return this.models[index];
+  },
+
+  // Return models with matching attributes. Useful for simple cases of
+  // `filter`.
+  where: function(attrs, first) {
+    if (!attrs || !Object.keys(attrs).length) return first ? void 0 : [];
+    return this[first ? 'find' : 'filter'](function(model) {
+      for (var key in attrs) {
+        if (attrs[key] !== model.get(key)) return false;
+      }
+      return true;
+    });
+  },
+
+  // Return the first model with matching attributes. Useful for simple cases
+  // of `find`.
+  findWhere: function(attrs) {
+    return this.where(attrs, true);
+  },
+
+  // Force the collection to re-sort itself. You don't need to call this under
+  // normal circumstances, as the set will maintain sort order as each item
+  // is added.
+  sort: function(options) {
+    if (!this.comparator) throw new Error('Cannot sort a set without a comparator');
+    options || (options = {});
+
+    // Run sort based on type of `comparator`.
+    if (typeof this.comparator === 'string' || this.comparator.length === 1) {
+      this.models = this.sortBy(this.comparator, this);
+    } else {
+      this.models.sort(this.comparator.bind(this));
+    }
+
+    if (!options.silent) this.trigger('sort', this, options);
+    return this;
+  },
+
+  // Pluck an attribute from each model in the collection.
+  pluck: function(attr) {
+    return this.models.map(function(model) {
+      return model.get(attr);
+    });
+  },
+
+  // Fetch the default set of models for this collection, resetting the
+  // collection when they arrive. If `reset: true` is passed, the response
+  // data will be passed through the `reset` method instead of `set`.
+  fetch: function(options) {
+    options = options ? _.extend({}, options) : {};
+    if (options.parse === void 0) options.parse = true;
+    var success = options.success;
+    var collection = this;
+    options.success = function(resp) {
+      var method = options.reset ? 'reset' : 'set';
+      collection[method](resp, options);
+      if (success) success(collection, resp, options);
+      collection.trigger('sync', collection, resp, options);
+    };
+    wrapError(this, options);
+    return this.sync('read', this, options);
+  },
+
+  // Create a new instance of a model in this collection. Add the model to the
+  // collection immediately, unless `wait: true` is passed, in which case we
+  // wait for the server to agree.
+  create: function(model, options) {
+    options = options ? _.extend({}, options) : {};
+    if (!(model = this._prepareModel(model, options))) return false;
+    if (!options.wait) this.add(model, options);
+    var collection = this;
+    var success = options.success;
+    options.success = function(model, resp) {
+      if (options.wait) collection.add(model, options);
+      if (success) success(model, resp, options);
+    };
+    model.save(null, options);
+    return model;
+  },
+
+  // **parse** converts a response into a list of models to be added to the
+  // collection. The default implementation is just to pass it through.
+  parse: function(resp, options) {
+    return resp;
+  },
+
+  // Create a new collection with an identical list of models as this one.
+  clone: function() {
+    return new this.constructor(this.models);
+  },
+
+  // Private method to reset all internal state. Called when the collection
+  // is first initialized or reset.
+  _reset: function() {
+    this.length = 0;
+    this.models = [];
+    this._byId  = Object.create(null);
+  },
+
+  // Prepare a hash of attributes (or other model) to be added to this
+  // collection.
+  _prepareModel: function(attrs, options) {
+    if (attrs instanceof Model) return attrs;
+    options = _.extend({}, options);
+    options.collection = this;
+    var model = new this.model(attrs, options);
+    if (!model.validationError) return model;
+    this.trigger('invalid', this, model.validationError, options);
+    return false;
+  },
+
+  // Internal method to create a model's ties to a collection.
+  _addReference: function(model, options) {
+    this._byId[model.cid] = model;
+    if (model.id != null) this._byId[model.id] = model;
+    if (!model.collection) model.collection = this;
+    model.on('all', this._onModelEvent, this);
+  },
+
+  // Internal method to sever a model's ties to a collection.
+  _removeReference: function(model, options) {
+    if (this === model.collection) delete model.collection;
+    model.off('all', this._onModelEvent, this);
+  },
+
+  // Internal method called every time a model in the set fires an event.
+  // Sets need to update their indexes when models change ids. All other
+  // events simply proxy through. "add" and "remove" events that originate
+  // in other collections are ignored.
+  _onModelEvent: function(event, model, collection, options) {
+    if ((event === 'add' || event === 'remove') && collection !== this) return;
+    if (event === 'destroy') this.remove(model, options);
+    if (model && event === 'change:' + model.idAttribute) {
+      delete this._byId[model.previous(model.idAttribute)];
+      if (model.id != null) this._byId[model.id] = model;
+    }
+    this.trigger.apply(this, arguments);
+  }
+
+});
+
+if (utilExists('each')) {
+  // Underscore methods that we want to implement on the Collection.
+  // 90% of the core usefulness of Backbone Collections is actually implemented
+  // right here:
+  var methods = ['forEach', 'each', 'map', 'collect', 'reduce', 'foldl',
+    'inject', 'reduceRight', 'foldr', 'find', 'detect', 'filter', 'select',
+    'reject', 'every', 'all', 'some', 'any', 'include', 'contains', 'invoke',
+    'max', 'min', 'toArray', 'size', 'first', 'head', 'take', 'initial', 'rest',
+    'tail', 'drop', 'last', 'without', 'difference', 'indexOf', 'shuffle',
+    'lastIndexOf', 'isEmpty', 'chain'];
+
+  // Mix in each Underscore method as a proxy to `Collection#models`.
+  methods.filter(utilExists).forEach(function(method) {
+    Collection.prototype[method] = function() {
+      var args = slice.call(arguments);
+      args.unshift(this.models);
+      return _[method].apply(_, args);
+    };
+  });
+
+  // Underscore methods that take a property name as an argument.
+  var attributeMethods = ['groupBy', 'countBy', 'sortBy'];
+
+  // Use attributes instead of properties.
+  attributeMethods.filter(utilExists).forEach(function(method) {
+    Collection.prototype[method] = function(value, context) {
+      var iterator = typeof value === 'function' ? value : function(model) {
+        return model.get(value);
+      };
+      return _[method](this.models, iterator, context);
+    };
+  });
+} else {
+  ['forEach', 'map', 'filter', 'some', 'every', 'reduce', 'reduceRight',
+    'indexOf', 'lastIndexOf'].forEach(function(method) {
+    Collection.prototype[method] = function(arg, context) {
+      return this.models[method](arg, context);
+    };
+  });
+
+  // Exoskeleton-specific:
+  Collection.prototype.find = function(iterator, context) {
+    var result;
+    this.some(function(value, index, list) {
+      if (iterator.call(context, value, index, list)) {
+        result = value;
+        return true;
+      }
+    });
+    return result;
+  };
+
+  // Underscore methods that take a property name as an argument.
+  ['sortBy'].forEach(function(method) {
+    Collection.prototype[method] = function(value, context) {
+      var iterator = typeof value === 'function' ? value : function(model) {
+        return model.get(value);
+      };
+      return _[method](this.models, iterator, context);
+    };
+  });
+}
+// Backbone.View
+// -------------
+
+// Backbone Views are almost more convention than they are actual code. A View
+// is simply a JavaScript object that represents a logical chunk of UI in the
+// DOM. This might be a single item, an entire list, a sidebar or panel, or
+// even the surrounding frame which wraps your whole app. Defining a chunk of
+// UI as a **View** allows you to define your DOM events declaratively, without
+// having to worry about render order ... and makes it easy for the view to
+// react to specific changes in the state of your models.
+
+// Creating a Backbone.View creates its initial element outside of the DOM,
+// if an existing element is not provided...
+var View = Backbone.View = function(options) {
+  this.cid = _.uniqueId('view');
+
+  if (options) Object.keys(options).forEach(function(key) {
+    if (viewOptions.indexOf(key) !== -1) this[key] = options[key];
+  }, this);
+
+  this._ensureElement();
+  this.initialize.apply(this, arguments);
+};
+
+// Cached regex to split keys for `delegate`.
+var delegateEventSplitter = /^(\S+)\s*(.*)$/;
+
+// List of view options to be merged as properties.
+var viewOptions = ['model', 'collection', 'el', 'id', 'attributes', 'className', 'tagName', 'events'];
+
+// Set up all inheritable **Backbone.View** properties and methods.
+_.extend(View.prototype, Events, {
+
+  // The default `tagName` of a View's element is `"div"`.
+  tagName: 'div',
+
+  // jQuery delegate for element lookup, scoped to DOM elements within the
+  // current view. This should be preferred to global lookups where possible.
+  $: function(selector) {
+    return this.$el.find(selector);
+  },
+
+  // Initialize is an empty function by default. Override it with your own
+  // initialization logic.
+  initialize: function(){},
+
+  // **render** is the core function that your view should override, in order
+  // to populate its element (`this.el`), with the appropriate HTML. The
+  // convention is for **render** to always return `this`.
+  render: function() {
+    return this;
+  },
+
+  // Remove this view by taking the element out of the DOM, and removing any
+  // applicable Backbone.Events listeners.
+  remove: function() {
+    this._removeElement();
+    this.stopListening();
+    return this;
+  },
+
+  // Remove this view's element from the document and all event listeners
+  // attached to it. Exposed for subclasses using an alternative DOM
+  // manipulation API.
+  _removeElement: function() {
+    this.$el.remove();
+  },
+
+  // Change the view's element (`this.el` property) and re-delegate the
+  // view's events on the new element.
+  setElement: function(element) {
+    this.undelegateEvents();
+    this._setElement(element);
+    this.delegateEvents();
+    return this;
+  },
+
+  // Creates the `this.el` and `this.$el` references for this view using the
+  // given `el` and a hash of `attributes`. `el` can be a CSS selector or an
+  // HTML string, a jQuery context or an element. Subclasses can override
+  // this to utilize an alternative DOM manipulation API and are only required
+  // to set the `this.el` property.
+  _setElement: function(el) {
+    this.$el = el instanceof Backbone.$ ? el : Backbone.$(el);
+    this.el = this.$el[0];
+  },
+
+  // Set callbacks, where `this.events` is a hash of
+  //
+  // *{"event selector": "callback"}*
+  //
+  //     {
+  //       'mousedown .title':  'edit',
+  //       'click .button':     'save',
+  //       'click .open':       function(e) { ... }
+  //     }
+  //
+  // pairs. Callbacks will be bound to the view, with `this` set properly.
+  // Uses event delegation for efficiency.
+  // Omitting the selector binds the event to `this.el`.
+  delegateEvents: function(events) {
+    if (!(events || (events = _.result(this, 'events')))) return this;
+    this.undelegateEvents();
+    for (var key in events) {
+      var method = events[key];
+      if (typeof method !== 'function') method = this[events[key]];
+      // if (!method) continue;
+      var match = key.match(delegateEventSplitter);
+      this.delegate(match[1], match[2], method.bind(this));
+    }
+    return this;
+  },
+
+  // Add a single event listener to the view's element (or a child element
+  // using `selector`). This only works for delegate-able events: not `focus`,
+  // `blur`, and not `change`, `submit`, and `reset` in Internet Explorer.
+  delegate: function(eventName, selector, listener) {
+    this.$el.on(eventName + '.delegateEvents' + this.cid, selector, listener);
+  },
+
+  // Clears all callbacks previously bound to the view by `delegateEvents`.
+  // You usually don't need to use this, but may wish to if you have multiple
+  // Backbone views attached to the same DOM element.
+  undelegateEvents: function() {
+    if (this.$el) this.$el.off('.delegateEvents' + this.cid);
+    return this;
+  },
+
+  // A finer-grained `undelegateEvents` for removing a single delegated event.
+  // `selector` and `listener` are both optional.
+  undelegate: function(eventName, selector, listener) {
+    this.$el.off(eventName + '.delegateEvents' + this.cid, selector, listener);
+  },
+
+  // Produces a DOM element to be assigned to your view. Exposed for
+  // subclasses using an alternative DOM manipulation API.
+  _createElement: function(tagName) {
+    return document.createElement(tagName);
+  },
+
+  // Ensure that the View has a DOM element to render into.
+  // If `this.el` is a string, pass it through `$()`, take the first
+  // matching element, and re-assign it to `el`. Otherwise, create
+  // an element from the `id`, `className` and `tagName` properties.
+  _ensureElement: function() {
+    if (!this.el) {
+      var attrs = _.extend({}, _.result(this, 'attributes'));
+      if (this.id) attrs.id = _.result(this, 'id');
+      if (this.className) attrs['class'] = _.result(this, 'className');
+      this.setElement(this._createElement(_.result(this, 'tagName')));
+      this._setAttributes(attrs);
+    } else {
+      this.setElement(_.result(this, 'el'));
+    }
+  },
+
+  // Set attributes from a hash on this view's element.  Exposed for
+  // subclasses using an alternative DOM manipulation API.
+  _setAttributes: function(attributes) {
+    this.$el.attr(attributes);
+  }
+
+});
+// Backbone.sync
+// -------------
+
+// Override this function to change the manner in which Backbone persists
+// models to the server. You will be passed the type of request, and the
+// model in question. By default, makes a RESTful Ajax request
+// to the model's `url()`. Some possible customizations could be:
+//
+// * Use `setTimeout` to batch rapid-fire updates into a single request.
+// * Send up the models as XML instead of JSON.
+// * Persist models via WebSockets instead of Ajax.
+Backbone.sync = function(method, model, options) {
+  options || (options = {})
+
+  var type = methodMap[method];
+
+  // Default JSON-request options.
+  var params = {type: type, dataType: 'json'};
+
+  // Ensure that we have a URL.
+  if (!options.url) {
+    params.url = _.result(model, 'url') || urlError();
+  }
+
+  // Ensure that we have the appropriate request data.
+  if (options.data == null && model && (method === 'create' || method === 'update' || method === 'patch')) {
+    params.contentType = 'application/json';
+    params.data = JSON.stringify(options.attrs || model.toJSON(options));
+  }
+
+  // Don't process data on a non-GET request.
+  if (params.type !== 'GET') {
+    params.processData = false;
+  }
+
+  // Make the request, allowing the user to override any Ajax options.
+  var xhr = options.xhr = Backbone.ajax(_.extend(params, options));
+  model.trigger('request', model, xhr, options);
+  return xhr;
+};
+
+// Map from CRUD to HTTP for our default `Backbone.sync` implementation.
+var methodMap = {
+  'create': 'POST',
+  'update': 'PUT',
+  'patch':  'PATCH',
+  'delete': 'DELETE',
+  'read':   'GET'
+};
+
+// Set the default implementation of `Backbone.ajax` to proxy through to `$`.
+// Override this if you'd like to use a different library.
+Backbone.ajax = function() {
+  return Backbone.$.ajax.apply(Backbone.$, arguments);
+};
+// Backbone.Router
+// ---------------
+
+// Routers map faux-URLs to actions, and fire events when routes are
+// matched. Creating a new one sets its `routes` hash, if not set statically.
+var Router = Backbone.Router = function(options) {
+  options || (options = {});
+  if (options.routes) this.routes = options.routes;
+  this._bindRoutes();
+  this.initialize.apply(this, arguments);
+};
+
+// Cached regular expressions for matching named param parts and splatted
+// parts of route strings.
+var optionalParam = /\((.*?)\)/g;
+var namedParam    = /(\(\?)?:\w+/g;
+var splatParam    = /\*\w+/g;
+var escapeRegExp  = /[\-{}\[\]+?.,\\\^$|#\s]/g;
+
+var isRegExp = function(value) {
+  return value ? (typeof value === 'object' && toString.call(value) === '[object RegExp]') : false;
+};
+
+// Set up all inheritable **Backbone.Router** properties and methods.
+_.extend(Router.prototype, Events, {
+
+  // Initialize is an empty function by default. Override it with your own
+  // initialization logic.
+  initialize: function(){},
+
+  // Manually bind a single named route to a callback. For example:
+  //
+  //     this.route('search/:query/p:num', 'search', function(query, num) {
+  //       ...
+  //     });
+  //
+  route: function(route, name, callback) {
+    if (!isRegExp(route)) route = this._routeToRegExp(route);
+    if (typeof name === 'function') {
+      callback = name;
+      name = '';
+    }
+    if (!callback) callback = this[name];
+    var router = this;
+    Backbone.history.route(route, function(fragment) {
+      var args = router._extractParameters(route, fragment);
+      router.execute(callback, args);
+      router.trigger.apply(router, ['route:' + name].concat(args));
+      router.trigger('route', name, args);
+      Backbone.history.trigger('route', router, name, args);
+    });
+    return this;
+  },
+
+  // Execute a route handler with the provided parameters.  This is an
+  // excellent place to do pre-route setup or post-route cleanup.
+  execute: function(callback, args) {
+    if (callback) callback.apply(this, args);
+  },
+
+  // Simple proxy to `Backbone.history` to save a fragment into the history.
+  navigate: function(fragment, options) {
+    Backbone.history.navigate(fragment, options);
+    return this;
+  },
+
+  // Bind all defined routes to `Backbone.history`. We have to reverse the
+  // order of the routes here to support behavior where the most general
+  // routes can be defined at the bottom of the route map.
+  _bindRoutes: function() {
+    if (!this.routes) return;
+    this.routes = _.result(this, 'routes');
+    var route, routes = Object.keys(this.routes);
+    while ((route = routes.pop()) != null) {
+      this.route(route, this.routes[route]);
+    }
+  },
+
+  // Convert a route string into a regular expression, suitable for matching
+  // against the current location hash.
+  _routeToRegExp: function(route) {
+    route = route.replace(escapeRegExp, '\\$&')
+                 .replace(optionalParam, '(?:$1)?')
+                 .replace(namedParam, function(match, optional) {
+                   return optional ? match : '([^/?]+)';
+                 })
+                 .replace(splatParam, '([^?]*?)');
+    return new RegExp('^' + route + '(?:\\?([\\s\\S]*))?$');
+  },
+
+  // Given a route, and a URL fragment that it matches, return the array of
+  // extracted decoded parameters. Empty or unmatched parameters will be
+  // treated as `null` to normalize cross-browser behavior.
+  _extractParameters: function(route, fragment) {
+    var params = route.exec(fragment).slice(1);
+    return params.map(function(param, i) {
+      // Don't decode the search params.
+      if (i === params.length - 1) return param || null;
+      return param ? decodeURIComponent(param) : null;
+    });
+  }
+
+});
+// Backbone.History
+// ----------------
+
+// Handles cross-browser history management, based on either
+// [pushState](http://diveintohtml5.info/history.html) and real URLs, or
+// [onhashchange](https://developer.mozilla.org/en-US/docs/DOM/window.onhashchange)
+// and URL fragments.
+var History = Backbone.History = function() {
+  this.handlers = [];
+  this.checkUrl = this.checkUrl.bind(this);
+
+  // Ensure that `History` can be used outside of the browser.
+  if (typeof window !== 'undefined') {
+    this.location = window.location;
+    this.history = window.history;
+  }
+};
+
+// Cached regex for stripping a leading hash/slash and trailing space.
+var routeStripper = /^[#\/]|\s+$/g;
+
+// Cached regex for stripping leading and trailing slashes.
+var rootStripper = /^\/+|\/+$/g;
+
+// Cached regex for removing a trailing slash.
+var trailingSlash = /\/$/;
+
+// Cached regex for stripping urls of hash and query.
+var pathStripper = /[#].*$/;
+
+// Has the history handling already been started?
+History.started = false;
+
+// Set up all inheritable **Backbone.History** properties and methods.
+_.extend(History.prototype, Events, {
+
+  // Are we at the app root?
+  atRoot: function() {
+    return this.location.pathname.replace(/[^\/]$/, '$&/') === this.root;
+  },
+
+  // Gets the true hash value. Cannot use location.hash directly due to bug
+  // in Firefox where location.hash will always be decoded.
+  getHash: function(window) {
+    var match = (window || this).location.href.match(/#(.*)$/);
+    return match ? match[1] : '';
+  },
+
+  // Get the cross-browser normalized URL fragment, either from the URL,
+  // the hash, or the override.
+  getFragment: function(fragment, forcePushState) {
+    if (fragment == null) {
+      if (this._wantsPushState || !this._wantsHashChange) {
+        fragment = decodeURI(this.location.pathname + this.location.search);
+        var root = this.root.replace(trailingSlash, '');
+        if (!fragment.indexOf(root)) fragment = fragment.slice(root.length);
+      } else {
+        fragment = this.getHash();
+      }
+    }
+    return fragment.replace(routeStripper, '');
+  },
+
+  // Start the hash change handling, returning `true` if the current URL matches
+  // an existing route, and `false` otherwise.
+  start: function(options) {
+    if (History.started) throw new Error("Backbone.history has already been started");
+    History.started = true;
+
+    // Figure out the initial configuration.
+    // Is pushState desired or should we use hashchange only?
+    this.options          = _.extend({root: '/'}, this.options, options);
+    this.root             = this.options.root;
+    this._wantsHashChange = this.options.hashChange !== false;
+    this._wantsPushState  = !!this.options.pushState;
+    var fragment          = this.getFragment();
+
+    // Normalize root to always include a leading and trailing slash.
+    this.root = ('/' + this.root + '/').replace(rootStripper, '/');
+
+    // Depending on whether we're using pushState or hashes, determine how we
+    // check the URL state.
+    if (this._wantsPushState) {
+      window.addEventListener('popstate', this.checkUrl, false);
+    } else if (this._wantsHashChange) {
+      window.addEventListener('hashchange', this.checkUrl, false);
+    }
+
+    // Determine if we need to change the base url, for a pushState link
+    // opened by a non-pushState browser.
+    this.fragment = fragment;
+    var loc = this.location;
+
+    // Transition from hashChange to pushState or vice versa if both are
+    // requested.
+    if (this._wantsHashChange && this._wantsPushState) {
+
+      // If we've started out with a hash-based route, but we're currently
+      // in a browser where it could be `pushState`-based instead...
+      if (this.atRoot() && loc.hash) {
+        this.fragment = this.getHash().replace(routeStripper, '');
+        this.history.replaceState({}, document.title, this.root + this.fragment);
+      }
+
+    }
+
+    if (!this.options.silent) return this.loadUrl();
+  },
+
+  // Disable Backbone.history, perhaps temporarily. Not useful in a real app,
+  // but possibly useful for unit testing Routers.
+  stop: function() {
+    window.removeEventListener('popstate', this.checkUrl);
+    window.removeEventListener('hashchange', this.checkUrl);
+    History.started = false;
+  },
+
+  // Add a route to be tested when the fragment changes. Routes added later
+  // may override previous routes.
+  route: function(route, callback) {
+    this.handlers.unshift({route: route, callback: callback});
+  },
+
+  // Checks the current URL to see if it has changed, and if it has,
+  // calls `loadUrl`.
+  checkUrl: function() {
+    var current = this.getFragment();
+    if (current === this.fragment) return false;
+    this.loadUrl();
+  },
+
+  // Attempt to load the current URL fragment. If a route succeeds with a
+  // match, returns `true`. If no defined routes matches the fragment,
+  // returns `false`.
+  loadUrl: function(fragment) {
+    fragment = this.fragment = this.getFragment(fragment);
+    return this.handlers.some(function(handler) {
+      if (handler.route.test(fragment)) {
+        handler.callback(fragment);
+        return true;
+      }
+    });
+  },
+
+  // Save a fragment into the hash history, or replace the URL state if the
+  // 'replace' option is passed. You are responsible for properly URL-encoding
+  // the fragment in advance.
+  //
+  // The options object can contain `trigger: true` if you wish to have the
+  // route callback be fired (not usually desirable), or `replace: true`, if
+  // you wish to modify the current URL without adding an entry to the history.
+  navigate: function(fragment, options) {
+    if (!History.started) return false;
+    if (!options || options === true) options = {trigger: !!options};
+
+    var url = this.root + (fragment = this.getFragment(fragment || ''));
+
+    // Strip the hash for matching.
+    fragment = fragment.replace(pathStripper, '');
+
+    if (this.fragment === fragment) return;
+    this.fragment = fragment;
+
+    // Don't include a trailing slash on the root.
+    if (fragment === '' && url !== '/') url = url.slice(0, -1);
+
+    // If we're using pushState we use it to set the fragment as a real URL.
+    if (this._wantsPushState) {
+      this.history[options.replace ? 'replaceState' : 'pushState']({}, document.title, url);
+
+    // If hash changes haven't been explicitly disabled, update the hash
+    // fragment to store history.
+    } else if (this._wantsHashChange) {
+      this._updateHash(this.location, fragment, options.replace);
+    // If you've told us that you explicitly don't want fallback hashchange-
+    // based history, then `navigate` becomes a page refresh.
+    } else {
+      return this.location.assign(url);
+    }
+    if (options.trigger) return this.loadUrl(fragment);
+  },
+
+  // Update the hash location, either replacing the current entry, or adding
+  // a new one to the browser history.
+  _updateHash: function(location, fragment, replace) {
+    if (replace) {
+      var href = location.href.replace(/(javascript:|#).*$/, '');
+      location.replace(href + '#' + fragment);
+    } else {
+      // Some browsers require that `hash` contains a leading #.
+      location.hash = '#' + fragment;
+    }
+  }
+
+});
+  // !!!
+  // Init.
+  ['Model', 'Collection', 'Router', 'View', 'History'].forEach(function(name) {
+    var item = Backbone[name];
+    if (item) item.extend = Backbone.extend;
+  });
+
+  // Allow the `Backbone` object to serve as a global event bus, for folks who
+  // want global "pubsub" in a convenient place.
+  _.extend(Backbone, Events);
+
+  // Create the default Backbone.history if the History module is included.
+  if (History) Backbone.history = new History();
+  return Backbone;
+});
+
+},{"jquery":false,"underscore":false}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/native-promise-only/npo.js":[function(require,module,exports){
+(function (global){
+/*! Native Promise Only
+    v0.7.6-a (c) Kyle Simpson
+    MIT License: http://getify.mit-license.org
+*/
+!function(t,n,e){n[t]=n[t]||e(),"undefined"!=typeof module&&module.exports?module.exports=n[t]:"function"==typeof define&&define.amd&&define(function(){return n[t]})}("Promise","undefined"!=typeof global?global:this,function(){"use strict";function t(t,n){l.add(t,n),h||(h=y(l.drain))}function n(t){var n,e=typeof t;return null==t||"object"!=e&&"function"!=e||(n=t.then),"function"==typeof n?n:!1}function e(){for(var t=0;t<this.chain.length;t++)o(this,1===this.state?this.chain[t].success:this.chain[t].failure,this.chain[t]);this.chain.length=0}function o(t,e,o){var r,i;try{e===!1?o.reject(t.msg):(r=e===!0?t.msg:e.call(void 0,t.msg),r===o.promise?o.reject(TypeError("Promise-chain cycle")):(i=n(r))?i.call(r,o.resolve,o.reject):o.resolve(r))}catch(c){o.reject(c)}}function r(o){var c,u,a=this;if(!a.triggered){a.triggered=!0,a.def&&(a=a.def);try{(c=n(o))?(u=new f(a),c.call(o,function(){r.apply(u,arguments)},function(){i.apply(u,arguments)})):(a.msg=o,a.state=1,a.chain.length>0&&t(e,a))}catch(s){i.call(u||new f(a),s)}}}function i(n){var o=this;o.triggered||(o.triggered=!0,o.def&&(o=o.def),o.msg=n,o.state=2,o.chain.length>0&&t(e,o))}function c(t,n,e,o){for(var r=0;r<n.length;r++)!function(r){t.resolve(n[r]).then(function(t){e(r,t)},o)}(r)}function f(t){this.def=t,this.triggered=!1}function u(t){this.promise=t,this.state=0,this.triggered=!1,this.chain=[],this.msg=void 0}function a(n){if("function"!=typeof n)throw TypeError("Not a function");if(0!==this.__NPO__)throw TypeError("Not a promise");this.__NPO__=1;var o=new u(this);this.then=function(n,r){var i={success:"function"==typeof n?n:!0,failure:"function"==typeof r?r:!1};return i.promise=new this.constructor(function(t,n){if("function"!=typeof t||"function"!=typeof n)throw TypeError("Not a function");i.resolve=t,i.reject=n}),o.chain.push(i),0!==o.state&&t(e,o),i.promise},this["catch"]=function(t){return this.then(void 0,t)};try{n.call(void 0,function(t){r.call(o,t)},function(t){i.call(o,t)})}catch(c){i.call(o,c)}}var s,h,l,p=Object.prototype.toString,y="undefined"!=typeof setImmediate?function(t){return setImmediate(t)}:setTimeout;try{Object.defineProperty({},"x",{}),s=function(t,n,e,o){return Object.defineProperty(t,n,{value:e,writable:!0,configurable:o!==!1})}}catch(d){s=function(t,n,e){return t[n]=e,t}}l=function(){function t(t,n){this.fn=t,this.self=n,this.next=void 0}var n,e,o;return{add:function(r,i){o=new t(r,i),e?e.next=o:n=o,e=o,o=void 0},drain:function(){var t=n;for(n=e=h=void 0;t;)t.fn.call(t.self),t=t.next}}}();var g=s({},"constructor",a,!1);return s(a,"prototype",g,!1),s(g,"__NPO__",0,!1),s(a,"resolve",function(t){var n=this;return t&&"object"==typeof t&&1===t.__NPO__?t:new n(function(n,e){if("function"!=typeof n||"function"!=typeof e)throw TypeError("Not a function");n(t)})}),s(a,"reject",function(t){return new this(function(n,e){if("function"!=typeof n||"function"!=typeof e)throw TypeError("Not a function");e(t)})}),s(a,"all",function(t){var n=this;return"[object Array]"!=p.call(t)?n.reject(TypeError("Not an array")):0===t.length?n.resolve([]):new n(function(e,o){if("function"!=typeof e||"function"!=typeof o)throw TypeError("Not a function");var r=t.length,i=Array(r),f=0;c(n,t,function(t,n){i[t]=n,++f===r&&e(i)},o)})}),s(a,"race",function(t){var n=this;return"[object Array]"!=p.call(t)?n.reject(TypeError("Not an array")):new n(function(e,o){if("function"!=typeof e||"function"!=typeof o)throw TypeError("Not a function");c(n,t,function(t,n){e(n)},o)})}),a});
+
+}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Accordion.js":[function(require,module,exports){
+/** @jsx React.DOM */
+
+var React = require('react');
+var PanelGroup = require('./PanelGroup');
+
+var Accordion = React.createClass({displayName: 'Accordion',
+  render: function () {
+    return this.transferPropsTo(
+      PanelGroup( {accordion:true}, 
+        this.props.children
+      )
+    );
+  }
+});
+
+module.exports = Accordion;
+},{"./PanelGroup":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/PanelGroup.js","react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Affix.js":[function(require,module,exports){
+/** @jsx React.DOM */
+
+var React = require('react');
+var AffixMixin = require('./AffixMixin');
+var domUtils = require('./utils/domUtils');
+
+var Affix = React.createClass({displayName: 'Affix',
+  statics: {
+    domUtils: domUtils
+  },
+
+  mixins: [AffixMixin],
+
+  render: function () {
+    var holderStyle = {top: this.state.affixPositionTop};
+    return this.transferPropsTo(
+      React.DOM.div( {className:this.state.affixClass, style:holderStyle}, 
+        this.props.children
+      )
+    );
+  }
+});
+
+module.exports = Affix;
+},{"./AffixMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/AffixMixin.js","./utils/domUtils":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/domUtils.js","react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/AffixMixin.js":[function(require,module,exports){
+/* global window, document */
+
+var React = require('react');
+var domUtils = require('./utils/domUtils');
+var EventListener = require('./utils/EventListener');
+
+var AffixMixin = {
+  propTypes: {
+    offset: React.PropTypes.number,
+    offsetTop: React.PropTypes.number,
+    offsetBottom: React.PropTypes.number
+  },
+
+  getInitialState: function () {
+    return {
+      affixClass: 'affix-top'
+    };
+  },
+
+  getPinnedOffset: function (DOMNode) {
+    if (this.pinnedOffset) {
+      return this.pinnedOffset;
+    }
+
+    DOMNode.className = DOMNode.className.replace(/affix-top|affix-bottom|affix/, '');
+    DOMNode.className += DOMNode.className.length ? ' affix' : 'affix';
+
+    this.pinnedOffset = domUtils.getOffset(DOMNode).top - window.pageYOffset;
+
+    return this.pinnedOffset;
+  },
+
+  checkPosition: function () {
+    var DOMNode, scrollHeight, scrollTop, position, offsetTop, offsetBottom,
+        affix, affixType, affixPositionTop;
+
+    // TODO: or not visible
+    if (!this.isMounted()) {
+      return;
+    }
+
+    DOMNode = this.getDOMNode();
+    scrollHeight = document.documentElement.offsetHeight;
+    scrollTop = window.pageYOffset;
+    position = domUtils.getOffset(DOMNode);
+    offsetTop;
+    offsetBottom;
+
+    if (this.affixed === 'top') {
+      position.top += scrollTop;
+    }
+
+    offsetTop = this.props.offsetTop != null ?
+      this.props.offsetTop : this.props.offset;
+    offsetBottom = this.props.offsetBottom != null ?
+      this.props.offsetBottom : this.props.offset;
+
+    if (offsetTop == null && offsetBottom == null) {
+      return;
+    }
+    if (offsetTop == null) {
+      offsetTop = 0;
+    }
+    if (offsetBottom == null) {
+      offsetBottom = 0;
+    }
+
+    if (this.unpin != null && (scrollTop + this.unpin <= position.top)) {
+      affix = false;
+    } else if (offsetBottom != null && (position.top + DOMNode.offsetHeight >= scrollHeight - offsetBottom)) {
+      affix = 'bottom';
+    } else if (offsetTop != null && (scrollTop <= offsetTop)) {
+      affix = 'top';
+    } else {
+      affix = false;
+    }
+
+    if (this.affixed === affix) {
+      return;
+    }
+
+    if (this.unpin != null) {
+      DOMNode.style.top = '';
+    }
+
+    affixType = 'affix' + (affix ? '-' + affix : '');
+
+    this.affixed = affix;
+    this.unpin = affix === 'bottom' ?
+      this.getPinnedOffset(DOMNode) : null;
+
+    if (affix === 'bottom') {
+      DOMNode.className = DOMNode.className.replace(/affix-top|affix-bottom|affix/, 'affix-bottom');
+      affixPositionTop = scrollHeight - offsetBottom - DOMNode.offsetHeight - domUtils.getOffset(DOMNode).top;
+    }
+
+    this.setState({
+      affixClass: affixType,
+      affixPositionTop: affixPositionTop
+    });
+  },
+
+  checkPositionWithEventLoop: function () {
+    setTimeout(this.checkPosition, 0);
+  },
+
+  componentDidMount: function () {
+    this._onWindowScrollListener =
+      EventListener.listen(window, 'scroll', this.checkPosition);
+    this._onDocumentClickListener =
+      EventListener.listen(document, 'click', this.checkPositionWithEventLoop);
+  },
+
+  componentWillUnmount: function () {
+    if (this._onWindowScrollListener) {
+      this._onWindowScrollListener.remove();
+    }
+
+    if (this._onDocumentClickListener) {
+      this._onDocumentClickListener.remove();
+    }
+  },
+
+  componentDidUpdate: function (prevProps, prevState) {
+    if (prevState.affixClass === this.state.affixClass) {
+      this.checkPositionWithEventLoop();
+    }
+  }
+};
+
+module.exports = AffixMixin;
+},{"./utils/EventListener":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/EventListener.js","./utils/domUtils":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/domUtils.js","react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Alert.js":[function(require,module,exports){
+/** @jsx React.DOM */
+
+var React = require('react');
+var classSet = require('./utils/classSet');
+var BootstrapMixin = require('./BootstrapMixin');
+
+
+var Alert = React.createClass({displayName: 'Alert',
+  mixins: [BootstrapMixin],
+
+  propTypes: {
+    onDismiss: React.PropTypes.func,
+    dismissAfter: React.PropTypes.number
+  },
+
+  getDefaultProps: function () {
+    return {
+      bsClass: 'alert',
+      bsStyle: 'info'
+    };
+  },
+
+  renderDismissButton: function () {
+    return (
+      React.DOM.button(
+        {type:"button",
+        className:"close",
+        onClick:this.props.onDismiss,
+        'aria-hidden':"true"}, 
+        " × "
+      )
+    );
+  },
+
+  render: function () {
+    var classes = this.getBsClassSet();
+    var isDismissable = !!this.props.onDismiss;
+
+    classes['alert-dismissable'] = isDismissable;
+
+    return this.transferPropsTo(
+      React.DOM.div( {className:classSet(classes)}, 
+        isDismissable ? this.renderDismissButton() : null,
+        this.props.children
+      )
+    );
+  },
+
+  componentDidMount: function() {
+    if (this.props.dismissAfter && this.props.onDismiss) {
+      this.dismissTimer = setTimeout(this.props.onDismiss, this.props.dismissAfter);
+    }
+  },
+
+  componentWillUnmount: function() {
+    clearTimeout(this.dismissTimer);
+  }
+});
+
+module.exports = Alert;
+},{"./BootstrapMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/BootstrapMixin.js","./utils/classSet":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/classSet.js","react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Badge.js":[function(require,module,exports){
+/** @jsx React.DOM */
+
+var React = require('react');
+var ValidComponentChildren = require('./utils/ValidComponentChildren');
+var classSet = require('./utils/classSet');
+
+var Badge = React.createClass({displayName: 'Badge',
+  propTypes: {
+    pullRight: React.PropTypes.bool,
+  },
+
+  render: function () {
+    var classes = {
+      'pull-right': this.props.pullRight,
+      'badge': ValidComponentChildren.hasValidComponent(this.props.children)
+    };
+    return this.transferPropsTo(
+      React.DOM.span( {className:classSet(classes)}, 
+        this.props.children
+      )
+    );
+  }
+});
+
+module.exports = Badge;
+
+},{"./utils/ValidComponentChildren":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/ValidComponentChildren.js","./utils/classSet":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/classSet.js","react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/BootstrapMixin.js":[function(require,module,exports){
+var React = require('react');
+var constants = require('./constants');
+
+var BootstrapMixin = {
+  propTypes: {
+    bsClass: React.PropTypes.oneOf(Object.keys(constants.CLASSES)),
+    bsStyle: React.PropTypes.oneOf(Object.keys(constants.STYLES)),
+    bsSize: React.PropTypes.oneOf(Object.keys(constants.SIZES))
+  },
+
+  getBsClassSet: function () {
+    var classes = {};
+
+    var bsClass = this.props.bsClass && constants.CLASSES[this.props.bsClass];
+    if (bsClass) {
+      classes[bsClass] = true;
+
+      var prefix = bsClass + '-';
+
+      var bsSize = this.props.bsSize && constants.SIZES[this.props.bsSize];
+      if (bsSize) {
+        classes[prefix + bsSize] = true;
+      }
+
+      var bsStyle = this.props.bsStyle && constants.STYLES[this.props.bsStyle];
+      if (this.props.bsStyle) {
+        classes[prefix + bsStyle] = true;
+      }
+    }
+
+    return classes;
+  }
+};
+
+module.exports = BootstrapMixin;
+},{"./constants":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/constants.js","react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Button.js":[function(require,module,exports){
+/** @jsx React.DOM */
+
+var React = require('react');
+var classSet = require('./utils/classSet');
+var BootstrapMixin = require('./BootstrapMixin');
+var CustomPropTypes = require('./utils/CustomPropTypes');
+
+var Button = React.createClass({displayName: 'Button',
+  mixins: [BootstrapMixin],
+
+  propTypes: {
+    active:   React.PropTypes.bool,
+    disabled: React.PropTypes.bool,
+    block:    React.PropTypes.bool,
+    navItem:    React.PropTypes.bool,
+    navDropdown: React.PropTypes.bool,
+    componentClass: CustomPropTypes.componentClass
+  },
+
+  getDefaultProps: function () {
+    return {
+      bsClass: 'button',
+      bsStyle: 'default',
+      type: 'button'
+    };
+  },
+
+  render: function () {
+    var classes = this.props.navDropdown ? {} : this.getBsClassSet();
+    var renderFuncName;
+
+    classes['active'] = this.props.active;
+    classes['btn-block'] = this.props.block;
+
+    if (this.props.navItem) {
+      return this.renderNavItem(classes);
+    }
+
+    renderFuncName = this.props.href || this.props.navDropdown ?
+      'renderAnchor' : 'renderButton';
+
+    return this[renderFuncName](classes);
+  },
+
+  renderAnchor: function (classes) {
+    var component = this.props.componentClass || React.DOM.a;
+    var href = this.props.href || '#';
+    classes['disabled'] = this.props.disabled;
+
+    return this.transferPropsTo(
+      component(
+        {href:href,
+        className:classSet(classes),
+        role:"button"}, 
+        this.props.children
+      )
+    );
+  },
+
+  renderButton: function (classes) {
+    var component = this.props.componentClass || React.DOM.button;
+
+    return this.transferPropsTo(
+      component(
+        {className:classSet(classes)}, 
+        this.props.children
+      )
+    );
+  },
+
+  renderNavItem: function (classes) {
+    var liClasses = {
+      active: this.props.active
+    };
+
+    return (
+      React.DOM.li( {className:classSet(liClasses)}, 
+        this.renderAnchor(classes)
+      )
+    );
+  }
+});
+
+module.exports = Button;
+
+},{"./BootstrapMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/BootstrapMixin.js","./utils/CustomPropTypes":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/CustomPropTypes.js","./utils/classSet":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/classSet.js","react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/ButtonGroup.js":[function(require,module,exports){
+/** @jsx React.DOM */
+
+var React = require('react');
+var classSet = require('./utils/classSet');
+var BootstrapMixin = require('./BootstrapMixin');
+var Button = require('./Button');
+
+var ButtonGroup = React.createClass({displayName: 'ButtonGroup',
+  mixins: [BootstrapMixin],
+
+  propTypes: {
+    vertical:  React.PropTypes.bool,
+    justified: React.PropTypes.bool
+  },
+
+  getDefaultProps: function () {
+    return {
+      bsClass: 'button-group'
+    };
+  },
+
+  render: function () {
+    var classes = this.getBsClassSet();
+    classes['btn-group'] = !this.props.vertical;
+    classes['btn-group-vertical'] = this.props.vertical;
+    classes['btn-group-justified'] = this.props.justified;
+
+    return this.transferPropsTo(
+      React.DOM.div(
+        {className:classSet(classes)}, 
+        this.props.children
+      )
+    );
+  }
+});
+
+module.exports = ButtonGroup;
+},{"./BootstrapMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/BootstrapMixin.js","./Button":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Button.js","./utils/classSet":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/classSet.js","react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/ButtonToolbar.js":[function(require,module,exports){
+/** @jsx React.DOM */
+
+var React = require('react');
+var classSet = require('./utils/classSet');
+var BootstrapMixin = require('./BootstrapMixin');
+var Button = require('./Button');
+
+var ButtonToolbar = React.createClass({displayName: 'ButtonToolbar',
+  mixins: [BootstrapMixin],
+
+  getDefaultProps: function () {
+    return {
+      bsClass: 'button-toolbar'
+    };
+  },
+
+  render: function () {
+    var classes = this.getBsClassSet();
+
+    return this.transferPropsTo(
+      React.DOM.div(
+        {role:"toolbar",
+        className:classSet(classes)}, 
+        this.props.children
+      )
+    );
+  }
+});
+
+module.exports = ButtonToolbar;
+},{"./BootstrapMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/BootstrapMixin.js","./Button":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Button.js","./utils/classSet":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/classSet.js","react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Carousel.js":[function(require,module,exports){
+/** @jsx React.DOM */
+
+var React = require('react');
+var classSet = require('./utils/classSet');
+var cloneWithProps = require('./utils/cloneWithProps');
+var BootstrapMixin = require('./BootstrapMixin');
+var ValidComponentChildren = require('./utils/ValidComponentChildren');
+
+var Carousel = React.createClass({displayName: 'Carousel',
+  mixins: [BootstrapMixin],
+
+  propTypes: {
+    slide: React.PropTypes.bool,
+    indicators: React.PropTypes.bool,
+    controls: React.PropTypes.bool,
+    pauseOnHover: React.PropTypes.bool,
+    wrap: React.PropTypes.bool,
+    onSelect: React.PropTypes.func,
+    onSlideEnd: React.PropTypes.func,
+    activeIndex: React.PropTypes.number,
+    defaultActiveIndex: React.PropTypes.number,
+    direction: React.PropTypes.oneOf(['prev', 'next'])
+  },
+
+  getDefaultProps: function () {
+    return {
+      slide: true,
+      interval: 5000,
+      pauseOnHover: true,
+      wrap: true,
+      indicators: true,
+      controls: true
+    };
+  },
+
+  getInitialState: function () {
+    return {
+      activeIndex: this.props.defaultActiveIndex == null ?
+        0 : this.props.defaultActiveIndex,
+      previousActiveIndex: null,
+      direction: null
+    };
+  },
+
+  getDirection: function (prevIndex, index) {
+    if (prevIndex === index) {
+      return null;
+    }
+
+    return prevIndex > index ?
+      'prev' : 'next';
+  },
+
+  componentWillReceiveProps: function (nextProps) {
+    var activeIndex = this.getActiveIndex();
+
+    if (nextProps.activeIndex != null && nextProps.activeIndex !== activeIndex) {
+      clearTimeout(this.timeout);
+      this.setState({
+        previousActiveIndex: activeIndex,
+        direction: nextProps.direction != null ?
+          nextProps.direction : this.getDirection(activeIndex, nextProps.activeIndex)
+      });
+    }
+  },
+
+  componentDidMount: function () {
+    this.waitForNext();
+  },
+
+  componentWillUnmount: function() {
+    clearTimeout(this.timeout);
+  },
+
+  next: function (e) {
+    if (e) {
+      e.preventDefault();
+    }
+
+    var index = this.getActiveIndex() + 1;
+    var count = ValidComponentChildren.numberOf(this.props.children);
+
+    if (index > count - 1) {
+      if (!this.props.wrap) {
+        return;
+      }
+      index = 0;
+    }
+
+    this.handleSelect(index, 'next');
+  },
+
+  prev: function (e) {
+    if (e) {
+      e.preventDefault();
+    }
+
+    var index = this.getActiveIndex() - 1;
+
+    if (index < 0) {
+      if (!this.props.wrap) {
+        return;
+      }
+      index = ValidComponentChildren.numberOf(this.props.children) - 1;
+    }
+
+    this.handleSelect(index, 'prev');
+  },
+
+  pause: function () {
+    this.isPaused = true;
+    clearTimeout(this.timeout);
+  },
+
+  play: function () {
+    this.isPaused = false;
+    this.waitForNext();
+  },
+
+  waitForNext: function () {
+    if (!this.isPaused && this.props.slide && this.props.interval &&
+        this.props.activeIndex == null) {
+      this.timeout = setTimeout(this.next, this.props.interval);
+    }
+  },
+
+  handleMouseOver: function () {
+    if (this.props.pauseOnHover) {
+      this.pause();
+    }
+  },
+
+  handleMouseOut: function () {
+    if (this.isPaused) {
+      this.play();
+    }
+  },
+
+  render: function () {
+    var classes = {
+      carousel: true,
+      slide: this.props.slide
+    };
+
+    return this.transferPropsTo(
+      React.DOM.div(
+        {className:classSet(classes),
+        onMouseOver:this.handleMouseOver,
+        onMouseOut:this.handleMouseOut}, 
+        this.props.indicators ? this.renderIndicators() : null,
+        React.DOM.div( {className:"carousel-inner", ref:"inner"}, 
+          ValidComponentChildren.map(this.props.children, this.renderItem)
+        ),
+        this.props.controls ? this.renderControls() : null
+      )
+    );
+  },
+
+  renderPrev: function () {
+    return (
+      React.DOM.a( {className:"left carousel-control", href:"#prev", key:0, onClick:this.prev}, 
+        React.DOM.span( {className:"glyphicon glyphicon-chevron-left"} )
+      )
+    );
+  },
+
+  renderNext: function () {
+    return (
+      React.DOM.a( {className:"right carousel-control", href:"#next", key:1, onClick:this.next}, 
+        React.DOM.span( {className:"glyphicon glyphicon-chevron-right"})
+      )
+    );
+  },
+
+  renderControls: function () {
+    if (this.props.wrap) {
+      var activeIndex = this.getActiveIndex();
+      var count = ValidComponentChildren.numberOf(this.props.children);
+
+      return [
+        (activeIndex !== 0) ? this.renderPrev() : null,
+        (activeIndex !== count - 1) ? this.renderNext() : null
+      ];
+    }
+
+    return [
+      this.renderPrev(),
+      this.renderNext()
+    ];
+  },
+
+  renderIndicator: function (child, index) {
+    var className = (index === this.getActiveIndex()) ?
+      'active' : null;
+
+    return (
+      React.DOM.li(
+        {key:index,
+        className:className,
+        onClick:this.handleSelect.bind(this, index, null)} )
+    );
+  },
+
+  renderIndicators: function () {
+    var indicators = [];
+    ValidComponentChildren
+      .forEach(this.props.children, function(child, index) {
+        indicators.push(
+          this.renderIndicator(child, index),
+
+          // Force whitespace between indicator elements, bootstrap
+          // requires this for correct spacing of elements.
+          ' '
+        );
+      }, this);
+
+    return (
+      React.DOM.ol( {className:"carousel-indicators"}, 
+        indicators
+      )
+    );
+  },
+
+  getActiveIndex: function () {
+    return this.props.activeIndex != null ? this.props.activeIndex : this.state.activeIndex;
+  },
+
+  handleItemAnimateOutEnd: function () {
+    this.setState({
+      previousActiveIndex: null,
+      direction: null
+    }, function() {
+      this.waitForNext();
+
+      if (this.props.onSlideEnd) {
+        this.props.onSlideEnd();
+      }
+    });
+  },
+
+  renderItem: function (child, index) {
+    var activeIndex = this.getActiveIndex();
+    var isActive = (index === activeIndex);
+    var isPreviousActive = this.state.previousActiveIndex != null &&
+            this.state.previousActiveIndex === index && this.props.slide;
+
+    return cloneWithProps(
+        child,
+        {
+          active: isActive,
+          ref: child.props.ref,
+          key: child.props.key != null ?
+            child.props.key : index,
+          index: index,
+          animateOut: isPreviousActive,
+          animateIn: isActive && this.state.previousActiveIndex != null && this.props.slide,
+          direction: this.state.direction,
+          onAnimateOutEnd: isPreviousActive ? this.handleItemAnimateOutEnd: null
+        }
+      );
+  },
+
+  handleSelect: function (index, direction) {
+    clearTimeout(this.timeout);
+
+    var previousActiveIndex = this.getActiveIndex();
+    direction = direction || this.getDirection(previousActiveIndex, index);
+
+    if (this.props.onSelect) {
+      this.props.onSelect(index, direction);
+    }
+
+    if (this.props.activeIndex == null && index !== previousActiveIndex) {
+      if (this.state.previousActiveIndex != null) {
+        // If currently animating don't activate the new index.
+        // TODO: look into queuing this canceled call and
+        // animating after the current animation has ended.
+        return;
+      }
+
+      this.setState({
+        activeIndex: index,
+        previousActiveIndex: previousActiveIndex,
+        direction: direction
+      });
+    }
+  }
+});
+
+module.exports = Carousel;
+},{"./BootstrapMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/BootstrapMixin.js","./utils/ValidComponentChildren":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/ValidComponentChildren.js","./utils/classSet":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/classSet.js","./utils/cloneWithProps":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/cloneWithProps.js","react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/CarouselItem.js":[function(require,module,exports){
+/** @jsx React.DOM */
+
+var React = require('react');
+var classSet = require('./utils/classSet');
+var TransitionEvents = require('./utils/TransitionEvents');
+
+var CarouselItem = React.createClass({displayName: 'CarouselItem',
+  propTypes: {
+    direction: React.PropTypes.oneOf(['prev', 'next']),
+    onAnimateOutEnd: React.PropTypes.func,
+    active: React.PropTypes.bool,
+    caption: React.PropTypes.renderable
+  },
+
+  getInitialState: function () {
+    return {
+      direction: null
+    };
+  },
+
+  getDefaultProps: function () {
+    return {
+      animation: true
+    };
+  },
+
+  handleAnimateOutEnd: function () {
+    if (this.props.onAnimateOutEnd && this.isMounted()) {
+      this.props.onAnimateOutEnd(this.props.index);
+    }
+  },
+
+  componentWillReceiveProps: function (nextProps) {
+    if (this.props.active !== nextProps.active) {
+      this.setState({
+        direction: null
+      });
+    }
+  },
+
+  componentDidUpdate: function (prevProps) {
+    if (!this.props.active && prevProps.active) {
+      TransitionEvents.addEndEventListener(
+        this.getDOMNode(),
+        this.handleAnimateOutEnd
+      );
+    }
+
+    if (this.props.active !== prevProps.active) {
+      setTimeout(this.startAnimation, 20);
+    }
+  },
+
+  startAnimation: function () {
+    if (!this.isMounted()) {
+      return;
+    }
+
+    this.setState({
+      direction: this.props.direction === 'prev' ?
+        'right' : 'left'
+    });
+  },
+
+  render: function () {
+    var classes = {
+      item: true,
+      active: (this.props.active && !this.props.animateIn) || this.props.animateOut,
+      next: this.props.active && this.props.animateIn && this.props.direction === 'next',
+      prev: this.props.active && this.props.animateIn && this.props.direction === 'prev'
+    };
+
+    if (this.state.direction && (this.props.animateIn || this.props.animateOut)) {
+      classes[this.state.direction] = true;
+    }
+
+    return this.transferPropsTo(
+      React.DOM.div( {className:classSet(classes)}, 
+        this.props.children,
+        this.props.caption ? this.renderCaption() : null
+      )
+    );
+  },
+
+  renderCaption: function () {
+    return (
+      React.DOM.div( {className:"carousel-caption"}, 
+        this.props.caption
+      )
+    );
+  }
+});
+
+module.exports = CarouselItem;
+},{"./utils/TransitionEvents":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/TransitionEvents.js","./utils/classSet":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/classSet.js","react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Col.js":[function(require,module,exports){
+/** @jsx React.DOM */
+
+var React = require('react');
+var classSet = require('./utils/classSet');
+var CustomPropTypes = require('./utils/CustomPropTypes');
+var constants = require('./constants');
+
+
+var Col = React.createClass({displayName: 'Col',
+  propTypes: {
+    xs: React.PropTypes.number,
+    sm: React.PropTypes.number,
+    md: React.PropTypes.number,
+    lg: React.PropTypes.number,
+    xsOffset: React.PropTypes.number,
+    smOffset: React.PropTypes.number,
+    mdOffset: React.PropTypes.number,
+    lgOffset: React.PropTypes.number,
+    xsPush: React.PropTypes.number,
+    smPush: React.PropTypes.number,
+    mdPush: React.PropTypes.number,
+    lgPush: React.PropTypes.number,
+    xsPull: React.PropTypes.number,
+    smPull: React.PropTypes.number,
+    mdPull: React.PropTypes.number,
+    lgPull: React.PropTypes.number,
+    componentClass: CustomPropTypes.componentClass.isRequired
+  },
+
+  getDefaultProps: function () {
+    return {
+      componentClass: React.DOM.div
+    };
+  },
+
+  render: function () {
+    var componentClass = this.props.componentClass;
+    var classes = {};
+
+    Object.keys(constants.SIZES).forEach(function (key) {
+      var size = constants.SIZES[key];
+      var prop = size;
+      var classPart = size + '-';
+
+      if (this.props[prop]) {
+        classes['col-' + classPart + this.props[prop]] = true;
+      }
+
+      prop = size + 'Offset';
+      classPart = size + '-offset-';
+      if (this.props[prop]) {
+        classes['col-' + classPart + this.props[prop]] = true;
+      }
+
+      prop = size + 'Push';
+      classPart = size + '-push-';
+      if (this.props[prop]) {
+        classes['col-' + classPart + this.props[prop]] = true;
+      }
+
+      prop = size + 'Pull';
+      classPart = size + '-pull-';
+      if (this.props[prop]) {
+        classes['col-' + classPart + this.props[prop]] = true;
+      }
+    }, this);
+
+    return this.transferPropsTo(
+      componentClass( {className:classSet(classes)}, 
+        this.props.children
+      )
+    );
+  }
+});
+
+module.exports = Col;
+},{"./constants":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/constants.js","./utils/CustomPropTypes":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/CustomPropTypes.js","./utils/classSet":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/classSet.js","react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/CollapsableMixin.js":[function(require,module,exports){
+var React = require('react');
+var TransitionEvents = require('./utils/TransitionEvents');
+
+var CollapsableMixin = {
+
+  propTypes: {
+    collapsable: React.PropTypes.bool,
+    defaultExpanded: React.PropTypes.bool,
+    expanded: React.PropTypes.bool
+  },
+
+  getInitialState: function () {
+    return {
+      expanded: this.props.defaultExpanded != null ? this.props.defaultExpanded : null,
+      collapsing: false
+    };
+  },
+
+  handleTransitionEnd: function () {
+    this._collapseEnd = true;
+    this.setState({
+      collapsing: false
+    });
+  },
+
+  componentWillReceiveProps: function (newProps) {
+    if (this.props.collapsable && newProps.expanded !== this.props.expanded) {
+      this._collapseEnd = false;
+      this.setState({
+        collapsing: true
+      });
+    }
+  },
+
+  _addEndTransitionListener: function () {
+    var node = this.getCollapsableDOMNode();
+
+    if (node) {
+      TransitionEvents.addEndEventListener(
+        node,
+        this.handleTransitionEnd
+      );
+    }
+  },
+
+  _removeEndTransitionListener: function () {
+    var node = this.getCollapsableDOMNode();
+
+    if (node) {
+      TransitionEvents.addEndEventListener(
+        node,
+        this.handleTransitionEnd
+      );
+    }
+  },
+
+  componentDidMount: function () {
+    this._afterRender();
+  },
+
+  componentWillUnmount: function () {
+    this._removeEndTransitionListener();
+  },
+
+  componentWillUpdate: function (nextProps) {
+    var dimension = (typeof this.getCollapsableDimension === 'function') ?
+      this.getCollapsableDimension() : 'height';
+    var node = this.getCollapsableDOMNode();
+
+    this._removeEndTransitionListener();
+    if (node && nextProps.expanded !== this.props.expanded && this.props.expanded) {
+      node.style[dimension] = this.getCollapsableDimensionValue() + 'px';
+    }
+  },
+
+  componentDidUpdate: function (prevProps, prevState) {
+    if (this.state.collapsing !== prevState.collapsing) {
+      this._afterRender();
+    }
+  },
+
+  _afterRender: function () {
+    if (!this.props.collapsable) {
+      return;
+    }
+
+    this._addEndTransitionListener();
+    setTimeout(this._updateDimensionAfterRender, 0);
+  },
+
+  _updateDimensionAfterRender: function () {
+    var dimension = (typeof this.getCollapsableDimension === 'function') ?
+      this.getCollapsableDimension() : 'height';
+    var node = this.getCollapsableDOMNode();
+
+    if (node) {
+        if(this.isExpanded() && !this.state.collapsing) {
+            node.style[dimension] = 'auto';
+        } else {
+            node.style[dimension] = this.isExpanded() ?
+              this.getCollapsableDimensionValue() + 'px' : '0px';
+        }
+    }
+  },
+
+  isExpanded: function () {
+    return (this.props.expanded != null) ?
+      this.props.expanded : this.state.expanded;
+  },
+
+  getCollapsableClassSet: function (className) {
+    var classes = {};
+
+    if (typeof className === 'string') {
+      className.split(' ').forEach(function (className) {
+        if (className) {
+          classes[className] = true;
+        }
+      });
+    }
+
+    classes.collapsing = this.state.collapsing;
+    classes.collapse = !this.state.collapsing;
+    classes['in'] = this.isExpanded() && !this.state.collapsing;
+
+    return classes;
+  }
+};
+
+module.exports = CollapsableMixin;
+},{"./utils/TransitionEvents":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/TransitionEvents.js","react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/DropdownButton.js":[function(require,module,exports){
+/** @jsx React.DOM */
+
+var React = require('react');
+var classSet = require('./utils/classSet');
+var cloneWithProps = require('./utils/cloneWithProps');
+var createChainedFunction = require('./utils/createChainedFunction');
+var BootstrapMixin = require('./BootstrapMixin');
+var DropdownStateMixin = require('./DropdownStateMixin');
+var Button = require('./Button');
+var ButtonGroup = require('./ButtonGroup');
+var DropdownMenu = require('./DropdownMenu');
+var ValidComponentChildren = require('./utils/ValidComponentChildren');
+
+
+var DropdownButton = React.createClass({displayName: 'DropdownButton',
+  mixins: [BootstrapMixin, DropdownStateMixin],
+
+  propTypes: {
+    pullRight: React.PropTypes.bool,
+    dropup:    React.PropTypes.bool,
+    title:     React.PropTypes.renderable,
+    href:      React.PropTypes.string,
+    onClick:   React.PropTypes.func,
+    onSelect:  React.PropTypes.func,
+    navItem:   React.PropTypes.bool
+  },
+
+  render: function () {
+    var className = 'dropdown-toggle';
+
+    var renderMethod = this.props.navItem ?
+      'renderNavItem' : 'renderButtonGroup';
+
+    return this[renderMethod]([
+      this.transferPropsTo(Button(
+        {ref:"dropdownButton",
+        className:className,
+        onClick:this.handleDropdownClick,
+        key:0,
+        navDropdown:this.props.navItem,
+        navItem:null,
+        title:null,
+        pullRight:null,
+        dropup:null}, 
+        this.props.title,' ',
+        React.DOM.span( {className:"caret"} )
+      )),
+      DropdownMenu(
+        {ref:"menu",
+        'aria-labelledby':this.props.id,
+        pullRight:this.props.pullRight,
+        key:1}, 
+        ValidComponentChildren.map(this.props.children, this.renderMenuItem)
+      )
+    ]);
+  },
+
+  renderButtonGroup: function (children) {
+    var groupClasses = {
+        'open': this.state.open,
+        'dropup': this.props.dropup
+      };
+
+    return (
+      ButtonGroup(
+        {bsSize:this.props.bsSize,
+        className:classSet(groupClasses)}, 
+        children
+      )
+    );
+  },
+
+  renderNavItem: function (children) {
+    var classes = {
+        'dropdown': true,
+        'open': this.state.open,
+        'dropup': this.props.dropup
+      };
+
+    return (
+      React.DOM.li( {className:classSet(classes)}, 
+        children
+      )
+    );
+  },
+
+  renderMenuItem: function (child) {
+    // Only handle the option selection if an onSelect prop has been set on the
+    // component or it's child, this allows a user not to pass an onSelect
+    // handler and have the browser preform the default action.
+    var handleOptionSelect = this.props.onSelect || child.props.onSelect ?
+      this.handleOptionSelect : null;
+
+    return cloneWithProps(
+      child,
+      {
+        // Capture onSelect events
+        onSelect: createChainedFunction(child.props.onSelect, handleOptionSelect),
+
+        // Force special props to be transferred
+        key: child.props.key,
+        ref: child.props.ref
+      }
+    );
+  },
+
+  handleDropdownClick: function (e) {
+    e.preventDefault();
+
+    this.setDropdownState(!this.state.open);
+  },
+
+  handleOptionSelect: function (key) {
+    if (this.props.onSelect) {
+      this.props.onSelect(key);
+    }
+
+    this.setDropdownState(false);
+  }
+});
+
+module.exports = DropdownButton;
+},{"./BootstrapMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/BootstrapMixin.js","./Button":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Button.js","./ButtonGroup":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/ButtonGroup.js","./DropdownMenu":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/DropdownMenu.js","./DropdownStateMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/DropdownStateMixin.js","./utils/ValidComponentChildren":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/ValidComponentChildren.js","./utils/classSet":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/classSet.js","./utils/cloneWithProps":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/cloneWithProps.js","./utils/createChainedFunction":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/createChainedFunction.js","react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/DropdownMenu.js":[function(require,module,exports){
+/** @jsx React.DOM */
+
+var React = require('react');
+var classSet = require('./utils/classSet');
+var cloneWithProps = require('./utils/cloneWithProps');
+var createChainedFunction = require('./utils/createChainedFunction');
+var ValidComponentChildren = require('./utils/ValidComponentChildren');
+
+var DropdownMenu = React.createClass({displayName: 'DropdownMenu',
+  propTypes: {
+    pullRight: React.PropTypes.bool,
+    onSelect: React.PropTypes.func
+  },
+
+  render: function () {
+    var classes = {
+        'dropdown-menu': true,
+        'dropdown-menu-right': this.props.pullRight
+      };
+
+    return this.transferPropsTo(
+        React.DOM.ul(
+          {className:classSet(classes),
+          role:"menu"}, 
+          ValidComponentChildren.map(this.props.children, this.renderMenuItem)
+        )
+      );
+  },
+
+  renderMenuItem: function (child) {
+    return cloneWithProps(
+      child,
+      {
+        // Capture onSelect events
+        onSelect: createChainedFunction(child.props.onSelect, this.props.onSelect),
+
+        // Force special props to be transferred
+        key: child.props.key,
+        ref: child.props.ref
+      }
+    );
+  }
+});
+
+module.exports = DropdownMenu;
+},{"./utils/ValidComponentChildren":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/ValidComponentChildren.js","./utils/classSet":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/classSet.js","./utils/cloneWithProps":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/cloneWithProps.js","./utils/createChainedFunction":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/createChainedFunction.js","react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/DropdownStateMixin.js":[function(require,module,exports){
+var React = require('react');
+var EventListener = require('./utils/EventListener');
+
+/**
+ * Checks whether a node is within
+ * a root nodes tree
+ *
+ * @param {DOMElement} node
+ * @param {DOMElement} root
+ * @returns {boolean}
+ */
+function isNodeInRoot(node, root) {
+  while (node) {
+    if (node === root) {
+      return true;
+    }
+    node = node.parentNode;
+  }
+
+  return false;
+}
+
+var DropdownStateMixin = {
+  getInitialState: function () {
+    return {
+      open: false
+    };
+  },
+
+  setDropdownState: function (newState, onStateChangeComplete) {
+    if (newState) {
+      this.bindRootCloseHandlers();
+    } else {
+      this.unbindRootCloseHandlers();
+    }
+
+    this.setState({
+      open: newState
+    }, onStateChangeComplete);
+  },
+
+  handleDocumentKeyUp: function (e) {
+    if (e.keyCode === 27) {
+      this.setDropdownState(false);
+    }
+  },
+
+  handleDocumentClick: function (e) {
+    // If the click originated from within this component
+    // don't do anything.
+    if (isNodeInRoot(e.target, this.getDOMNode())) {
+      return;
+    }
+
+    this.setDropdownState(false);
+  },
+
+  bindRootCloseHandlers: function () {
+    this._onDocumentClickListener =
+      EventListener.listen(document, 'click', this.handleDocumentClick);
+    this._onDocumentKeyupListener =
+      EventListener.listen(document, 'keyup', this.handleDocumentKeyUp);
+  },
+
+  unbindRootCloseHandlers: function () {
+    if (this._onDocumentClickListener) {
+      this._onDocumentClickListener.remove();
+    }
+
+    if (this._onDocumentKeyupListener) {
+      this._onDocumentKeyupListener.remove();
+    }
+  },
+
+  componentWillUnmount: function () {
+    this.unbindRootCloseHandlers();
+  }
+};
+
+module.exports = DropdownStateMixin;
+},{"./utils/EventListener":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/EventListener.js","react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/FadeMixin.js":[function(require,module,exports){
+var React = require('react');
+
+// TODO: listen for onTransitionEnd to remove el
+module.exports = {
+  _fadeIn: function () {
+    var els;
+
+    if (this.isMounted()) {
+      els = this.getDOMNode().querySelectorAll('.fade');
+      if (els.length) {
+        Array.prototype.forEach.call(els, function (el) {
+          el.className += ' in';
+        });
+      }
+    }
+  },
+
+  _fadeOut: function () {
+    var els = this._fadeOutEl.querySelectorAll('.fade.in');
+
+    if (els.length) {
+      Array.prototype.forEach.call(els, function (el) {
+        el.className = el.className.replace(/\bin\b/, '');
+      });
+    }
+
+    setTimeout(this._handleFadeOutEnd, 300);
+  },
+
+  _handleFadeOutEnd: function () {
+    if (this._fadeOutEl && this._fadeOutEl.parentNode) {
+      this._fadeOutEl.parentNode.removeChild(this._fadeOutEl);
+    }
+  },
+
+  componentDidMount: function () {
+    if (document.querySelectorAll) {
+      // Firefox needs delay for transition to be triggered
+      setTimeout(this._fadeIn, 20);
+    }
+  },
+
+  componentWillUnmount: function () {
+    var els = this.getDOMNode().querySelectorAll('.fade');
+    if (els.length) {
+      this._fadeOutEl = document.createElement('div');
+      document.body.appendChild(this._fadeOutEl);
+      this._fadeOutEl.appendChild(this.getDOMNode().cloneNode(true));
+      // Firefox needs delay for transition to be triggered
+      setTimeout(this._fadeOut, 20);
+    }
+  }
+};
+
+},{"react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Glyphicon.js":[function(require,module,exports){
+/** @jsx React.DOM */
+
+var React = require('react');
+var classSet = require('./utils/classSet');
+var BootstrapMixin = require('./BootstrapMixin');
+var constants = require('./constants');
+
+var Glyphicon = React.createClass({displayName: 'Glyphicon',
+  mixins: [BootstrapMixin],
+
+  propTypes: {
+    glyph: React.PropTypes.oneOf(constants.GLYPHS).isRequired
+  },
+
+  getDefaultProps: function () {
+    return {
+      bsClass: 'glyphicon'
+    };
+  },
+
+  render: function () {
+    var classes = this.getBsClassSet();
+
+    classes['glyphicon-' + this.props.glyph] = true;
+
+    return this.transferPropsTo(
+      React.DOM.span( {className:classSet(classes)}, 
+        this.props.children
+      )
+    );
+  }
+});
+
+module.exports = Glyphicon;
+},{"./BootstrapMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/BootstrapMixin.js","./constants":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/constants.js","./utils/classSet":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/classSet.js","react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Grid.js":[function(require,module,exports){
+/** @jsx React.DOM */
+
+var React = require('react');
+var CustomPropTypes = require('./utils/CustomPropTypes');
+
+
+var Grid = React.createClass({displayName: 'Grid',
+  propTypes: {
+    fluid: React.PropTypes.bool,
+    componentClass: CustomPropTypes.componentClass.isRequired
+  },
+
+  getDefaultProps: function () {
+    return {
+      componentClass: React.DOM.div
+    };
+  },
+
+  render: function () {
+    var componentClass = this.props.componentClass;
+
+    return this.transferPropsTo(
+      componentClass( {className:this.props.fluid ? 'container-fluid' : 'container'}, 
+        this.props.children
+      )
+    );
+  }
+});
+
+module.exports = Grid;
+},{"./utils/CustomPropTypes":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/CustomPropTypes.js","react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Input.js":[function(require,module,exports){
+/** @jsx React.DOM */
+
+var React = require('react');
+var classSet = require('./utils/classSet');
+var Button = require('./Button');
+
+var Input = React.createClass({displayName: 'Input',
+  propTypes: {
+    type: React.PropTypes.string,
+    label: React.PropTypes.renderable,
+    help: React.PropTypes.renderable,
+    addonBefore: React.PropTypes.renderable,
+    addonAfter: React.PropTypes.renderable,
+    bsStyle: function(props) {
+      if (props.type === 'submit') {
+        // Return early if `type=submit` as the `Button` component
+        // it transfers these props to has its own propType checks.
+        return;
+      }
+
+      return React.PropTypes.oneOf(['success', 'warning', 'error']).apply(null, arguments);
+    },
+    hasFeedback: React.PropTypes.bool,
+    groupClassName: React.PropTypes.string,
+    wrapperClassName: React.PropTypes.string,
+    labelClassName: React.PropTypes.string
+  },
+
+  getInputDOMNode: function () {
+    return this.refs.input.getDOMNode();
+  },
+
+  getValue: function () {
+    if (this.props.type === 'static') {
+      return this.props.value;
+    }
+    else if (this.props.type) {
+      return this.getInputDOMNode().value;
+    }
+    else {
+      throw Error('Cannot use getValue without specifying input type.');
+    }
+  },
+
+  getChecked: function () {
+    return this.getInputDOMNode().checked;
+  },
+
+  isCheckboxOrRadio: function () {
+    return this.props.type === 'radio' || this.props.type === 'checkbox';
+  },
+
+  renderInput: function () {
+    var input = null;
+
+    if (!this.props.type) {
+      return this.props.children
+    }
+
+    switch (this.props.type) {
+      case 'select':
+        input = (
+          React.DOM.select( {className:"form-control", ref:"input", key:"input"}, 
+            this.props.children
+          )
+        );
+        break;
+      case 'textarea':
+        input = React.DOM.textarea( {className:"form-control", ref:"input", key:"input"} );
+        break;
+      case 'static':
+        input = (
+          React.DOM.p( {className:"form-control-static", ref:"input",  key:"input"}, 
+            this.props.value
+          )
+        );
+        break;
+      case 'submit':
+        input = this.transferPropsTo(
+          Button( {componentClass:React.DOM.input} )
+        );
+        break;
+      default:
+        var className = this.isCheckboxOrRadio() ? '' : 'form-control';
+        input = React.DOM.input( {className:className, ref:"input", key:"input"} );
+    }
+
+    return this.transferPropsTo(input);
+  },
+
+  renderInputGroup: function (children) {
+    var addonBefore = this.props.addonBefore ? (
+      React.DOM.span( {className:"input-group-addon", key:"addonBefore"}, 
+        this.props.addonBefore
+      )
+    ) : null;
+
+    var addonAfter = this.props.addonAfter ? (
+      React.DOM.span( {className:"input-group-addon", key:"addonAfter"}, 
+        this.props.addonAfter
+      )
+    ) : null;
+
+    return addonBefore || addonAfter ? (
+      React.DOM.div( {className:"input-group", key:"input-group"}, 
+        addonBefore,
+        children,
+        addonAfter
+      )
+    ) : children;
+  },
+
+  renderIcon: function () {
+    var classes = {
+      'glyphicon': true,
+      'form-control-feedback': true,
+      'glyphicon-ok': this.props.bsStyle === 'success',
+      'glyphicon-warning-sign': this.props.bsStyle === 'warning',
+      'glyphicon-remove': this.props.bsStyle === 'error'
+    };
+
+    return this.props.hasFeedback ? (
+      React.DOM.span( {className:classSet(classes), key:"icon"} )
+    ) : null;
+  },
+
+  renderHelp: function () {
+    return this.props.help ? (
+      React.DOM.span( {className:"help-block", key:"help"}, 
+        this.props.help
+      )
+    ) : null;
+  },
+
+  renderCheckboxandRadioWrapper: function (children) {
+    var classes = {
+      'checkbox': this.props.type === 'checkbox',
+      'radio': this.props.type === 'radio'
+    };
+
+    return (
+      React.DOM.div( {className:classSet(classes), key:"checkboxRadioWrapper"}, 
+        children
+      )
+    );
+  },
+
+  renderWrapper: function (children) {
+    return this.props.wrapperClassName ? (
+      React.DOM.div( {className:this.props.wrapperClassName, key:"wrapper"}, 
+        children
+      )
+    ) : children;
+  },
+
+  renderLabel: function (children) {
+    var classes = {
+      'control-label': !this.isCheckboxOrRadio()
+    };
+    classes[this.props.labelClassName] = this.props.labelClassName;
+
+    return this.props.label ? (
+      React.DOM.label( {htmlFor:this.props.id, className:classSet(classes), key:"label"}, 
+        children,
+        this.props.label
+      )
+    ) : children;
+  },
+
+  renderFormGroup: function (children) {
+    var classes = {
+      'form-group': true,
+      'has-feedback': this.props.hasFeedback,
+      'has-success': this.props.bsStyle === 'success',
+      'has-warning': this.props.bsStyle === 'warning',
+      'has-error': this.props.bsStyle === 'error'
+    };
+    classes[this.props.groupClassName] = this.props.groupClassName;
+
+    return (
+      React.DOM.div( {className:classSet(classes)}, 
+        children
+      )
+    );
+  },
+
+  render: function () {
+    if (this.isCheckboxOrRadio()) {
+      return this.renderFormGroup(
+        this.renderWrapper([
+          this.renderCheckboxandRadioWrapper(
+            this.renderLabel(
+              this.renderInput()
+            )
+          ),
+          this.renderHelp()
+        ])
+      );
+    }
+    else {
+      return this.renderFormGroup([
+        this.renderLabel(),
+        this.renderWrapper([
+          this.renderInputGroup(
+            this.renderInput()
+          ),
+          this.renderIcon(),
+          this.renderHelp()
+        ])
+      ]);
+    }
+  }
+});
+
+module.exports = Input;
+
+},{"./Button":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Button.js","./utils/classSet":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/classSet.js","react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Interpolate.js":[function(require,module,exports){
+// https://www.npmjs.org/package/react-interpolate-component
+'use strict';
+
+var React = require('react');
+var merge = require('./utils/merge');
+var ValidComponentChildren = require('./utils/ValidComponentChildren');
+
+var REGEXP = /\%\((.+?)\)s/;
+
+var Interpolate = React.createClass({
+  displayName: 'Interpolate',
+
+  propTypes: {
+    format: React.PropTypes.string
+  },
+
+  getDefaultProps: function() {
+    return { component: React.DOM.span };
+  },
+
+  render: function() {
+    var format = ValidComponentChildren.hasValidComponent(this.props.children) ? this.props.children : this.props.format;
+    var parent = this.props.component;
+    var unsafe = this.props.unsafe === true;
+    var props = merge(this.props);
+
+    delete props.children;
+    delete props.format;
+    delete props.component;
+    delete props.unsafe;
+
+    if (unsafe) {
+      var content = format.split(REGEXP).reduce(function(memo, match, index) {
+        var html;
+
+        if (index % 2 === 0) {
+          html = match;
+        } else {
+          html = props[match];
+          delete props[match];
+        }
+
+        if (React.isValidComponent(html)) {
+          throw new Error('cannot interpolate a React component into unsafe text');
+        }
+
+        memo += html;
+
+        return memo;
+      }, '');
+
+      props.dangerouslySetInnerHTML = { __html: content };
+
+      return parent(props);
+    } else {
+      var args = format.split(REGEXP).reduce(function(memo, match, index) {
+        var child;
+
+        if (index % 2 === 0) {
+          if (match.length === 0) {
+            return memo;
+          }
+
+          child = match;
+        } else {
+          child = props[match];
+          delete props[match];
+        }
+
+        memo.push(child);
+
+        return memo;
+      }, [props]);
+
+      return parent.apply(null, args);
+    }
+  }
+});
+
+module.exports = Interpolate;
+
+},{"./utils/ValidComponentChildren":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/ValidComponentChildren.js","./utils/merge":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/merge.js","react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Jumbotron.js":[function(require,module,exports){
+/** @jsx React.DOM */
+
+var React = require('react');
+
+var Jumbotron = React.createClass({displayName: 'Jumbotron',
+
+  render: function () {
+    return this.transferPropsTo(
+      React.DOM.div( {className:"jumbotron"}, 
+        this.props.children
+      )
+    );
+  }
+});
+
+module.exports = Jumbotron;
+},{"react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Label.js":[function(require,module,exports){
+/** @jsx React.DOM */
+
+var React = require('react');
+var classSet = require('./utils/classSet');
+var BootstrapMixin = require('./BootstrapMixin');
+
+var Label = React.createClass({displayName: 'Label',
+  mixins: [BootstrapMixin],
+
+  getDefaultProps: function () {
+    return {
+      bsClass: 'label',
+      bsStyle: 'default'
+    };
+  },
+
+  render: function () {
+    var classes = this.getBsClassSet();
+
+    return this.transferPropsTo(
+      React.DOM.span( {className:classSet(classes)}, 
+        this.props.children
+      )
+    );
+  }
+});
+
+module.exports = Label;
+},{"./BootstrapMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/BootstrapMixin.js","./utils/classSet":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/classSet.js","react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/ListGroup.js":[function(require,module,exports){
+/** @jsx React.DOM */
+
+var React = require('react');
+var classSet = require('./utils/classSet');
+var cloneWithProps = require('./utils/cloneWithProps');
+var ValidComponentChildren = require('./utils/ValidComponentChildren');
+var createChainedFunction = require('./utils/createChainedFunction');
+
+var ListGroup = React.createClass({displayName: 'ListGroup',
+  propTypes: {
+    onClick: React.PropTypes.func
+  },
+
+  render: function () {
+    return (
+      React.DOM.div( {className:"list-group"}, 
+        ValidComponentChildren.map(this.props.children, this.renderListItem)
+      )
+    );
+  },
+
+  renderListItem: function (child) {
+    return cloneWithProps(child, {
+      onClick: createChainedFunction(child.props.onClick, this.props.onClick),
+      ref: child.props.ref,
+      key: child.props.key
+    });
+  }
+});
+
+module.exports = ListGroup;
+
+},{"./utils/ValidComponentChildren":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/ValidComponentChildren.js","./utils/classSet":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/classSet.js","./utils/cloneWithProps":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/cloneWithProps.js","./utils/createChainedFunction":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/createChainedFunction.js","react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/ListGroupItem.js":[function(require,module,exports){
+/** @jsx React.DOM */
+
+var React = require('react');
+var BootstrapMixin = require('./BootstrapMixin');
+var classSet = require('./utils/classSet');
+var cloneWithProps = require('./utils/cloneWithProps');
+var ValidComponentChildren = require('./utils/ValidComponentChildren');
+
+var ListGroupItem = React.createClass({displayName: 'ListGroupItem',
+  mixins: [BootstrapMixin],
+
+  propTypes: {
+    bsStyle: React.PropTypes.oneOf(['danger','info','success','warning']),
+    active: React.PropTypes.any,
+    disabled: React.PropTypes.any,
+    header: React.PropTypes.renderable,
+    onClick: React.PropTypes.func
+  },
+
+  getDefaultProps: function () {
+    return {
+      bsClass: 'list-group-item'
+    };
+  },
+
+  render: function () {
+    var classes = this.getBsClassSet();
+
+    classes['active'] = this.props.active;
+    classes['disabled'] = this.props.disabled;
+
+    if (this.props.href || this.props.onClick) {
+      return this.renderAnchor(classes);
+    } else {
+      return this.renderSpan(classes);
+    }
+  },
+
+  renderSpan: function (classes) {
+    return this.transferPropsTo(
+      React.DOM.span( {className:classSet(classes)}, 
+        this.props.header ? this.renderStructuredContent() : this.props.children
+      )
+    );
+  },
+
+  renderAnchor: function (classes) {
+    return this.transferPropsTo(
+      React.DOM.a(
+        {className:classSet(classes),
+        onClick:this.handleClick}, 
+        this.props.header ? this.renderStructuredContent() : this.props.children
+      )
+    );
+  },
+
+  renderStructuredContent: function () {
+    var header;
+    if (React.isValidComponent(this.props.header)) {
+      header = cloneWithProps(this.props.header, {
+        className: 'list-group-item-heading'
+      });
+    } else {
+      header = (
+        React.DOM.h4( {className:"list-group-item-heading"}, 
+          this.props.header
+        )
+      );
+    }
+
+    var content = (
+      React.DOM.p( {className:"list-group-item-text"}, 
+        this.props.children
+      )
+    );
+
+    return {
+      header: header,
+      content: content
+    };
+  },
+
+  handleClick: function (e) {
+    if (this.props.onClick) {
+      e.preventDefault();
+      this.props.onClick(this.props.key, this.props.href);
+    }
+  }
+});
+
+module.exports = ListGroupItem;
+
+},{"./BootstrapMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/BootstrapMixin.js","./utils/ValidComponentChildren":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/ValidComponentChildren.js","./utils/classSet":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/classSet.js","./utils/cloneWithProps":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/cloneWithProps.js","react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/MenuItem.js":[function(require,module,exports){
+/** @jsx React.DOM */
+
+var React = require('react');
+var classSet = require('./utils/classSet');
+
+var MenuItem = React.createClass({displayName: 'MenuItem',
+  propTypes: {
+    header:   React.PropTypes.bool,
+    divider:  React.PropTypes.bool,
+    href:     React.PropTypes.string,
+    title:    React.PropTypes.string,
+    onSelect: React.PropTypes.func
+  },
+
+  getDefaultProps: function () {
+    return {
+      href: '#'
+    };
+  },
+
+  handleClick: function (e) {
+    if (this.props.onSelect) {
+      e.preventDefault();
+      this.props.onSelect(this.props.key);
+    }
+  },
+
+  renderAnchor: function () {
+    return (
+      React.DOM.a( {onClick:this.handleClick, href:this.props.href, title:this.props.title, tabIndex:"-1"}, 
+        this.props.children
+      )
+    );
+  },
+
+  render: function () {
+    var classes = {
+        'dropdown-header': this.props.header,
+        'divider': this.props.divider
+      };
+
+    var children = null;
+    if (this.props.header) {
+      children = this.props.children;
+    } else if (!this.props.divider) {
+      children = this.renderAnchor();
+    }
+
+    return this.transferPropsTo(
+      React.DOM.li( {role:"presentation", title:null, href:null, className:classSet(classes)}, 
+        children
+      )
+    );
+  }
+});
+
+module.exports = MenuItem;
+},{"./utils/classSet":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/classSet.js","react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Modal.js":[function(require,module,exports){
+/** @jsx React.DOM */
+/* global document:false */
+
+var React = require('react');
+var classSet = require('./utils/classSet');
+var BootstrapMixin = require('./BootstrapMixin');
+var FadeMixin = require('./FadeMixin');
+var EventListener = require('./utils/EventListener');
+
+
+// TODO:
+// - aria-labelledby
+// - Add `modal-body` div if only one child passed in that doesn't already have it
+// - Tests
+
+var Modal = React.createClass({displayName: 'Modal',
+  mixins: [BootstrapMixin, FadeMixin],
+
+  propTypes: {
+    title: React.PropTypes.renderable,
+    backdrop: React.PropTypes.oneOf(['static', true, false]),
+    keyboard: React.PropTypes.bool,
+    closeButton: React.PropTypes.bool,
+    animation: React.PropTypes.bool,
+    onRequestHide: React.PropTypes.func.isRequired
+  },
+
+  getDefaultProps: function () {
+    return {
+      bsClass: 'modal',
+      backdrop: true,
+      keyboard: true,
+      animation: true,
+      closeButton: true
+    };
+  },
+
+  render: function () {
+    var modalStyle = {display: 'block'};
+    var dialogClasses = this.getBsClassSet();
+    delete dialogClasses.modal;
+    dialogClasses['modal-dialog'] = true;
+
+    var classes = {
+      modal: true,
+      fade: this.props.animation,
+      'in': !this.props.animation || !document.querySelectorAll
+    };
+
+    var modal = this.transferPropsTo(
+      React.DOM.div(
+        {title:null,
+        tabIndex:"-1",
+        role:"dialog",
+        style:modalStyle,
+        className:classSet(classes),
+        onClick:this.props.backdrop === true ? this.handleBackdropClick : null,
+        ref:"modal"}, 
+        React.DOM.div( {className:classSet(dialogClasses)}, 
+          React.DOM.div( {className:"modal-content"}, 
+            this.props.title ? this.renderHeader() : null,
+            this.props.children
+          )
+        )
+      )
+    );
+
+    return this.props.backdrop ?
+      this.renderBackdrop(modal) : modal;
+  },
+
+  renderBackdrop: function (modal) {
+    var classes = {
+      'modal-backdrop': true,
+      'fade': this.props.animation
+    };
+
+    classes['in'] = !this.props.animation || !document.querySelectorAll;
+
+    var onClick = this.props.backdrop === true ?
+      this.handleBackdropClick : null;
+
+    return (
+      React.DOM.div(null, 
+        React.DOM.div( {className:classSet(classes), ref:"backdrop", onClick:onClick} ),
+        modal
+      )
+    );
+  },
+
+  renderHeader: function () {
+    var closeButton;
+    if (this.props.closeButton) {
+      closeButton = (
+          React.DOM.button( {type:"button", className:"close", 'aria-hidden':"true", onClick:this.props.onRequestHide}, "×")
+        );
+    }
+
+    return (
+      React.DOM.div( {className:"modal-header"}, 
+        closeButton,
+        this.renderTitle()
+      )
+    );
+  },
+
+  renderTitle: function () {
+    return (
+      React.isValidComponent(this.props.title) ?
+        this.props.title : React.DOM.h4( {className:"modal-title"}, this.props.title)
+    );
+  },
+
+  iosClickHack: function () {
+    // IOS only allows click events to be delegated to the document on elements
+    // it considers 'clickable' - anchors, buttons, etc. We fake a click handler on the
+    // DOM nodes themselves. Remove if handled by React: https://github.com/facebook/react/issues/1169
+    this.refs.modal.getDOMNode().onclick = function () {};
+    this.refs.backdrop.getDOMNode().onclick = function () {};
+  },
+
+  componentDidMount: function () {
+    this._onDocumentKeyupListener =
+      EventListener.listen(document, 'keyup', this.handleDocumentKeyUp);
+
+    if (this.props.backdrop) {
+      this.iosClickHack();
+    }
+  },
+
+  componentDidUpdate: function (prevProps) {
+    if (this.props.backdrop && this.props.backdrop !== prevProps.backdrop) {
+      this.iosClickHack();
+    }
+  },
+
+  componentWillUnmount: function () {
+    this._onDocumentKeyupListener.remove();
+  },
+
+  handleBackdropClick: function (e) {
+    if (e.target !== e.currentTarget) {
+      return;
+    }
+
+    this.props.onRequestHide();
+  },
+
+  handleDocumentKeyUp: function (e) {
+    if (this.props.keyboard && e.keyCode === 27) {
+      this.props.onRequestHide();
+    }
+  }
+});
+
+module.exports = Modal;
+
+},{"./BootstrapMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/BootstrapMixin.js","./FadeMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/FadeMixin.js","./utils/EventListener":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/EventListener.js","./utils/classSet":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/classSet.js","react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/ModalTrigger.js":[function(require,module,exports){
+/** @jsx React.DOM */
+
+var React = require('react');
+var OverlayMixin = require('./OverlayMixin');
+var cloneWithProps = require('./utils/cloneWithProps');
+var createChainedFunction = require('./utils/createChainedFunction');
+
+var ModalTrigger = React.createClass({displayName: 'ModalTrigger',
+  mixins: [OverlayMixin],
+
+  propTypes: {
+    modal: React.PropTypes.renderable.isRequired
+  },
+
+  getInitialState: function () {
+    return {
+      isOverlayShown: false
+    };
+  },
+
+  show: function () {
+    this.setState({
+      isOverlayShown: true
+    });
+  },
+
+  hide: function () {
+    this.setState({
+      isOverlayShown: false
+    });
+  },
+
+  toggle: function () {
+    this.setState({
+      isOverlayShown: !this.state.isOverlayShown
+    });
+  },
+
+  renderOverlay: function () {
+    if (!this.state.isOverlayShown) {
+      return React.DOM.span(null );
+    }
+
+    return cloneWithProps(
+      this.props.modal,
+      {
+        onRequestHide: this.hide
+      }
+    );
+  },
+
+  render: function () {
+    var child = React.Children.only(this.props.children);
+    return cloneWithProps(
+      child,
+      {
+        onClick: createChainedFunction(child.props.onClick, this.toggle)
+      }
+    );
+  }
+});
+
+module.exports = ModalTrigger;
+},{"./OverlayMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/OverlayMixin.js","./utils/cloneWithProps":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/cloneWithProps.js","./utils/createChainedFunction":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/createChainedFunction.js","react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Nav.js":[function(require,module,exports){
+/** @jsx React.DOM */
+
+var React = require('react');
+var BootstrapMixin = require('./BootstrapMixin');
+var CollapsableMixin = require('./CollapsableMixin');
+var classSet = require('./utils/classSet');
+var domUtils = require('./utils/domUtils');
+var cloneWithProps = require('./utils/cloneWithProps');
+var ValidComponentChildren = require('./utils/ValidComponentChildren');
+var createChainedFunction = require('./utils/createChainedFunction');
+
+
+var Nav = React.createClass({displayName: 'Nav',
+  mixins: [BootstrapMixin, CollapsableMixin],
+
+  propTypes: {
+    bsStyle: React.PropTypes.oneOf(['tabs','pills']),
+    stacked: React.PropTypes.bool,
+    justified: React.PropTypes.bool,
+    onSelect: React.PropTypes.func,
+    collapsable: React.PropTypes.bool,
+    expanded: React.PropTypes.bool,
+    navbar: React.PropTypes.bool
+  },
+
+  getDefaultProps: function () {
+    return {
+      bsClass: 'nav'
+    };
+  },
+
+  getCollapsableDOMNode: function () {
+    return this.getDOMNode();
+  },
+
+  getCollapsableDimensionValue: function () {
+    var node = this.refs.ul.getDOMNode(),
+        height = node.offsetHeight,
+        computedStyles = domUtils.getComputedStyles(node);
+
+    return height + parseInt(computedStyles.marginTop, 10) + parseInt(computedStyles.marginBottom, 10);
+  },
+
+  render: function () {
+    var classes = this.props.collapsable ? this.getCollapsableClassSet() : {};
+
+    classes['navbar-collapse'] = this.props.collapsable;
+
+    if (this.props.navbar && !this.props.collapsable) {
+      return this.transferPropsTo(this.renderUl());
+    }
+
+    return this.transferPropsTo(
+      React.DOM.nav( {className:classSet(classes)}, 
+        this.renderUl()
+      )
+    );
+  },
+
+  renderUl: function () {
+    var classes = this.getBsClassSet();
+
+    classes['nav-stacked'] = this.props.stacked;
+    classes['nav-justified'] = this.props.justified;
+    classes['navbar-nav'] = this.props.navbar;
+    classes['pull-right'] = this.props.pullRight;
+
+    return (
+      React.DOM.ul( {className:classSet(classes), ref:"ul"}, 
+        ValidComponentChildren.map(this.props.children, this.renderNavItem)
+      )
+    );
+  },
+
+  getChildActiveProp: function (child) {
+    if (child.props.active) {
+      return true;
+    }
+    if (this.props.activeKey != null) {
+      if (child.props.key === this.props.activeKey) {
+        return true;
+      }
+    }
+    if (this.props.activeHref != null) {
+      if (child.props.href === this.props.activeHref) {
+        return true;
+      }
+    }
+
+    return child.props.active;
+  },
+
+  renderNavItem: function (child) {
+    return cloneWithProps(
+      child,
+      {
+        active: this.getChildActiveProp(child),
+        activeKey: this.props.activeKey,
+        activeHref: this.props.activeHref,
+        onSelect: createChainedFunction(child.props.onSelect, this.props.onSelect),
+        ref: child.props.ref,
+        key: child.props.key,
+        navItem: true
+      }
+    );
+  }
+});
+
+module.exports = Nav;
+
+},{"./BootstrapMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/BootstrapMixin.js","./CollapsableMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/CollapsableMixin.js","./utils/ValidComponentChildren":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/ValidComponentChildren.js","./utils/classSet":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/classSet.js","./utils/cloneWithProps":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/cloneWithProps.js","./utils/createChainedFunction":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/createChainedFunction.js","./utils/domUtils":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/domUtils.js","react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/NavItem.js":[function(require,module,exports){
+/** @jsx React.DOM */
+
+var React = require('react');
+var classSet = require('./utils/classSet');
+var BootstrapMixin = require('./BootstrapMixin');
+
+var NavItem = React.createClass({displayName: 'NavItem',
+  mixins: [BootstrapMixin],
+
+  propTypes: {
+    onSelect: React.PropTypes.func,
+    active: React.PropTypes.bool,
+    disabled: React.PropTypes.bool,
+    href: React.PropTypes.string,
+    title: React.PropTypes.string
+  },
+
+  getDefaultProps: function () {
+    return {
+      href: '#'
+    };
+  },
+
+  render: function () {
+    var classes = {
+      'active': this.props.active,
+      'disabled': this.props.disabled
+    };
+
+    return this.transferPropsTo(
+      React.DOM.li( {className:classSet(classes)}, 
+        React.DOM.a(
+          {href:this.props.href,
+          title:this.props.title,
+          onClick:this.handleClick,
+          ref:"anchor"}, 
+          this.props.children
+        )
+      )
+    );
+  },
+
+  handleClick: function (e) {
+    if (this.props.onSelect) {
+      e.preventDefault();
+
+      if (!this.props.disabled) {
+        this.props.onSelect(this.props.key,this.props.href);
+      }
+    }
+  }
+});
+
+module.exports = NavItem;
+},{"./BootstrapMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/BootstrapMixin.js","./utils/classSet":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/classSet.js","react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Navbar.js":[function(require,module,exports){
+/** @jsx React.DOM */
+
+var React = require('react');
+var BootstrapMixin = require('./BootstrapMixin');
+var CustomPropTypes = require('./utils/CustomPropTypes');
+var classSet = require('./utils/classSet');
+var cloneWithProps = require('./utils/cloneWithProps');
+var ValidComponentChildren = require('./utils/ValidComponentChildren');
+var createChainedFunction = require('./utils/createChainedFunction');
+var Nav = require('./Nav');
+
+
+var Navbar = React.createClass({displayName: 'Navbar',
+  mixins: [BootstrapMixin],
+
+  propTypes: {
+    fixedTop: React.PropTypes.bool,
+    fixedBottom: React.PropTypes.bool,
+    staticTop: React.PropTypes.bool,
+    inverse: React.PropTypes.bool,
+    fluid: React.PropTypes.bool,
+    role: React.PropTypes.string,
+    componentClass: CustomPropTypes.componentClass.isRequired,
+    brand: React.PropTypes.renderable,
+    toggleButton: React.PropTypes.renderable,
+    onToggle: React.PropTypes.func,
+    navExpanded: React.PropTypes.bool,
+    defaultNavExpanded: React.PropTypes.bool
+  },
+
+  getDefaultProps: function () {
+    return {
+      bsClass: 'navbar',
+      bsStyle: 'default',
+      role: 'navigation',
+      componentClass: React.DOM.nav
+    };
+  },
+
+  getInitialState: function () {
+    return {
+      navExpanded: this.props.defaultNavExpanded
+    };
+  },
+
+  shouldComponentUpdate: function() {
+    // Defer any updates to this component during the `onSelect` handler.
+    return !this._isChanging;
+  },
+
+  handleToggle: function () {
+    if (this.props.onToggle) {
+      this._isChanging = true;
+      this.props.onToggle();
+      this._isChanging = false;
+    }
+
+    this.setState({
+      navOpen: !this.state.navOpen
+    });
+  },
+
+  isNavOpen: function () {
+    return this.props.navOpen != null ? this.props.navOpen : this.state.navOpen;
+  },
+
+  render: function () {
+    var classes = this.getBsClassSet();
+    var componentClass = this.props.componentClass;
+
+    classes['navbar-fixed-top'] = this.props.fixedTop;
+    classes['navbar-fixed-bottom'] = this.props.fixedBottom;
+    classes['navbar-static-top'] = this.props.staticTop;
+    classes['navbar-inverse'] = this.props.inverse;
+
+    return this.transferPropsTo(
+      componentClass( {className:classSet(classes)}, 
+        React.DOM.div( {className:this.props.fluid ? 'container-fluid' : 'container'}, 
+          (this.props.brand || this.props.toggleButton || this.props.toggleNavKey) ? this.renderHeader() : null,
+          ValidComponentChildren.map(this.props.children, this.renderChild)
+        )
+      )
+    );
+  },
+
+  renderChild: function (child) {
+    return cloneWithProps(child, {
+      navbar: true,
+      collapsable: this.props.toggleNavKey != null && this.props.toggleNavKey === child.props.key,
+      expanded: this.props.toggleNavKey != null && this.props.toggleNavKey === child.props.key && this.isNavOpen(),
+      key: child.props.key,
+      ref: child.props.ref
+    });
+  },
+
+  renderHeader: function () {
+    var brand;
+
+    if (this.props.brand) {
+      brand = React.isValidComponent(this.props.brand) ?
+        cloneWithProps(this.props.brand, {
+          className: 'navbar-brand'
+        }) : React.DOM.span( {className:"navbar-brand"}, this.props.brand);
+    }
+
+    return (
+      React.DOM.div( {className:"navbar-header"}, 
+        brand,
+        (this.props.toggleButton || this.props.toggleNavKey != null) ? this.renderToggleButton() : null
+      )
+    );
+  },
+
+  renderToggleButton: function () {
+    var children;
+
+    if (React.isValidComponent(this.props.toggleButton)) {
+      return cloneWithProps(this.props.toggleButton, {
+        className: 'navbar-toggle',
+        onClick: createChainedFunction(this.handleToggle, this.props.toggleButton.props.onClick)
+      });
+    }
+
+    children = (this.props.toggleButton != null) ?
+      this.props.toggleButton : [
+        React.DOM.span( {className:"sr-only", key:0}, "Toggle navigation"),
+        React.DOM.span( {className:"icon-bar", key:1}),
+        React.DOM.span( {className:"icon-bar", key:2}),
+        React.DOM.span( {className:"icon-bar", key:3})
+    ];
+
+    return (
+      React.DOM.button( {className:"navbar-toggle", type:"button", onClick:this.handleToggle}, 
+        children
+      )
+    );
+  }
+});
+
+module.exports = Navbar;
+
+},{"./BootstrapMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/BootstrapMixin.js","./Nav":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Nav.js","./utils/CustomPropTypes":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/CustomPropTypes.js","./utils/ValidComponentChildren":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/ValidComponentChildren.js","./utils/classSet":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/classSet.js","./utils/cloneWithProps":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/cloneWithProps.js","./utils/createChainedFunction":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/createChainedFunction.js","react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/OverlayMixin.js":[function(require,module,exports){
+var React = require('react');
+var CustomPropTypes = require('./utils/CustomPropTypes');
+
+module.exports = {
+  propTypes: {
+    container: CustomPropTypes.mountable
+  },
+
+  getDefaultProps: function () {
+    return {
+      container: {
+        // Provide `getDOMNode` fn mocking a React component API. The `document.body`
+        // reference needs to be contained within this function so that it is not accessed
+        // in environments where it would not be defined, e.g. nodejs. Equally this is needed
+        // before the body is defined where `document.body === null`, this ensures
+        // `document.body` is only accessed after componentDidMount.
+        getDOMNode: function getDOMNode() {
+          return document.body;
+        }
+      }
+    };
+  },
+
+  componentWillUnmount: function () {
+    this._unrenderOverlay();
+    if (this._overlayTarget) {
+      this.getContainerDOMNode()
+        .removeChild(this._overlayTarget);
+      this._overlayTarget = null;
+    }
+  },
+
+  componentDidUpdate: function () {
+    this._renderOverlay();
+  },
+
+  componentDidMount: function () {
+    this._renderOverlay();
+  },
+
+  _mountOverlayTarget: function () {
+    this._overlayTarget = document.createElement('div');
+    this.getContainerDOMNode()
+      .appendChild(this._overlayTarget);
+  },
+
+  _renderOverlay: function () {
+    if (!this._overlayTarget) {
+      this._mountOverlayTarget();
+    }
+
+    // Save reference to help testing
+    this._overlayInstance = React.renderComponent(this.renderOverlay(), this._overlayTarget);
+  },
+
+  _unrenderOverlay: function () {
+    React.unmountComponentAtNode(this._overlayTarget);
+    this._overlayInstance = null;
+  },
+
+  getOverlayDOMNode: function () {
+    if (!this.isMounted()) {
+      throw new Error('getOverlayDOMNode(): A component must be mounted to have a DOM node.');
+    }
+
+    return this._overlayInstance.getDOMNode();
+  },
+
+  getContainerDOMNode: function () {
+    return this.props.container.getDOMNode ?
+      this.props.container.getDOMNode() : this.props.container;
+  }
+};
+
+},{"./utils/CustomPropTypes":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/CustomPropTypes.js","react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/OverlayTrigger.js":[function(require,module,exports){
+/** @jsx React.DOM */
+
+var React = require('react');
+var OverlayMixin = require('./OverlayMixin');
+var domUtils = require('./utils/domUtils');
+var cloneWithProps = require('./utils/cloneWithProps');
+var createChainedFunction = require('./utils/createChainedFunction');
+var merge = require('./utils/merge');
+
+/**
+ * Check if value one is inside or equal to the of value
+ *
+ * @param {string} one
+ * @param {string|array} of
+ * @returns {boolean}
+ */
+function isOneOf(one, of) {
+  if (Array.isArray(of)) {
+    return of.indexOf(one) >= 0;
+  }
+  return one === of;
+}
+
+var OverlayTrigger = React.createClass({displayName: 'OverlayTrigger',
+  mixins: [OverlayMixin],
+
+  propTypes: {
+    trigger: React.PropTypes.oneOfType([
+      React.PropTypes.oneOf(['manual', 'click', 'hover', 'focus']),
+      React.PropTypes.arrayOf(React.PropTypes.oneOf(['click', 'hover', 'focus']))
+    ]),
+    placement: React.PropTypes.oneOf(['top','right', 'bottom', 'left']),
+    delay: React.PropTypes.number,
+    delayShow: React.PropTypes.number,
+    delayHide: React.PropTypes.number,
+    defaultOverlayShown: React.PropTypes.bool,
+    overlay: React.PropTypes.renderable.isRequired
+  },
+
+  getDefaultProps: function () {
+    return {
+      placement: 'right',
+      trigger: ['hover', 'focus']
+    };
+  },
+
+  getInitialState: function () {
+    return {
+      isOverlayShown: this.props.defaultOverlayShown == null ?
+        false : this.props.defaultOverlayShown,
+      overlayLeft: null,
+      overlayTop: null
+    };
+  },
+
+  show: function () {
+    this.setState({
+      isOverlayShown: true
+    }, function() {
+      this.updateOverlayPosition();
+    });
+  },
+
+  hide: function () {
+    this.setState({
+      isOverlayShown: false
+    });
+  },
+
+  toggle: function () {
+    this.state.isOverlayShown ?
+      this.hide() : this.show();
+  },
+
+  renderOverlay: function () {
+    if (!this.state.isOverlayShown) {
+      return React.DOM.span(null );
+    }
+
+    return cloneWithProps(
+      this.props.overlay,
+      {
+        onRequestHide: this.hide,
+        placement: this.props.placement,
+        positionLeft: this.state.overlayLeft,
+        positionTop: this.state.overlayTop
+      }
+    );
+  },
+
+  render: function () {
+    if (this.props.trigger === 'manual') {
+      return React.Children.only(this.props.children);
+    }
+
+    var props = {};
+
+    if (isOneOf('click', this.props.trigger)) {
+      props.onClick = createChainedFunction(this.toggle, this.props.onClick);
+    }
+
+    if (isOneOf('hover', this.props.trigger)) {
+      props.onMouseOver = createChainedFunction(this.handleDelayedShow, this.props.onMouseOver);
+      props.onMouseOut = createChainedFunction(this.handleDelayedHide, this.props.onMouseOut);
+    }
+
+    if (isOneOf('focus', this.props.trigger)) {
+      props.onFocus = createChainedFunction(this.handleDelayedShow, this.props.onFocus);
+      props.onBlur = createChainedFunction(this.handleDelayedHide, this.props.onBlur);
+    }
+
+    return cloneWithProps(
+      React.Children.only(this.props.children),
+      props
+    );
+  },
+
+  componentWillUnmount: function() {
+    clearTimeout(this._hoverDelay);
+  },
+
+  handleDelayedShow: function () {
+    if (this._hoverDelay != null) {
+      clearTimeout(this._hoverDelay);
+      this._hoverDelay = null;
+      return;
+    }
+
+    var delay = this.props.delayShow != null ?
+      this.props.delayShow : this.props.delay;
+
+    if (!delay) {
+      this.show();
+      return;
+    }
+
+    this._hoverDelay = setTimeout(function() {
+      this._hoverDelay = null;
+      this.show();
+    }.bind(this), delay);
+  },
+
+  handleDelayedHide: function () {
+    if (this._hoverDelay != null) {
+      clearTimeout(this._hoverDelay);
+      this._hoverDelay = null;
+      return;
+    }
+
+    var delay = this.props.delayHide != null ?
+      this.props.delayHide : this.props.delay;
+
+    if (!delay) {
+      this.hide();
+      return;
+    }
+
+    this._hoverDelay = setTimeout(function() {
+      this._hoverDelay = null;
+      this.hide();
+    }.bind(this), delay);
+  },
+
+  updateOverlayPosition: function () {
+    if (!this.isMounted()) {
+      return;
+    }
+
+    var pos = this.calcOverlayPosition();
+
+    this.setState({
+      overlayLeft: pos.left,
+      overlayTop: pos.top
+    });
+  },
+
+  calcOverlayPosition: function () {
+    var childOffset = this.getPosition();
+
+    var overlayNode = this.getOverlayDOMNode();
+    var overlayHeight = overlayNode.offsetHeight;
+    var overlayWidth = overlayNode.offsetWidth;
+
+    switch (this.props.placement) {
+      case 'right':
+        return {
+          top: childOffset.top + childOffset.height / 2 - overlayHeight / 2,
+          left: childOffset.left + childOffset.width
+        };
+      case 'left':
+        return {
+          top: childOffset.top + childOffset.height / 2 - overlayHeight / 2,
+          left: childOffset.left - overlayWidth
+        };
+      case 'top':
+        return {
+          top: childOffset.top - overlayHeight,
+          left: childOffset.left + childOffset.width / 2 - overlayWidth / 2
+        };
+      case 'bottom':
+        return {
+          top: childOffset.top + childOffset.height,
+          left: childOffset.left + childOffset.width / 2 - overlayWidth / 2
+        };
+      default:
+        throw new Error('calcOverlayPosition(): No such placement of "' + this.props.placement + '" found.');
+    }
+  },
+
+  getPosition: function () {
+    var node = this.getDOMNode();
+    var container = this.getContainerDOMNode();
+
+    var offset = container.tagName == 'BODY' ?
+      domUtils.getOffset(node) : domUtils.getPosition(node, container);
+
+    return merge(offset, {
+      height: node.offsetHeight,
+      width: node.offsetWidth
+    });
+  }
+});
+
+module.exports = OverlayTrigger;
+},{"./OverlayMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/OverlayMixin.js","./utils/cloneWithProps":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/cloneWithProps.js","./utils/createChainedFunction":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/createChainedFunction.js","./utils/domUtils":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/domUtils.js","./utils/merge":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/merge.js","react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/PageHeader.js":[function(require,module,exports){
+/** @jsx React.DOM */
+
+var React = require('react');
+
+var PageHeader = React.createClass({displayName: 'PageHeader',
+
+  render: function () {
+    return this.transferPropsTo(
+      React.DOM.div( {className:"page-header"}, 
+        React.DOM.h1(null, this.props.children)
+      )
+    );
+  }
+});
+
+module.exports = PageHeader;
+},{"react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/PageItem.js":[function(require,module,exports){
+/** @jsx React.DOM */
+
+var React = require('react');
+var classSet = require('./utils/classSet');
+
+var PageItem = React.createClass({displayName: 'PageItem',
+
+  propTypes: {
+    disabled: React.PropTypes.bool,
+    previous: React.PropTypes.bool,
+    next: React.PropTypes.bool,
+    onSelect: React.PropTypes.func
+  },
+
+  getDefaultProps: function () {
+    return {
+      href: '#'
+    };
+  },
+
+  render: function () {
+    var classes = {
+      'disabled': this.props.disabled,
+      'previous': this.props.previous,
+      'next': this.props.next
+    };
+
+    return this.transferPropsTo(
+      React.DOM.li(
+        {className:classSet(classes)}, 
+        React.DOM.a(
+          {href:this.props.href,
+          title:this.props.title,
+          onClick:this.handleSelect,
+          ref:"anchor"}, 
+          this.props.children
+        )
+      )
+    );
+  },
+
+  handleSelect: function (e) {
+    if (this.props.onSelect) {
+      e.preventDefault();
+
+      if (!this.props.disabled) {
+        this.props.onSelect(this.props.key, this.props.href);
+      }
+    }
+  }
+});
+
+module.exports = PageItem;
+},{"./utils/classSet":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/classSet.js","react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Pager.js":[function(require,module,exports){
+/** @jsx React.DOM */
+
+var React = require('react');
+var cloneWithProps = require('./utils/cloneWithProps');
+var ValidComponentChildren = require('./utils/ValidComponentChildren');
+var createChainedFunction = require('./utils/createChainedFunction');
+
+var Pager = React.createClass({displayName: 'Pager',
+
+  propTypes: {
+    onSelect: React.PropTypes.func
+  },
+
+  render: function () {
+    return this.transferPropsTo(
+      React.DOM.ul(
+        {className:"pager"}, 
+        ValidComponentChildren.map(this.props.children, this.renderPageItem)
+      )
+    );
+  },
+
+  renderPageItem: function (child) {
+    return cloneWithProps(
+      child,
+      {
+        onSelect: createChainedFunction(child.props.onSelect, this.props.onSelect),
+        ref: child.props.ref,
+        key: child.props.key
+      }
+    );
+  }
+});
+
+module.exports = Pager;
+},{"./utils/ValidComponentChildren":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/ValidComponentChildren.js","./utils/cloneWithProps":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/cloneWithProps.js","./utils/createChainedFunction":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/createChainedFunction.js","react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Panel.js":[function(require,module,exports){
+/** @jsx React.DOM */
+
+var React = require('react');
+var classSet = require('./utils/classSet');
+var cloneWithProps = require('./utils/cloneWithProps');
+var BootstrapMixin = require('./BootstrapMixin');
+var CollapsableMixin = require('./CollapsableMixin');
+
+var Panel = React.createClass({displayName: 'Panel',
+  mixins: [BootstrapMixin, CollapsableMixin],
+
+  propTypes: {
+    onSelect: React.PropTypes.func,
+    header: React.PropTypes.renderable,
+    footer: React.PropTypes.renderable
+  },
+
+  getDefaultProps: function () {
+    return {
+      bsClass: 'panel',
+      bsStyle: 'default'
+    };
+  },
+
+  handleSelect: function (e) {
+    if (this.props.onSelect) {
+      this._isChanging = true;
+      this.props.onSelect(this.props.key);
+      this._isChanging = false;
+    }
+
+    e.preventDefault();
+
+    this.setState({
+      expanded: !this.state.expanded
+    });
+  },
+
+  shouldComponentUpdate: function () {
+    return !this._isChanging;
+  },
+
+  getCollapsableDimensionValue: function () {
+    return this.refs.body.getDOMNode().offsetHeight;
+  },
+
+  getCollapsableDOMNode: function () {
+    if (!this.isMounted() || !this.refs || !this.refs.panel) {
+      return null;
+    }
+
+    return this.refs.panel.getDOMNode();
+  },
+
+  render: function () {
+    var classes = this.getBsClassSet();
+    classes['panel'] = true;
+
+    return this.transferPropsTo(
+      React.DOM.div( {className:classSet(classes), id:this.props.collapsable ? null : this.props.id, onSelect:null}, 
+        this.renderHeading(),
+        this.props.collapsable ? this.renderCollapsableBody() : this.renderBody(),
+        this.renderFooter()
+      )
+    );
+  },
+
+  renderCollapsableBody: function () {
+    return (
+      React.DOM.div( {className:classSet(this.getCollapsableClassSet('panel-collapse')), id:this.props.id, ref:"panel"}, 
+        this.renderBody()
+      )
+    );
+  },
+
+  renderBody: function () {
+    return (
+      React.DOM.div( {className:"panel-body", ref:"body"}, 
+        this.props.children
+      )
+    );
+  },
+
+  renderHeading: function () {
+    var header = this.props.header;
+
+    if (!header) {
+      return null;
+    }
+
+    if (!React.isValidComponent(header) || Array.isArray(header)) {
+      header = this.props.collapsable ?
+        this.renderCollapsableTitle(header) : header;
+    } else if (this.props.collapsable) {
+      header = cloneWithProps(header, {
+        className: 'panel-title',
+        children: this.renderAnchor(header.props.children)
+      });
+    } else {
+      header = cloneWithProps(header, {
+        className: 'panel-title'
+      });
+    }
+
+    return (
+      React.DOM.div( {className:"panel-heading"}, 
+        header
+      )
+    );
+  },
+
+  renderAnchor: function (header) {
+    return (
+      React.DOM.a(
+        {href:'#' + (this.props.id || ''),
+        className:this.isExpanded() ? null : 'collapsed',
+        onClick:this.handleSelect}, 
+        header
+      )
+    );
+  },
+
+  renderCollapsableTitle: function (header) {
+    return (
+      React.DOM.h4( {className:"panel-title"}, 
+        this.renderAnchor(header)
+      )
+    );
+  },
+
+  renderFooter: function () {
+    if (!this.props.footer) {
+      return null;
+    }
+
+    return (
+      React.DOM.div( {className:"panel-footer"}, 
+        this.props.footer
+      )
+    );
+  }
+});
+
+module.exports = Panel;
+},{"./BootstrapMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/BootstrapMixin.js","./CollapsableMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/CollapsableMixin.js","./utils/classSet":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/classSet.js","./utils/cloneWithProps":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/cloneWithProps.js","react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/PanelGroup.js":[function(require,module,exports){
+/** @jsx React.DOM */
+
+var React = require('react');
+var classSet = require('./utils/classSet');
+var cloneWithProps = require('./utils/cloneWithProps');
+var BootstrapMixin = require('./BootstrapMixin');
+var ValidComponentChildren = require('./utils/ValidComponentChildren');
+
+var PanelGroup = React.createClass({displayName: 'PanelGroup',
+  mixins: [BootstrapMixin],
+
+  propTypes: {
+    collapsable: React.PropTypes.bool,
+    activeKey: React.PropTypes.any,
+    defaultActiveKey: React.PropTypes.any,
+    onSelect: React.PropTypes.func
+  },
+
+  getDefaultProps: function () {
+    return {
+      bsClass: 'panel-group'
+    };
+  },
+
+  getInitialState: function () {
+    var defaultActiveKey = this.props.defaultActiveKey;
+
+    return {
+      activeKey: defaultActiveKey
+    };
+  },
+
+  render: function () {
+    return this.transferPropsTo(
+      React.DOM.div( {className:classSet(this.getBsClassSet()), onSelect:null}, 
+        ValidComponentChildren.map(this.props.children, this.renderPanel)
+      )
+    );
+  },
+
+  renderPanel: function (child) {
+    var activeKey =
+      this.props.activeKey != null ? this.props.activeKey : this.state.activeKey;
+
+    var props = {
+      bsStyle: child.props.bsStyle || this.props.bsStyle,
+      key: child.props.key,
+      ref: child.props.ref
+    };
+
+    if (this.props.accordion) {
+      props.collapsable = true;
+      props.expanded = (child.props.key === activeKey);
+      props.onSelect = this.handleSelect;
+    }
+
+    return cloneWithProps(
+      child,
+      props
+    );
+  },
+
+  shouldComponentUpdate: function() {
+    // Defer any updates to this component during the `onSelect` handler.
+    return !this._isChanging;
+  },
+
+  handleSelect: function (key) {
+    if (this.props.onSelect) {
+      this._isChanging = true;
+      this.props.onSelect(key);
+      this._isChanging = false;
+    }
+
+    if (this.state.activeKey === key) {
+      key = null;
+    }
+
+    this.setState({
+      activeKey: key
+    });
+  }
+});
+
+module.exports = PanelGroup;
+},{"./BootstrapMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/BootstrapMixin.js","./utils/ValidComponentChildren":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/ValidComponentChildren.js","./utils/classSet":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/classSet.js","./utils/cloneWithProps":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/cloneWithProps.js","react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Popover.js":[function(require,module,exports){
+/** @jsx React.DOM */
+
+var React = require('react');
+var classSet = require('./utils/classSet');
+var BootstrapMixin = require('./BootstrapMixin');
+
+
+var Popover = React.createClass({displayName: 'Popover',
+  mixins: [BootstrapMixin],
+
+  propTypes: {
+    placement: React.PropTypes.oneOf(['top','right', 'bottom', 'left']),
+    positionLeft: React.PropTypes.number,
+    positionTop: React.PropTypes.number,
+    arrowOffsetLeft: React.PropTypes.number,
+    arrowOffsetTop: React.PropTypes.number,
+    title: React.PropTypes.renderable
+  },
+
+  getDefaultProps: function () {
+    return {
+      placement: 'right'
+    };
+  },
+
+  render: function () {
+    var classes = {};
+    classes['popover'] = true;
+    classes[this.props.placement] = true;
+    classes['in'] = this.props.positionLeft != null || this.props.positionTop != null;
+
+    var style = {};
+    style['left'] = this.props.positionLeft;
+    style['top'] = this.props.positionTop;
+    style['display'] = 'block';
+
+    var arrowStyle = {};
+    arrowStyle['left'] = this.props.arrowOffsetLeft;
+    arrowStyle['top'] = this.props.arrowOffsetTop;
+
+    return this.transferPropsTo(
+      React.DOM.div( {className:classSet(classes), style:style, title:null}, 
+        React.DOM.div( {className:"arrow", style:arrowStyle} ),
+        this.props.title ? this.renderTitle() : null,
+        React.DOM.div( {className:"popover-content"}, 
+          this.props.children
+        )
+      )
+    );
+  },
+
+  renderTitle: function() {
+    return (
+      React.DOM.h3( {className:"popover-title"}, this.props.title)
+    );
+  }
+});
+
+module.exports = Popover;
+},{"./BootstrapMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/BootstrapMixin.js","./utils/classSet":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/classSet.js","react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/ProgressBar.js":[function(require,module,exports){
+/** @jsx React.DOM */
+
+var React = require('react');
+var Interpolate = require('./Interpolate');
+var BootstrapMixin = require('./BootstrapMixin');
+var classSet = require('./utils/classSet');
+var cloneWithProps = require('./utils/cloneWithProps');
+var ValidComponentChildren = require('./utils/ValidComponentChildren');
+
+
+var ProgressBar = React.createClass({displayName: 'ProgressBar',
+  propTypes: {
+    min: React.PropTypes.number,
+    now: React.PropTypes.number,
+    max: React.PropTypes.number,
+    label: React.PropTypes.renderable,
+    srOnly: React.PropTypes.bool,
+    striped: React.PropTypes.bool,
+    active: React.PropTypes.bool
+  },
+
+  mixins: [BootstrapMixin],
+
+  getDefaultProps: function () {
+    return {
+      bsClass: 'progress-bar',
+      min: 0,
+      max: 100
+    };
+  },
+
+  getPercentage: function (now, min, max) {
+    return Math.ceil((now - min) / (max - min) * 100);
+  },
+
+  render: function () {
+    var classes = {
+        progress: true
+      };
+
+    if (this.props.active) {
+      classes['progress-striped'] = true;
+      classes['active'] = true;
+    } else if (this.props.striped) {
+      classes['progress-striped'] = true;
+    }
+
+    if (!ValidComponentChildren.hasValidComponent(this.props.children)) {
+      if (!this.props.isChild) {
+        return this.transferPropsTo(
+          React.DOM.div( {className:classSet(classes)}, 
+            this.renderProgressBar()
+          )
+        );
+      } else {
+        return this.transferPropsTo(
+          this.renderProgressBar()
+        );
+      }
+    } else {
+      return this.transferPropsTo(
+        React.DOM.div( {className:classSet(classes)}, 
+          ValidComponentChildren.map(this.props.children, this.renderChildBar)
+        )
+      );
+    }
+  },
+
+  renderChildBar: function (child) {
+    return cloneWithProps(child, {
+      isChild: true,
+      key: child.props.key,
+      ref: child.props.ref
+    });
+  },
+
+  renderProgressBar: function () {
+    var percentage = this.getPercentage(
+        this.props.now,
+        this.props.min,
+        this.props.max
+      );
+
+    var label;
+
+    if (typeof this.props.label === "string") {
+      label = this.renderLabel(percentage);
+    } else if (this.props.label) {
+      label = this.props.label;
+    }
+
+    if (this.props.srOnly) {
+      label = this.renderScreenReaderOnlyLabel(label);
+    }
+
+    return (
+      React.DOM.div( {className:classSet(this.getBsClassSet()), role:"progressbar",
+        style:{width: percentage + '%'},
+        'aria-valuenow':this.props.now,
+        'aria-valuemin':this.props.min,
+        'aria-valuemax':this.props.max}, 
+        label
+      )
+    );
+  },
+
+  renderLabel: function (percentage) {
+    var InterpolateClass = this.props.interpolateClass || Interpolate;
+
+    return (
+      InterpolateClass(
+        {now:this.props.now,
+        min:this.props.min,
+        max:this.props.max,
+        percent:percentage,
+        bsStyle:this.props.bsStyle}, 
+        this.props.label
+      )
+    );
+  },
+
+  renderScreenReaderOnlyLabel: function (label) {
+    return (
+      React.DOM.span( {className:"sr-only"}, 
+        label
+      )
+    );
+  }
+});
+
+module.exports = ProgressBar;
+
+},{"./BootstrapMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/BootstrapMixin.js","./Interpolate":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Interpolate.js","./utils/ValidComponentChildren":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/ValidComponentChildren.js","./utils/classSet":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/classSet.js","./utils/cloneWithProps":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/cloneWithProps.js","react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Row.js":[function(require,module,exports){
+/** @jsx React.DOM */
+
+var React = require('react');
+var CustomPropTypes = require('./utils/CustomPropTypes');
+
+
+var Row = React.createClass({displayName: 'Row',
+  propTypes: {
+    componentClass: CustomPropTypes.componentClass.isRequired
+  },
+
+  getDefaultProps: function () {
+    return {
+      componentClass: React.DOM.div
+    };
+  },
+
+  render: function () {
+    var componentClass = this.props.componentClass;
+
+    return this.transferPropsTo(
+      componentClass( {className:"row"}, 
+        this.props.children
+      )
+    );
+  }
+});
+
+module.exports = Row;
+},{"./utils/CustomPropTypes":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/CustomPropTypes.js","react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/SplitButton.js":[function(require,module,exports){
+/** @jsx React.DOM */
+
+var React = require('react');
+var classSet = require('./utils/classSet');
+var BootstrapMixin = require('./BootstrapMixin');
+var DropdownStateMixin = require('./DropdownStateMixin');
+var Button = require('./Button');
+var ButtonGroup = require('./ButtonGroup');
+var DropdownMenu = require('./DropdownMenu');
+
+var SplitButton = React.createClass({displayName: 'SplitButton',
+  mixins: [BootstrapMixin, DropdownStateMixin],
+
+  propTypes: {
+    pullRight:     React.PropTypes.bool,
+    title:         React.PropTypes.renderable,
+    href:          React.PropTypes.string,
+    dropdownTitle: React.PropTypes.renderable,
+    onClick:       React.PropTypes.func,
+    onSelect:      React.PropTypes.func,
+    disabled:      React.PropTypes.bool
+  },
+
+  getDefaultProps: function () {
+    return {
+      dropdownTitle: 'Toggle dropdown'
+    };
+  },
+
+  render: function () {
+    var groupClasses = {
+        'open': this.state.open,
+        'dropup': this.props.dropup
+      };
+
+    var button = this.transferPropsTo(
+      Button(
+        {ref:"button",
+        onClick:this.handleButtonClick,
+        title:null,
+        id:null}, 
+        this.props.title
+      )
+    );
+
+    var dropdownButton = this.transferPropsTo(
+      Button(
+        {ref:"dropdownButton",
+        className:"dropdown-toggle",
+        onClick:this.handleDropdownClick,
+        title:null,
+        id:null}, 
+        React.DOM.span( {className:"sr-only"}, this.props.dropdownTitle),
+        React.DOM.span( {className:"caret"} )
+      )
+    );
+
+    return (
+      ButtonGroup(
+        {bsSize:this.props.bsSize,
+        className:classSet(groupClasses),
+        id:this.props.id}, 
+        button,
+        dropdownButton,
+        DropdownMenu(
+          {ref:"menu",
+          onSelect:this.handleOptionSelect,
+          'aria-labelledby':this.props.id,
+          pullRight:this.props.pullRight}, 
+          this.props.children
+        )
+      )
+    );
+  },
+
+  handleButtonClick: function (e) {
+    if (this.state.open) {
+      this.setDropdownState(false);
+    }
+
+    if (this.props.onClick) {
+      this.props.onClick(e);
+    }
+  },
+
+  handleDropdownClick: function (e) {
+    e.preventDefault();
+
+    this.setDropdownState(!this.state.open);
+  },
+
+  handleOptionSelect: function (key) {
+    if (this.props.onSelect) {
+      this.props.onSelect(key);
+    }
+
+    this.setDropdownState(false);
+  }
+});
+
+module.exports = SplitButton;
+
+},{"./BootstrapMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/BootstrapMixin.js","./Button":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Button.js","./ButtonGroup":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/ButtonGroup.js","./DropdownMenu":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/DropdownMenu.js","./DropdownStateMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/DropdownStateMixin.js","./utils/classSet":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/classSet.js","react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/SubNav.js":[function(require,module,exports){
+/** @jsx React.DOM */
+
+var React = require('react');
+var classSet = require('./utils/classSet');
+var cloneWithProps = require('./utils/cloneWithProps');
+var ValidComponentChildren = require('./utils/ValidComponentChildren');
+var createChainedFunction = require('./utils/createChainedFunction');
+var BootstrapMixin = require('./BootstrapMixin');
+
+
+var SubNav = React.createClass({displayName: 'SubNav',
+  mixins: [BootstrapMixin],
+
+  propTypes: {
+    onSelect: React.PropTypes.func,
+    active: React.PropTypes.bool,
+    disabled: React.PropTypes.bool,
+    href: React.PropTypes.string,
+    title: React.PropTypes.string,
+    text: React.PropTypes.renderable
+  },
+
+  getDefaultProps: function () {
+    return {
+      bsClass: 'nav'
+    };
+  },
+
+  handleClick: function (e) {
+    if (this.props.onSelect) {
+      e.preventDefault();
+
+      if (!this.props.disabled) {
+        this.props.onSelect(this.props.key, this.props.href);
+      }
+    }
+  },
+
+  isActive: function () {
+    return this.isChildActive(this);
+  },
+
+  isChildActive: function (child) {
+    if (child.props.active) {
+      return true;
+    }
+
+    if (this.props.activeKey != null && this.props.activeKey === child.props.key) {
+      return true;
+    }
+
+    if (this.props.activeHref != null && this.props.activeHref === child.props.href) {
+      return true;
+    }
+
+    if (child.props.children) {
+      var isActive = false;
+
+      ValidComponentChildren.forEach(
+        child.props.children,
+        function (child) {
+          if (this.isChildActive(child)) {
+            isActive = true;
+          }
+        },
+        this
+      );
+
+      return isActive;
+    }
+
+    return false;
+  },
+
+  getChildActiveProp: function (child) {
+    if (child.props.active) {
+      return true;
+    }
+    if (this.props.activeKey != null) {
+      if (child.props.key === this.props.activeKey) {
+        return true;
+      }
+    }
+    if (this.props.activeHref != null) {
+      if (child.props.href === this.props.activeHref) {
+        return true;
+      }
+    }
+
+    return child.props.active;
+  },
+
+  render: function () {
+    var classes = {
+      'active': this.isActive(),
+      'disabled': this.props.disabled
+    };
+
+    return this.transferPropsTo(
+      React.DOM.li( {className:classSet(classes)}, 
+        React.DOM.a(
+          {href:this.props.href,
+          title:this.props.title,
+          onClick:this.handleClick,
+          ref:"anchor"}, 
+          this.props.text
+        ),
+        React.DOM.ul( {className:"nav"}, 
+          ValidComponentChildren.map(this.props.children, this.renderNavItem)
+        )
+      )
+    );
+  },
+
+  renderNavItem: function (child) {
+    return cloneWithProps(
+      child,
+      {
+        active: this.getChildActiveProp(child),
+        onSelect: createChainedFunction(child.props.onSelect, this.props.onSelect),
+        ref: child.props.ref,
+        key: child.props.key
+      }
+    );
+  }
+});
+
+module.exports = SubNav;
+
+},{"./BootstrapMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/BootstrapMixin.js","./utils/ValidComponentChildren":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/ValidComponentChildren.js","./utils/classSet":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/classSet.js","./utils/cloneWithProps":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/cloneWithProps.js","./utils/createChainedFunction":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/createChainedFunction.js","react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/TabPane.js":[function(require,module,exports){
+/** @jsx React.DOM */
+
+var React = require('react');
+var classSet = require('./utils/classSet');
+var TransitionEvents = require('./utils/TransitionEvents');
+
+var TabPane = React.createClass({displayName: 'TabPane',
+  getDefaultProps: function () {
+    return {
+      animation: true
+    };
+  },
+
+  getInitialState: function () {
+    return {
+      animateIn: false,
+      animateOut: false
+    };
+  },
+
+  componentWillReceiveProps: function (nextProps) {
+    if (this.props.animation) {
+      if (!this.state.animateIn && nextProps.active && !this.props.active) {
+        this.setState({
+          animateIn: true
+        });
+      } else if (!this.state.animateOut && !nextProps.active && this.props.active) {
+        this.setState({
+          animateOut: true
+        });
+      }
+    }
+  },
+
+  componentDidUpdate: function () {
+    if (this.state.animateIn) {
+      setTimeout(this.startAnimateIn, 0);
+    }
+    if (this.state.animateOut) {
+      TransitionEvents.addEndEventListener(
+        this.getDOMNode(),
+        this.stopAnimateOut
+      );
+    }
+  },
+
+  startAnimateIn: function () {
+    if (this.isMounted()) {
+      this.setState({
+        animateIn: false
+      });
+    }
+  },
+
+  stopAnimateOut: function () {
+    if (this.isMounted()) {
+      this.setState({
+        animateOut: false
+      });
+
+      if (typeof this.props.onAnimateOutEnd === 'function') {
+        this.props.onAnimateOutEnd();
+      }
+    }
+  },
+
+  render: function () {
+    var classes = {
+      'tab-pane': true,
+      'fade': true,
+      'active': this.props.active || this.state.animateOut,
+      'in': this.props.active && !this.state.animateIn
+    };
+
+    return this.transferPropsTo(
+      React.DOM.div( {className:classSet(classes)}, 
+        this.props.children
+      )
+    );
+  }
+});
+
+module.exports = TabPane;
+},{"./utils/TransitionEvents":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/TransitionEvents.js","./utils/classSet":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/classSet.js","react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/TabbedArea.js":[function(require,module,exports){
+/** @jsx React.DOM */
+
+var React = require('react');
+var BootstrapMixin = require('./BootstrapMixin');
+var cloneWithProps = require('./utils/cloneWithProps');
+var ValidComponentChildren = require('./utils/ValidComponentChildren');
+var Nav = require('./Nav');
+var NavItem = require('./NavItem');
+
+function getDefaultActiveKeyFromChildren(children) {
+  var defaultActiveKey;
+
+  ValidComponentChildren.forEach(children, function(child) {
+    if (defaultActiveKey == null) {
+      defaultActiveKey = child.props.key;
+    }
+  });
+
+  return defaultActiveKey;
+}
+
+var TabbedArea = React.createClass({displayName: 'TabbedArea',
+  mixins: [BootstrapMixin],
+
+  propTypes: {
+    bsStyle: React.PropTypes.oneOf(['tabs','pills']),
+    animation: React.PropTypes.bool,
+    onSelect: React.PropTypes.func
+  },
+
+  getDefaultProps: function () {
+    return {
+      bsStyle: "tabs",
+      animation: true
+    };
+  },
+
+  getInitialState: function () {
+    var defaultActiveKey = this.props.defaultActiveKey != null ?
+      this.props.defaultActiveKey : getDefaultActiveKeyFromChildren(this.props.children);
+
+    // TODO: In __DEV__ mode warn via `console.warn` if no `defaultActiveKey` has
+    // been set by this point, invalid children or missing key properties are likely the cause.
+
+    return {
+      activeKey: defaultActiveKey,
+      previousActiveKey: null
+    };
+  },
+
+  componentWillReceiveProps: function (nextProps) {
+    if (nextProps.activeKey != null && nextProps.activeKey !== this.props.activeKey) {
+      this.setState({
+        previousActiveKey: this.props.activeKey
+      });
+    }
+  },
+
+  handlePaneAnimateOutEnd: function () {
+    this.setState({
+      previousActiveKey: null
+    });
+  },
+
+  render: function () {
+    var activeKey =
+      this.props.activeKey != null ? this.props.activeKey : this.state.activeKey;
+
+    function renderTabIfSet(child) {
+      return child.props.tab != null ? this.renderTab(child) : null;
+    }
+
+    var nav = this.transferPropsTo(
+      Nav( {activeKey:activeKey, onSelect:this.handleSelect, ref:"tabs"}, 
+        ValidComponentChildren.map(this.props.children, renderTabIfSet, this)
+      )
+    );
+
+    return (
+      React.DOM.div(null, 
+        nav,
+        React.DOM.div( {id:this.props.id, className:"tab-content", ref:"panes"}, 
+          ValidComponentChildren.map(this.props.children, this.renderPane)
+        )
+      )
+    );
+  },
+
+  getActiveKey: function () {
+    return this.props.activeKey != null ? this.props.activeKey : this.state.activeKey;
+  },
+
+  renderPane: function (child) {
+    var activeKey = this.getActiveKey();
+
+    return cloneWithProps(
+        child,
+        {
+          active: (child.props.key === activeKey &&
+            (this.state.previousActiveKey == null || !this.props.animation)),
+          ref: child.props.ref,
+          key: child.props.key,
+          animation: this.props.animation,
+          onAnimateOutEnd: (this.state.previousActiveKey != null &&
+            child.props.key === this.state.previousActiveKey) ? this.handlePaneAnimateOutEnd: null
+        }
+      );
+  },
+
+  renderTab: function (child) {
+    var key = child.props.key;
+    return (
+      NavItem(
+        {ref:'tab' + key,
+        key:key}, 
+        child.props.tab
+      )
+    );
+  },
+
+  shouldComponentUpdate: function() {
+    // Defer any updates to this component during the `onSelect` handler.
+    return !this._isChanging;
+  },
+
+  handleSelect: function (key) {
+    if (this.props.onSelect) {
+      this._isChanging = true;
+      this.props.onSelect(key);
+      this._isChanging = false;
+    } else if (key !== this.getActiveKey()) {
+      this.setState({
+        activeKey: key,
+        previousActiveKey: this.getActiveKey()
+      });
+    }
+  }
+});
+
+module.exports = TabbedArea;
+},{"./BootstrapMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/BootstrapMixin.js","./Nav":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Nav.js","./NavItem":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/NavItem.js","./utils/ValidComponentChildren":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/ValidComponentChildren.js","./utils/cloneWithProps":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/cloneWithProps.js","react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Table.js":[function(require,module,exports){
+/** @jsx React.DOM */
+
+var React = require('react');
+var classSet = require('./utils/classSet');
+
+var Table = React.createClass({displayName: 'Table',
+  propTypes: {
+    striped: React.PropTypes.bool,
+    bordered: React.PropTypes.bool,
+    condensed: React.PropTypes.bool,
+    hover: React.PropTypes.bool,
+    responsive: React.PropTypes.bool
+  },
+
+  render: function () {
+    var classes = {
+      'table': true,
+      'table-striped': this.props.striped,
+      'table-bordered': this.props.bordered,
+      'table-condensed': this.props.condensed,
+      'table-hover': this.props.hover
+    };
+    var table = this.transferPropsTo(
+      React.DOM.table( {className:classSet(classes)}, 
+        this.props.children
+      )
+    );
+
+    return this.props.responsive ? (
+      React.DOM.div( {className:"table-responsive"}, 
+        table
+      )
+    ) : table;
+  }
+});
+
+module.exports = Table;
+},{"./utils/classSet":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/classSet.js","react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Tooltip.js":[function(require,module,exports){
+/** @jsx React.DOM */
+
+var React = require('react');
+var classSet = require('./utils/classSet');
+var BootstrapMixin = require('./BootstrapMixin');
+
+
+var Tooltip = React.createClass({displayName: 'Tooltip',
+  mixins: [BootstrapMixin],
+
+  propTypes: {
+    placement: React.PropTypes.oneOf(['top','right', 'bottom', 'left']),
+    positionLeft: React.PropTypes.number,
+    positionTop: React.PropTypes.number,
+    arrowOffsetLeft: React.PropTypes.number,
+    arrowOffsetTop: React.PropTypes.number
+  },
+
+  getDefaultProps: function () {
+    return {
+      placement: 'right'
+    };
+  },
+
+  render: function () {
+    var classes = {};
+    classes['tooltip'] = true;
+    classes[this.props.placement] = true;
+    classes['in'] = this.props.positionLeft != null || this.props.positionTop != null;
+
+    var style = {};
+    style['left'] = this.props.positionLeft;
+    style['top'] = this.props.positionTop;
+
+    var arrowStyle = {};
+    arrowStyle['left'] = this.props.arrowOffsetLeft;
+    arrowStyle['top'] = this.props.arrowOffsetTop;
+
+    return this.transferPropsTo(
+        React.DOM.div( {className:classSet(classes), style:style}, 
+          React.DOM.div( {className:"tooltip-arrow", style:arrowStyle} ),
+          React.DOM.div( {className:"tooltip-inner"}, 
+            this.props.children
+          )
+        )
+      );
+  }
+});
+
+module.exports = Tooltip;
+},{"./BootstrapMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/BootstrapMixin.js","./utils/classSet":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/classSet.js","react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Well.js":[function(require,module,exports){
+/** @jsx React.DOM */
+
+var React = require('react');
+var classSet = require('./utils/classSet');
+var BootstrapMixin = require('./BootstrapMixin');
+
+var Well = React.createClass({displayName: 'Well',
+  mixins: [BootstrapMixin],
+
+  getDefaultProps: function () {
+    return {
+      bsClass: 'well'
+    };
+  },
+
+  render: function () {
+    var classes = this.getBsClassSet();
+
+    return this.transferPropsTo(
+      React.DOM.div( {className:classSet(classes)}, 
+        this.props.children
+      )
+    );
+  }
+});
+
+module.exports = Well;
+},{"./BootstrapMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/BootstrapMixin.js","./utils/classSet":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/classSet.js","react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/constants.js":[function(require,module,exports){
+module.exports = {
+  CLASSES: {
+    'alert': 'alert',
+    'button': 'btn',
+    'button-group': 'btn-group',
+    'button-toolbar': 'btn-toolbar',
+    'column': 'col',
+    'input-group': 'input-group',
+    'form': 'form',
+    'glyphicon': 'glyphicon',
+    'label': 'label',
+    'list-group-item': 'list-group-item',
+    'panel': 'panel',
+    'panel-group': 'panel-group',
+    'progress-bar': 'progress-bar',
+    'nav': 'nav',
+    'navbar': 'navbar',
+    'modal': 'modal',
+    'row': 'row',
+    'well': 'well'
+  },
+  STYLES: {
+    'default': 'default',
+    'primary': 'primary',
+    'success': 'success',
+    'info': 'info',
+    'warning': 'warning',
+    'danger': 'danger',
+    'link': 'link',
+    'inline': 'inline',
+    'tabs': 'tabs',
+    'pills': 'pills'
+  },
+  SIZES: {
+    'large': 'lg',
+    'medium': 'md',
+    'small': 'sm',
+    'xsmall': 'xs'
+  },
+  GLYPHS: [
+    'asterisk',
+    'plus',
+    'euro',
+    'minus',
+    'cloud',
+    'envelope',
+    'pencil',
+    'glass',
+    'music',
+    'search',
+    'heart',
+    'star',
+    'star-empty',
+    'user',
+    'film',
+    'th-large',
+    'th',
+    'th-list',
+    'ok',
+    'remove',
+    'zoom-in',
+    'zoom-out',
+    'off',
+    'signal',
+    'cog',
+    'trash',
+    'home',
+    'file',
+    'time',
+    'road',
+    'download-alt',
+    'download',
+    'upload',
+    'inbox',
+    'play-circle',
+    'repeat',
+    'refresh',
+    'list-alt',
+    'lock',
+    'flag',
+    'headphones',
+    'volume-off',
+    'volume-down',
+    'volume-up',
+    'qrcode',
+    'barcode',
+    'tag',
+    'tags',
+    'book',
+    'bookmark',
+    'print',
+    'camera',
+    'font',
+    'bold',
+    'italic',
+    'text-height',
+    'text-width',
+    'align-left',
+    'align-center',
+    'align-right',
+    'align-justify',
+    'list',
+    'indent-left',
+    'indent-right',
+    'facetime-video',
+    'picture',
+    'map-marker',
+    'adjust',
+    'tint',
+    'edit',
+    'share',
+    'check',
+    'move',
+    'step-backward',
+    'fast-backward',
+    'backward',
+    'play',
+    'pause',
+    'stop',
+    'forward',
+    'fast-forward',
+    'step-forward',
+    'eject',
+    'chevron-left',
+    'chevron-right',
+    'plus-sign',
+    'minus-sign',
+    'remove-sign',
+    'ok-sign',
+    'question-sign',
+    'info-sign',
+    'screenshot',
+    'remove-circle',
+    'ok-circle',
+    'ban-circle',
+    'arrow-left',
+    'arrow-right',
+    'arrow-up',
+    'arrow-down',
+    'share-alt',
+    'resize-full',
+    'resize-small',
+    'exclamation-sign',
+    'gift',
+    'leaf',
+    'fire',
+    'eye-open',
+    'eye-close',
+    'warning-sign',
+    'plane',
+    'calendar',
+    'random',
+    'comment',
+    'magnet',
+    'chevron-up',
+    'chevron-down',
+    'retweet',
+    'shopping-cart',
+    'folder-close',
+    'folder-open',
+    'resize-vertical',
+    'resize-horizontal',
+    'hdd',
+    'bullhorn',
+    'bell',
+    'certificate',
+    'thumbs-up',
+    'thumbs-down',
+    'hand-right',
+    'hand-left',
+    'hand-up',
+    'hand-down',
+    'circle-arrow-right',
+    'circle-arrow-left',
+    'circle-arrow-up',
+    'circle-arrow-down',
+    'globe',
+    'wrench',
+    'tasks',
+    'filter',
+    'briefcase',
+    'fullscreen',
+    'dashboard',
+    'paperclip',
+    'heart-empty',
+    'link',
+    'phone',
+    'pushpin',
+    'usd',
+    'gbp',
+    'sort',
+    'sort-by-alphabet',
+    'sort-by-alphabet-alt',
+    'sort-by-order',
+    'sort-by-order-alt',
+    'sort-by-attributes',
+    'sort-by-attributes-alt',
+    'unchecked',
+    'expand',
+    'collapse-down',
+    'collapse-up',
+    'log-in',
+    'flash',
+    'log-out',
+    'new-window',
+    'record',
+    'save',
+    'open',
+    'saved',
+    'import',
+    'export',
+    'send',
+    'floppy-disk',
+    'floppy-saved',
+    'floppy-remove',
+    'floppy-save',
+    'floppy-open',
+    'credit-card',
+    'transfer',
+    'cutlery',
+    'header',
+    'compressed',
+    'earphone',
+    'phone-alt',
+    'tower',
+    'stats',
+    'sd-video',
+    'hd-video',
+    'subtitles',
+    'sound-stereo',
+    'sound-dolby',
+    'sound-5-1',
+    'sound-6-1',
+    'sound-7-1',
+    'copyright-mark',
+    'registration-mark',
+    'cloud-download',
+    'cloud-upload',
+    'tree-conifer',
+    'tree-deciduous'
+  ]
+};
+
+},{}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/CustomPropTypes.js":[function(require,module,exports){
+var React = require('react');
+
+var ANONYMOUS = '<<anonymous>>';
+
+var CustomPropTypes = {
+  /**
+   * Checks whether a prop is a valid React class
+   *
+   * @param props
+   * @param propName
+   * @param componentName
+   * @returns {Error|undefined}
+   */
+  componentClass: createComponentClassChecker(),
+
+  /**
+   * Checks whether a prop provides a DOM element
+   *
+   * The element can be provided in two forms:
+   * - Directly passed
+   * - Or passed an object which has a `getDOMNode` method which will return the required DOM element
+   *
+   * @param props
+   * @param propName
+   * @param componentName
+   * @returns {Error|undefined}
+   */
+  mountable: createMountableChecker()
+};
+
+/**
+ * Create chain-able isRequired validator
+ *
+ * Largely copied directly from:
+ *  https://github.com/facebook/react/blob/0.11-stable/src/core/ReactPropTypes.js#L94
+ */
+function createChainableTypeChecker(validate) {
+  function checkType(isRequired, props, propName, componentName) {
+    componentName = componentName || ANONYMOUS;
+    if (props[propName] == null) {
+      if (isRequired) {
+        return new Error(
+          'Required prop `' + propName + '` was not specified in ' +
+            '`' + componentName + '`.'
+        );
+      }
+    } else {
+      return validate(props, propName, componentName);
+    }
+  }
+
+  var chainedCheckType = checkType.bind(null, false);
+  chainedCheckType.isRequired = checkType.bind(null, true);
+
+  return chainedCheckType;
+}
+
+function createComponentClassChecker() {
+  function validate(props, propName, componentName) {
+    if (!React.isValidClass(props[propName])) {
+      return new Error(
+        'Invalid prop `' + propName + '` supplied to ' +
+          '`' + componentName + '`, expected a valid React class.'
+      );
+    }
+  }
+
+  return createChainableTypeChecker(validate);
+}
+
+function createMountableChecker() {
+  function validate(props, propName, componentName) {
+    if (typeof props[propName] !== 'object' ||
+      typeof props[propName].getDOMNode !== 'function' && props[propName].nodeType !== 1) {
+      return new Error(
+        'Invalid prop `' + propName + '` supplied to ' +
+          '`' + componentName + '`, expected a DOM element or an object that has a `getDOMNode` method'
+      );
+    }
+  }
+
+  return createChainableTypeChecker(validate);
+}
+
+module.exports = CustomPropTypes;
+},{"react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/EventListener.js":[function(require,module,exports){
+/**
+ * React EventListener.listen
+ *
+ * Copyright 2013-2014 Facebook, Inc.
+ * @licence https://github.com/facebook/react/blob/0.11-stable/LICENSE
+ *
+ * This file contains a modified version of:
+ *  https://github.com/facebook/react/blob/0.11-stable/src/vendor/stubs/EventListener.js
+ *
+ * TODO: remove in favour of solution provided by:
+ *  https://github.com/facebook/react/issues/285
+ */
+
+/**
+ * Does not take into account specific nature of platform.
+ */
+var EventListener = {
+  /**
+   * Listen to DOM events during the bubble phase.
+   *
+   * @param {DOMEventTarget} target DOM element to register listener on.
+   * @param {string} eventType Event type, e.g. 'click' or 'mouseover'.
+   * @param {function} callback Callback function.
+   * @return {object} Object with a `remove` method.
+   */
+  listen: function(target, eventType, callback) {
+    if (target.addEventListener) {
+      target.addEventListener(eventType, callback, false);
+      return {
+        remove: function() {
+          target.removeEventListener(eventType, callback, false);
+        }
+      };
+    } else if (target.attachEvent) {
+      target.attachEvent('on' + eventType, callback);
+      return {
+        remove: function() {
+          target.detachEvent('on' + eventType, callback);
+        }
+      };
+    }
+  }
+};
+
+module.exports = EventListener;
+
+},{}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/TransitionEvents.js":[function(require,module,exports){
+/**
+ * React TransitionEvents
+ *
+ * Copyright 2013-2014 Facebook, Inc.
+ * @licence https://github.com/facebook/react/blob/0.11-stable/LICENSE
+ *
+ * This file contains a modified version of:
+ *  https://github.com/facebook/react/blob/0.11-stable/src/addons/transitions/ReactTransitionEvents.js
+ *
+ */
+
+var canUseDOM = !!(
+  typeof window !== 'undefined' &&
+    window.document &&
+    window.document.createElement
+  );
+
+/**
+ * EVENT_NAME_MAP is used to determine which event fired when a
+ * transition/animation ends, based on the style property used to
+ * define that event.
+ */
+var EVENT_NAME_MAP = {
+  transitionend: {
+    'transition': 'transitionend',
+    'WebkitTransition': 'webkitTransitionEnd',
+    'MozTransition': 'mozTransitionEnd',
+    'OTransition': 'oTransitionEnd',
+    'msTransition': 'MSTransitionEnd'
+  },
+
+  animationend: {
+    'animation': 'animationend',
+    'WebkitAnimation': 'webkitAnimationEnd',
+    'MozAnimation': 'mozAnimationEnd',
+    'OAnimation': 'oAnimationEnd',
+    'msAnimation': 'MSAnimationEnd'
+  }
+};
+
+var endEvents = [];
+
+function detectEvents() {
+  var testEl = document.createElement('div');
+  var style = testEl.style;
+
+  // On some platforms, in particular some releases of Android 4.x,
+  // the un-prefixed "animation" and "transition" properties are defined on the
+  // style object but the events that fire will still be prefixed, so we need
+  // to check if the un-prefixed events are useable, and if not remove them
+  // from the map
+  if (!('AnimationEvent' in window)) {
+    delete EVENT_NAME_MAP.animationend.animation;
+  }
+
+  if (!('TransitionEvent' in window)) {
+    delete EVENT_NAME_MAP.transitionend.transition;
+  }
+
+  for (var baseEventName in EVENT_NAME_MAP) {
+    var baseEvents = EVENT_NAME_MAP[baseEventName];
+    for (var styleName in baseEvents) {
+      if (styleName in style) {
+        endEvents.push(baseEvents[styleName]);
+        break;
+      }
+    }
+  }
+}
+
+if (canUseDOM) {
+  detectEvents();
+}
+
+// We use the raw {add|remove}EventListener() call because EventListener
+// does not know how to remove event listeners and we really should
+// clean up. Also, these events are not triggered in older browsers
+// so we should be A-OK here.
+
+function addEventListener(node, eventName, eventListener) {
+  node.addEventListener(eventName, eventListener, false);
+}
+
+function removeEventListener(node, eventName, eventListener) {
+  node.removeEventListener(eventName, eventListener, false);
+}
+
+var ReactTransitionEvents = {
+  addEndEventListener: function(node, eventListener) {
+    if (endEvents.length === 0) {
+      // If CSS transitions are not supported, trigger an "end animation"
+      // event immediately.
+      window.setTimeout(eventListener, 0);
+      return;
+    }
+    endEvents.forEach(function(endEvent) {
+      addEventListener(node, endEvent, eventListener);
+    });
+  },
+
+  removeEndEventListener: function(node, eventListener) {
+    if (endEvents.length === 0) {
+      return;
+    }
+    endEvents.forEach(function(endEvent) {
+      removeEventListener(node, endEvent, eventListener);
+    });
+  }
+};
+
+module.exports = ReactTransitionEvents;
+
+},{}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/ValidComponentChildren.js":[function(require,module,exports){
+var React = require('react');
+
+/**
+ * Maps children that are typically specified as `props.children`,
+ * but only iterates over children that are "valid components".
+ *
+ * The mapFunction provided index will be normalised to the components mapped,
+ * so an invalid component would not increase the index.
+ *
+ * @param {?*} children Children tree container.
+ * @param {function(*, int)} mapFunction.
+ * @param {*} mapContext Context for mapFunction.
+ * @return {object} Object containing the ordered map of results.
+ */
+function mapValidComponents(children, func, context) {
+  var index = 0;
+
+  return React.Children.map(children, function (child) {
+    if (React.isValidComponent(child)) {
+      var lastIndex = index;
+      index++;
+      return func.call(context, child, lastIndex);
+    }
+
+    return child;
+  });
+}
+
+/**
+ * Iterates through children that are typically specified as `props.children`,
+ * but only iterates over children that are "valid components".
+ *
+ * The provided forEachFunc(child, index) will be called for each
+ * leaf child with the index reflecting the position relative to "valid components".
+ *
+ * @param {?*} children Children tree container.
+ * @param {function(*, int)} forEachFunc.
+ * @param {*} forEachContext Context for forEachContext.
+ */
+function forEachValidComponents(children, func, context) {
+  var index = 0;
+
+  return React.Children.forEach(children, function (child) {
+    if (React.isValidComponent(child)) {
+      func.call(context, child, index);
+      index++;
+    }
+  });
+}
+
+/**
+ * Count the number of "valid components" in the Children container.
+ *
+ * @param {?*} children Children tree container.
+ * @returns {number}
+ */
+function numberOfValidComponents(children) {
+  var count = 0;
+
+  React.Children.forEach(children, function (child) {
+    if (React.isValidComponent(child)) { count++; }
+  });
+
+  return count;
+}
+
+/**
+ * Determine if the Child container has one or more "valid components".
+ *
+ * @param {?*} children Children tree container.
+ * @returns {boolean}
+ */
+function hasValidComponent(children) {
+  var hasValid = false;
+
+  React.Children.forEach(children, function (child) {
+    if (!hasValid && React.isValidComponent(child)) {
+      hasValid = true;
+    }
+  });
+
+  return hasValid;
+}
+
+module.exports = {
+  map: mapValidComponents,
+  forEach: forEachValidComponents,
+  numberOf: numberOfValidComponents,
+  hasValidComponent: hasValidComponent
+};
+},{"react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/classSet.js":[function(require,module,exports){
+/**
+ * React classSet
+ *
+ * Copyright 2013-2014 Facebook, Inc.
+ * @licence https://github.com/facebook/react/blob/0.11-stable/LICENSE
+ *
+ * This file is unmodified from:
+ *  https://github.com/facebook/react/blob/0.11-stable/src/vendor/stubs/cx.js
+ *
+ */
+
+/**
+ * This function is used to mark string literals representing CSS class names
+ * so that they can be transformed statically. This allows for modularization
+ * and minification of CSS class names.
+ *
+ * In static_upstream, this function is actually implemented, but it should
+ * eventually be replaced with something more descriptive, and the transform
+ * that is used in the main stack should be ported for use elsewhere.
+ *
+ * @param string|object className to modularize, or an object of key/values.
+ *                      In the object case, the values are conditions that
+ *                      determine if the className keys should be included.
+ * @param [string ...]  Variable list of classNames in the string case.
+ * @return string       Renderable space-separated CSS className.
+ */
+function cx(classNames) {
+  if (typeof classNames == 'object') {
+    return Object.keys(classNames).filter(function(className) {
+      return classNames[className];
+    }).join(' ');
+  } else {
+    return Array.prototype.join.call(arguments, ' ');
+  }
+}
+
+module.exports = cx;
+},{}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/cloneWithProps.js":[function(require,module,exports){
+/**
+ * React cloneWithProps
+ *
+ * Copyright 2013-2014 Facebook, Inc.
+ * @licence https://github.com/facebook/react/blob/0.11-stable/LICENSE
+ *
+ * This file contains modified versions of:
+ *  https://github.com/facebook/react/blob/0.11-stable/src/utils/cloneWithProps.js
+ *  https://github.com/facebook/react/blob/0.11-stable/src/core/ReactPropTransferer.js
+ *  https://github.com/facebook/react/blob/0.11-stable/src/utils/joinClasses.js
+ *
+ * TODO: This should be replaced as soon as cloneWithProps is available via
+ *  the core React package or a separate package.
+ *  @see https://github.com/facebook/react/issues/1906
+ *
+ */
+
+var React = require('react');
+var merge = require('./merge');
+
+/**
+ * Combines multiple className strings into one.
+ * http://jsperf.com/joinclasses-args-vs-array
+ *
+ * @param {...?string} classes
+ * @return {string}
+ */
+function joinClasses(className/*, ... */) {
+  if (!className) {
+    className = '';
+  }
+  var nextClass;
+  var argLength = arguments.length;
+  if (argLength > 1) {
+    for (var ii = 1; ii < argLength; ii++) {
+      nextClass = arguments[ii];
+      nextClass && (className += ' ' + nextClass);
+    }
+  }
+  return className;
+}
+
+/**
+ * Creates a transfer strategy that will merge prop values using the supplied
+ * `mergeStrategy`. If a prop was previously unset, this just sets it.
+ *
+ * @param {function} mergeStrategy
+ * @return {function}
+ */
+function createTransferStrategy(mergeStrategy) {
+  return function(props, key, value) {
+    if (!props.hasOwnProperty(key)) {
+      props[key] = value;
+    } else {
+      props[key] = mergeStrategy(props[key], value);
+    }
+  };
+}
+
+var transferStrategyMerge = createTransferStrategy(function(a, b) {
+  // `merge` overrides the first object's (`props[key]` above) keys using the
+  // second object's (`value`) keys. An object's style's existing `propA` would
+  // get overridden. Flip the order here.
+  return merge(b, a);
+});
+
+function emptyFunction() {}
+
+/**
+ * Transfer strategies dictate how props are transferred by `transferPropsTo`.
+ * NOTE: if you add any more exceptions to this list you should be sure to
+ * update `cloneWithProps()` accordingly.
+ */
+var TransferStrategies = {
+  /**
+   * Never transfer `children`.
+   */
+  children: emptyFunction,
+  /**
+   * Transfer the `className` prop by merging them.
+   */
+  className: createTransferStrategy(joinClasses),
+  /**
+   * Never transfer the `key` prop.
+   */
+  key: emptyFunction,
+  /**
+   * Never transfer the `ref` prop.
+   */
+  ref: emptyFunction,
+  /**
+   * Transfer the `style` prop (which is an object) by merging them.
+   */
+  style: transferStrategyMerge
+};
+
+/**
+ * Mutates the first argument by transferring the properties from the second
+ * argument.
+ *
+ * @param {object} props
+ * @param {object} newProps
+ * @return {object}
+ */
+function transferInto(props, newProps) {
+  for (var thisKey in newProps) {
+    if (!newProps.hasOwnProperty(thisKey)) {
+      continue;
+    }
+
+    var transferStrategy = TransferStrategies[thisKey];
+
+    if (transferStrategy && TransferStrategies.hasOwnProperty(thisKey)) {
+      transferStrategy(props, thisKey, newProps[thisKey]);
+    } else if (!props.hasOwnProperty(thisKey)) {
+      props[thisKey] = newProps[thisKey];
+    }
+  }
+  return props;
+}
+
+/**
+ * Merge two props objects using TransferStrategies.
+ *
+ * @param {object} oldProps original props (they take precedence)
+ * @param {object} newProps new props to merge in
+ * @return {object} a new object containing both sets of props merged.
+ */
+function mergeProps(oldProps, newProps) {
+  return transferInto(merge(oldProps), newProps);
+}
+
+var ReactPropTransferer = {
+  mergeProps: mergeProps
+};
+
+var CHILDREN_PROP = 'children';
+
+/**
+ * Sometimes you want to change the props of a child passed to you. Usually
+ * this is to add a CSS class.
+ *
+ * @param {object} child child component you'd like to clone
+ * @param {object} props props you'd like to modify. They will be merged
+ * as if you used `transferPropsTo()`.
+ * @return {object} a clone of child with props merged in.
+ */
+function cloneWithProps(child, props) {
+  var newProps = ReactPropTransferer.mergeProps(props, child.props);
+
+  // Use `child.props.children` if it is provided.
+  if (!newProps.hasOwnProperty(CHILDREN_PROP) &&
+    child.props.hasOwnProperty(CHILDREN_PROP)) {
+    newProps.children = child.props.children;
+  }
+
+  // Huge hack to support both the 0.10 API and the new way of doing things
+  // TODO: remove when support for 0.10 is no longer needed
+  if (React.version.indexOf('0.10.') === 0) {
+    return child.constructor.ConvenienceConstructor(newProps);
+  }
+
+
+  // The current API doesn't retain _owner and _context, which is why this
+  // doesn't use ReactDescriptor.cloneAndReplaceProps.
+  return child.constructor(newProps);
+}
+
+module.exports = cloneWithProps;
+},{"./merge":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/merge.js","react":"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/createChainedFunction.js":[function(require,module,exports){
+/**
+ * Safe chained function
+ *
+ * Will only create a new function if needed,
+ * otherwise will pass back existing functions or null.
+ *
+ * @param {function} one
+ * @param {function} two
+ * @returns {function|null}
+ */
+function createChainedFunction(one, two) {
+  var hasOne = typeof one === 'function';
+  var hasTwo = typeof two === 'function';
+
+  if (!hasOne && !hasTwo) { return null; }
+  if (!hasOne) { return two; }
+  if (!hasTwo) { return one; }
+
+  return function chainedFunction() {
+    one.apply(this, arguments);
+    two.apply(this, arguments);
+  };
+}
+
+module.exports = createChainedFunction;
+},{}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/domUtils.js":[function(require,module,exports){
+
+/**
+ * Shortcut to compute element style
+ *
+ * @param {HTMLElement} elem
+ * @returns {CssStyle}
+ */
+function getComputedStyles(elem) {
+  return elem.ownerDocument.defaultView.getComputedStyle(elem, null);
+}
+
+/**
+ * Get elements offset
+ *
+ * TODO: REMOVE JQUERY!
+ *
+ * @param {HTMLElement} DOMNode
+ * @returns {{top: number, left: number}}
+ */
+function getOffset(DOMNode) {
+  if (window.jQuery) {
+    return window.jQuery(DOMNode).offset();
+  }
+
+  var docElem = document.documentElement;
+  var box = { top: 0, left: 0 };
+
+  // If we don't have gBCR, just use 0,0 rather than error
+  // BlackBerry 5, iOS 3 (original iPhone)
+  if ( typeof DOMNode.getBoundingClientRect !== 'undefined' ) {
+    box = DOMNode.getBoundingClientRect();
+  }
+
+  return {
+    top: box.top + window.pageYOffset - docElem.clientTop,
+    left: box.left + window.pageXOffset - docElem.clientLeft
+  };
+}
+
+/**
+ * Get elements position
+ *
+ * TODO: REMOVE JQUERY!
+ *
+ * @param {HTMLElement} elem
+ * @param {HTMLElement?} offsetParent
+ * @returns {{top: number, left: number}}
+ */
+function getPosition(elem, offsetParent) {
+  if (window.jQuery) {
+    return window.jQuery(elem).position();
+  }
+
+  var offset,
+      parentOffset = {top: 0, left: 0};
+
+  // Fixed elements are offset from window (parentOffset = {top:0, left: 0}, because it is its only offset parent
+  if (getComputedStyles(elem).position === 'fixed' ) {
+    // We assume that getBoundingClientRect is available when computed position is fixed
+    offset = elem.getBoundingClientRect();
+
+  } else {
+    if (!offsetParent) {
+      // Get *real* offsetParent
+      offsetParent = offsetParent(elem);
+    }
+
+    // Get correct offsets
+    offset = getOffset(elem);
+    if ( offsetParent.nodeName !== 'HTML') {
+      parentOffset = getOffset(offsetParent);
+    }
+
+    // Add offsetParent borders
+    parentOffset.top += parseInt(getComputedStyles(offsetParent).borderTopWidth, 10);
+    parentOffset.left += parseInt(getComputedStyles(offsetParent).borderLeftWidth, 10);
+  }
+
+  // Subtract parent offsets and element margins
+  return {
+    top: offset.top - parentOffset.top - parseInt(getComputedStyles(elem).marginTop, 10),
+    left: offset.left - parentOffset.left - parseInt(getComputedStyles(elem).marginLeft, 10)
+  };
+}
+
+/**
+ * Get parent element
+ *
+ * @param {HTMLElement?} elem
+ * @returns {HTMLElement}
+ */
+function offsetParent(elem) {
+  var docElem = document.documentElement;
+  var offsetParent = elem.offsetParent || docElem;
+
+  while ( offsetParent && ( offsetParent.nodeName !== 'HTML' &&
+    getComputedStyles(offsetParent).position === 'static' ) ) {
+    offsetParent = offsetParent.offsetParent;
+  }
+
+  return offsetParent || docElem;
+}
+
+module.exports = {
+  getComputedStyles: getComputedStyles,
+  getOffset: getOffset,
+  getPosition: getPosition,
+  offsetParent: offsetParent
+};
+},{}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/utils/merge.js":[function(require,module,exports){
+/**
+ * Merge helper
+ *
+ * TODO: to be replaced with ES6's `Object.assign()` for React 0.12
+ */
+
+/**
+ * Shallow merges two structures by mutating the first parameter.
+ *
+ * @param {object} one Object to be merged into.
+ * @param {?object} two Optional object with properties to merge from.
+ */
+function mergeInto(one, two) {
+  if (two != null) {
+    for (var key in two) {
+      if (!two.hasOwnProperty(key)) {
+        continue;
+      }
+      one[key] = two[key];
+    }
+  }
+}
+
+/**
+ * Shallow merges two structures into a return value, without mutating either.
+ *
+ * @param {?object} one Optional object with properties to merge from.
+ * @param {?object} two Optional object with properties to merge from.
+ * @return {object} The shallow extension of one by two.
+ */
+function merge(one, two) {
+  var result = {};
+  mergeInto(result, one);
+  mergeInto(result, two);
+  return result;
+}
+
+module.exports = merge;
 },{}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/AutoFocusMixin.js":[function(require,module,exports){
 /**
  * Copyright 2013-2014 Facebook, Inc.
@@ -20428,490 +29642,6834 @@ if ("production" !== process.env.NODE_ENV) {
 module.exports = warning;
 
 }).call(this,require('_process'))
-},{"./emptyFunction":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/emptyFunction.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"browser-request":[function(require,module,exports){
-// Browser Request
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+},{"./emptyFunction":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/emptyFunction.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js":[function(require,module,exports){
+module.exports = require('./lib/React');
 
-var XHR = XMLHttpRequest
-if (!XHR) throw new Error('missing XMLHttpRequest')
-request.log = {
-  'trace': noop, 'debug': noop, 'info': noop, 'warn': noop, 'error': noop
+},{"./lib/React":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/React.js"}],"cerebellum":[function(require,module,exports){
+var server = require("./lib/server");
+var client = require("./lib/client");
+var exoskeleton = require("./lib/wrapper/exoskeleton");
+
+function validateOptions(options) {
+  if (!options.storeId || typeof options.storeId !== "string") {
+    throw new Error("You must define storeId option, it's used for collections cache, e.g. 'store'");
+  }
+
+  if (!options.render || typeof options.render !== "function") {
+    throw new Error("You must define render option, it will be called when route handler finishes.");
+  }
+
+  if (!options.routes || typeof options.routes !== "object") {
+    throw new Error("You must define routes option or your app won't respond to anything");
+  }
+
+  if (!options.stores || typeof options.stores !== "object") {
+    console.warn("You won't be able to use this.store in router without defining any stores");
+  }
 }
 
-var DEFAULT_TIMEOUT = 3 * 60 * 1000 // 3 minutes
+var cerebellum = {
+  server: function(options) {
+    validateOptions(options);
+    return server(options);
+  },
+  client: function(options) {
+    validateOptions(options);
+    return client(options);
+  },
+  exoskeleton: exoskeleton
+};
 
-//
-// request
-//
+module.exports = cerebellum;
+},{"./lib/client":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/client.js","./lib/server":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/browser-resolve/empty.js","./lib/wrapper/exoskeleton":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/wrapper/exoskeleton.js"}],"lodash":[function(require,module,exports){
+(function (global){
+/**
+ * @license
+ * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
+ * Build: `lodash modern -o ./dist/lodash.js`
+ * Copyright 2012-2013 The Dojo Foundation <http://dojofoundation.org/>
+ * Based on Underscore.js 1.5.2 <http://underscorejs.org/LICENSE>
+ * Copyright 2009-2013 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
+ * Available under MIT license <http://lodash.com/license>
+ */
+;(function() {
 
-function request(options, callback) {
-  // The entry-point to the API: prep the options object and pass the real work to run_xhr.
-  if(typeof callback !== 'function')
-    throw new Error('Bad callback given: ' + callback)
+  /** Used as a safe reference for `undefined` in pre ES5 environments */
+  var undefined;
 
-  if(!options)
-    throw new Error('No options given')
+  /** Used to pool arrays and objects used internally */
+  var arrayPool = [],
+      objectPool = [];
 
-  var options_onResponse = options.onResponse; // Save this for later.
+  /** Used to generate unique IDs */
+  var idCounter = 0;
 
-  if(typeof options === 'string')
-    options = {'uri':options};
-  else
-    options = JSON.parse(JSON.stringify(options)); // Use a duplicate for mutating.
+  /** Used to prefix keys to avoid issues with `__proto__` and properties on `Object.prototype` */
+  var keyPrefix = +new Date + '';
 
-  options.onResponse = options_onResponse // And put it back.
+  /** Used as the size when optimizations are enabled for large arrays */
+  var largeArraySize = 75;
 
-  if (options.verbose) request.log = getLogger();
+  /** Used as the max size of the `arrayPool` and `objectPool` */
+  var maxPoolSize = 40;
 
-  if(options.url) {
-    options.uri = options.url;
-    delete options.url;
+  /** Used to detect and test whitespace */
+  var whitespace = (
+    // whitespace
+    ' \t\x0B\f\xA0\ufeff' +
+
+    // line terminators
+    '\n\r\u2028\u2029' +
+
+    // unicode category "Zs" space separators
+    '\u1680\u180e\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u202f\u205f\u3000'
+  );
+
+  /** Used to match empty string literals in compiled template source */
+  var reEmptyStringLeading = /\b__p \+= '';/g,
+      reEmptyStringMiddle = /\b(__p \+=) '' \+/g,
+      reEmptyStringTrailing = /(__e\(.*?\)|\b__t\)) \+\n'';/g;
+
+  /**
+   * Used to match ES6 template delimiters
+   * http://people.mozilla.org/~jorendorff/es6-draft.html#sec-literals-string-literals
+   */
+  var reEsTemplate = /\$\{([^\\}]*(?:\\.[^\\}]*)*)\}/g;
+
+  /** Used to match regexp flags from their coerced string values */
+  var reFlags = /\w*$/;
+
+  /** Used to detected named functions */
+  var reFuncName = /^\s*function[ \n\r\t]+\w/;
+
+  /** Used to match "interpolate" template delimiters */
+  var reInterpolate = /<%=([\s\S]+?)%>/g;
+
+  /** Used to match leading whitespace and zeros to be removed */
+  var reLeadingSpacesAndZeros = RegExp('^[' + whitespace + ']*0+(?=.$)');
+
+  /** Used to ensure capturing order of template delimiters */
+  var reNoMatch = /($^)/;
+
+  /** Used to detect functions containing a `this` reference */
+  var reThis = /\bthis\b/;
+
+  /** Used to match unescaped characters in compiled string literals */
+  var reUnescapedString = /['\n\r\t\u2028\u2029\\]/g;
+
+  /** Used to assign default `context` object properties */
+  var contextProps = [
+    'Array', 'Boolean', 'Date', 'Function', 'Math', 'Number', 'Object',
+    'RegExp', 'String', '_', 'attachEvent', 'clearTimeout', 'isFinite', 'isNaN',
+    'parseInt', 'setTimeout'
+  ];
+
+  /** Used to make template sourceURLs easier to identify */
+  var templateCounter = 0;
+
+  /** `Object#toString` result shortcuts */
+  var argsClass = '[object Arguments]',
+      arrayClass = '[object Array]',
+      boolClass = '[object Boolean]',
+      dateClass = '[object Date]',
+      funcClass = '[object Function]',
+      numberClass = '[object Number]',
+      objectClass = '[object Object]',
+      regexpClass = '[object RegExp]',
+      stringClass = '[object String]';
+
+  /** Used to identify object classifications that `_.clone` supports */
+  var cloneableClasses = {};
+  cloneableClasses[funcClass] = false;
+  cloneableClasses[argsClass] = cloneableClasses[arrayClass] =
+  cloneableClasses[boolClass] = cloneableClasses[dateClass] =
+  cloneableClasses[numberClass] = cloneableClasses[objectClass] =
+  cloneableClasses[regexpClass] = cloneableClasses[stringClass] = true;
+
+  /** Used as an internal `_.debounce` options object */
+  var debounceOptions = {
+    'leading': false,
+    'maxWait': 0,
+    'trailing': false
+  };
+
+  /** Used as the property descriptor for `__bindData__` */
+  var descriptor = {
+    'configurable': false,
+    'enumerable': false,
+    'value': null,
+    'writable': false
+  };
+
+  /** Used to determine if values are of the language type Object */
+  var objectTypes = {
+    'boolean': false,
+    'function': true,
+    'object': true,
+    'number': false,
+    'string': false,
+    'undefined': false
+  };
+
+  /** Used to escape characters for inclusion in compiled string literals */
+  var stringEscapes = {
+    '\\': '\\',
+    "'": "'",
+    '\n': 'n',
+    '\r': 'r',
+    '\t': 't',
+    '\u2028': 'u2028',
+    '\u2029': 'u2029'
+  };
+
+  /** Used as a reference to the global object */
+  var root = (objectTypes[typeof window] && window) || this;
+
+  /** Detect free variable `exports` */
+  var freeExports = objectTypes[typeof exports] && exports && !exports.nodeType && exports;
+
+  /** Detect free variable `module` */
+  var freeModule = objectTypes[typeof module] && module && !module.nodeType && module;
+
+  /** Detect the popular CommonJS extension `module.exports` */
+  var moduleExports = freeModule && freeModule.exports === freeExports && freeExports;
+
+  /** Detect free variable `global` from Node.js or Browserified code and use it as `root` */
+  var freeGlobal = objectTypes[typeof global] && global;
+  if (freeGlobal && (freeGlobal.global === freeGlobal || freeGlobal.window === freeGlobal)) {
+    root = freeGlobal;
   }
 
-  if(!options.uri && options.uri !== "")
-    throw new Error("options.uri is a required argument");
+  /*--------------------------------------------------------------------------*/
 
-  if(typeof options.uri != "string")
-    throw new Error("options.uri must be a string");
+  /**
+   * The base implementation of `_.indexOf` without support for binary searches
+   * or `fromIndex` constraints.
+   *
+   * @private
+   * @param {Array} array The array to search.
+   * @param {*} value The value to search for.
+   * @param {number} [fromIndex=0] The index to search from.
+   * @returns {number} Returns the index of the matched value or `-1`.
+   */
+  function baseIndexOf(array, value, fromIndex) {
+    var index = (fromIndex || 0) - 1,
+        length = array ? array.length : 0;
 
-  var unsupported_options = ['proxy', '_redirectsFollowed', 'maxRedirects', 'followRedirect']
-  for (var i = 0; i < unsupported_options.length; i++)
-    if(options[ unsupported_options[i] ])
-      throw new Error("options." + unsupported_options[i] + " is not supported")
-
-  options.callback = callback
-  options.method = options.method || 'GET';
-  options.headers = options.headers || {};
-  options.body    = options.body || null
-  options.timeout = options.timeout || request.DEFAULT_TIMEOUT
-
-  if(options.headers.host)
-    throw new Error("Options.headers.host is not supported");
-
-  if(options.json) {
-    options.headers.accept = options.headers.accept || 'application/json'
-    if(options.method !== 'GET')
-      options.headers['content-type'] = 'application/json'
-
-    if(typeof options.json !== 'boolean')
-      options.body = JSON.stringify(options.json)
-    else if(typeof options.body !== 'string')
-      options.body = JSON.stringify(options.body)
-  }
-  
-  //BEGIN QS Hack
-  var serialize = function(obj) {
-    var str = [];
-    for(var p in obj)
-      if (obj.hasOwnProperty(p)) {
-        str.push(encodeURIComponent(p) + "=" + encodeURIComponent(obj[p]));
+    while (++index < length) {
+      if (array[index] === value) {
+        return index;
       }
-    return str.join("&");
+    }
+    return -1;
   }
-  
-  if(options.qs){
-    var qs = (typeof options.qs == 'string')? options.qs : serialize(options.qs);
-    if(options.uri.indexOf('?') !== -1){ //no get params
-        options.uri = options.uri+'&'+qs;
-    }else{ //existing get params
-        options.uri = options.uri+'?'+qs;
+
+  /**
+   * An implementation of `_.contains` for cache objects that mimics the return
+   * signature of `_.indexOf` by returning `0` if the value is found, else `-1`.
+   *
+   * @private
+   * @param {Object} cache The cache object to inspect.
+   * @param {*} value The value to search for.
+   * @returns {number} Returns `0` if `value` is found, else `-1`.
+   */
+  function cacheIndexOf(cache, value) {
+    var type = typeof value;
+    cache = cache.cache;
+
+    if (type == 'boolean' || value == null) {
+      return cache[value] ? 0 : -1;
+    }
+    if (type != 'number' && type != 'string') {
+      type = 'object';
+    }
+    var key = type == 'number' ? value : keyPrefix + value;
+    cache = (cache = cache[type]) && cache[key];
+
+    return type == 'object'
+      ? (cache && baseIndexOf(cache, value) > -1 ? 0 : -1)
+      : (cache ? 0 : -1);
+  }
+
+  /**
+   * Adds a given value to the corresponding cache object.
+   *
+   * @private
+   * @param {*} value The value to add to the cache.
+   */
+  function cachePush(value) {
+    var cache = this.cache,
+        type = typeof value;
+
+    if (type == 'boolean' || value == null) {
+      cache[value] = true;
+    } else {
+      if (type != 'number' && type != 'string') {
+        type = 'object';
+      }
+      var key = type == 'number' ? value : keyPrefix + value,
+          typeCache = cache[type] || (cache[type] = {});
+
+      if (type == 'object') {
+        (typeCache[key] || (typeCache[key] = [])).push(value);
+      } else {
+        typeCache[key] = true;
+      }
     }
   }
-  //END QS Hack
-  
-  //BEGIN FORM Hack
-  var multipart = function(obj) {
-    //todo: support file type (useful?)
-    var result = {};
-    result.boundry = '-------------------------------'+Math.floor(Math.random()*1000000000);
-    var lines = [];
-    for(var p in obj){
-        if (obj.hasOwnProperty(p)) {
-            lines.push(
-                '--'+result.boundry+"\n"+
-                'Content-Disposition: form-data; name="'+p+'"'+"\n"+
-                "\n"+
-                obj[p]+"\n"
-            );
+
+  /**
+   * Used by `_.max` and `_.min` as the default callback when a given
+   * collection is a string value.
+   *
+   * @private
+   * @param {string} value The character to inspect.
+   * @returns {number} Returns the code unit of given character.
+   */
+  function charAtCallback(value) {
+    return value.charCodeAt(0);
+  }
+
+  /**
+   * Used by `sortBy` to compare transformed `collection` elements, stable sorting
+   * them in ascending order.
+   *
+   * @private
+   * @param {Object} a The object to compare to `b`.
+   * @param {Object} b The object to compare to `a`.
+   * @returns {number} Returns the sort order indicator of `1` or `-1`.
+   */
+  function compareAscending(a, b) {
+    var ac = a.criteria,
+        bc = b.criteria,
+        index = -1,
+        length = ac.length;
+
+    while (++index < length) {
+      var value = ac[index],
+          other = bc[index];
+
+      if (value !== other) {
+        if (value > other || typeof value == 'undefined') {
+          return 1;
         }
+        if (value < other || typeof other == 'undefined') {
+          return -1;
+        }
+      }
     }
-    lines.push( '--'+result.boundry+'--' );
-    result.body = lines.join('');
-    result.length = result.body.length;
-    result.type = 'multipart/form-data; boundary='+result.boundry;
+    // Fixes an `Array#sort` bug in the JS engine embedded in Adobe applications
+    // that causes it, under certain circumstances, to return the same value for
+    // `a` and `b`. See https://github.com/jashkenas/underscore/pull/1247
+    //
+    // This also ensures a stable sort in V8 and other engines.
+    // See http://code.google.com/p/v8/issues/detail?id=90
+    return a.index - b.index;
+  }
+
+  /**
+   * Creates a cache object to optimize linear searches of large arrays.
+   *
+   * @private
+   * @param {Array} [array=[]] The array to search.
+   * @returns {null|Object} Returns the cache object or `null` if caching should not be used.
+   */
+  function createCache(array) {
+    var index = -1,
+        length = array.length,
+        first = array[0],
+        mid = array[(length / 2) | 0],
+        last = array[length - 1];
+
+    if (first && typeof first == 'object' &&
+        mid && typeof mid == 'object' && last && typeof last == 'object') {
+      return false;
+    }
+    var cache = getObject();
+    cache['false'] = cache['null'] = cache['true'] = cache['undefined'] = false;
+
+    var result = getObject();
+    result.array = array;
+    result.cache = cache;
+    result.push = cachePush;
+
+    while (++index < length) {
+      result.push(array[index]);
+    }
     return result;
   }
-  
-  if(options.form){
-    if(typeof options.form == 'string') throw('form name unsupported');
-    if(options.method === 'POST'){
-        var encoding = (options.encoding || 'application/x-www-form-urlencoded').toLowerCase();
-        options.headers['content-type'] = encoding;
-        switch(encoding){
-            case 'application/x-www-form-urlencoded':
-                options.body = serialize(options.form).replace(/%20/g, "+");
-                break;
-            case 'multipart/form-data':
-                var multi = multipart(options.form);
-                //options.headers['content-length'] = multi.length;
-                options.body = multi.body;
-                options.headers['content-type'] = multi.type;
-                break;
-            default : throw new Error('unsupported encoding:'+encoding);
+
+  /**
+   * Used by `template` to escape characters for inclusion in compiled
+   * string literals.
+   *
+   * @private
+   * @param {string} match The matched character to escape.
+   * @returns {string} Returns the escaped character.
+   */
+  function escapeStringChar(match) {
+    return '\\' + stringEscapes[match];
+  }
+
+  /**
+   * Gets an array from the array pool or creates a new one if the pool is empty.
+   *
+   * @private
+   * @returns {Array} The array from the pool.
+   */
+  function getArray() {
+    return arrayPool.pop() || [];
+  }
+
+  /**
+   * Gets an object from the object pool or creates a new one if the pool is empty.
+   *
+   * @private
+   * @returns {Object} The object from the pool.
+   */
+  function getObject() {
+    return objectPool.pop() || {
+      'array': null,
+      'cache': null,
+      'criteria': null,
+      'false': false,
+      'index': 0,
+      'null': false,
+      'number': null,
+      'object': null,
+      'push': null,
+      'string': null,
+      'true': false,
+      'undefined': false,
+      'value': null
+    };
+  }
+
+  /**
+   * Releases the given array back to the array pool.
+   *
+   * @private
+   * @param {Array} [array] The array to release.
+   */
+  function releaseArray(array) {
+    array.length = 0;
+    if (arrayPool.length < maxPoolSize) {
+      arrayPool.push(array);
+    }
+  }
+
+  /**
+   * Releases the given object back to the object pool.
+   *
+   * @private
+   * @param {Object} [object] The object to release.
+   */
+  function releaseObject(object) {
+    var cache = object.cache;
+    if (cache) {
+      releaseObject(cache);
+    }
+    object.array = object.cache = object.criteria = object.object = object.number = object.string = object.value = null;
+    if (objectPool.length < maxPoolSize) {
+      objectPool.push(object);
+    }
+  }
+
+  /**
+   * Slices the `collection` from the `start` index up to, but not including,
+   * the `end` index.
+   *
+   * Note: This function is used instead of `Array#slice` to support node lists
+   * in IE < 9 and to ensure dense arrays are returned.
+   *
+   * @private
+   * @param {Array|Object|string} collection The collection to slice.
+   * @param {number} start The start index.
+   * @param {number} end The end index.
+   * @returns {Array} Returns the new array.
+   */
+  function slice(array, start, end) {
+    start || (start = 0);
+    if (typeof end == 'undefined') {
+      end = array ? array.length : 0;
+    }
+    var index = -1,
+        length = end - start || 0,
+        result = Array(length < 0 ? 0 : length);
+
+    while (++index < length) {
+      result[index] = array[start + index];
+    }
+    return result;
+  }
+
+  /*--------------------------------------------------------------------------*/
+
+  /**
+   * Create a new `lodash` function using the given context object.
+   *
+   * @static
+   * @memberOf _
+   * @category Utilities
+   * @param {Object} [context=root] The context object.
+   * @returns {Function} Returns the `lodash` function.
+   */
+  function runInContext(context) {
+    // Avoid issues with some ES3 environments that attempt to use values, named
+    // after built-in constructors like `Object`, for the creation of literals.
+    // ES5 clears this up by stating that literals must use built-in constructors.
+    // See http://es5.github.io/#x11.1.5.
+    context = context ? _.defaults(root.Object(), context, _.pick(root, contextProps)) : root;
+
+    /** Native constructor references */
+    var Array = context.Array,
+        Boolean = context.Boolean,
+        Date = context.Date,
+        Function = context.Function,
+        Math = context.Math,
+        Number = context.Number,
+        Object = context.Object,
+        RegExp = context.RegExp,
+        String = context.String,
+        TypeError = context.TypeError;
+
+    /**
+     * Used for `Array` method references.
+     *
+     * Normally `Array.prototype` would suffice, however, using an array literal
+     * avoids issues in Narwhal.
+     */
+    var arrayRef = [];
+
+    /** Used for native method references */
+    var objectProto = Object.prototype;
+
+    /** Used to restore the original `_` reference in `noConflict` */
+    var oldDash = context._;
+
+    /** Used to resolve the internal [[Class]] of values */
+    var toString = objectProto.toString;
+
+    /** Used to detect if a method is native */
+    var reNative = RegExp('^' +
+      String(toString)
+        .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        .replace(/toString| for [^\]]+/g, '.*?') + '$'
+    );
+
+    /** Native method shortcuts */
+    var ceil = Math.ceil,
+        clearTimeout = context.clearTimeout,
+        floor = Math.floor,
+        fnToString = Function.prototype.toString,
+        getPrototypeOf = isNative(getPrototypeOf = Object.getPrototypeOf) && getPrototypeOf,
+        hasOwnProperty = objectProto.hasOwnProperty,
+        push = arrayRef.push,
+        setTimeout = context.setTimeout,
+        splice = arrayRef.splice,
+        unshift = arrayRef.unshift;
+
+    /** Used to set meta data on functions */
+    var defineProperty = (function() {
+      // IE 8 only accepts DOM elements
+      try {
+        var o = {},
+            func = isNative(func = Object.defineProperty) && func,
+            result = func(o, o, o) && func;
+      } catch(e) { }
+      return result;
+    }());
+
+    /* Native method shortcuts for methods with the same name as other `lodash` methods */
+    var nativeCreate = isNative(nativeCreate = Object.create) && nativeCreate,
+        nativeIsArray = isNative(nativeIsArray = Array.isArray) && nativeIsArray,
+        nativeIsFinite = context.isFinite,
+        nativeIsNaN = context.isNaN,
+        nativeKeys = isNative(nativeKeys = Object.keys) && nativeKeys,
+        nativeMax = Math.max,
+        nativeMin = Math.min,
+        nativeParseInt = context.parseInt,
+        nativeRandom = Math.random;
+
+    /** Used to lookup a built-in constructor by [[Class]] */
+    var ctorByClass = {};
+    ctorByClass[arrayClass] = Array;
+    ctorByClass[boolClass] = Boolean;
+    ctorByClass[dateClass] = Date;
+    ctorByClass[funcClass] = Function;
+    ctorByClass[objectClass] = Object;
+    ctorByClass[numberClass] = Number;
+    ctorByClass[regexpClass] = RegExp;
+    ctorByClass[stringClass] = String;
+
+    /*--------------------------------------------------------------------------*/
+
+    /**
+     * Creates a `lodash` object which wraps the given value to enable intuitive
+     * method chaining.
+     *
+     * In addition to Lo-Dash methods, wrappers also have the following `Array` methods:
+     * `concat`, `join`, `pop`, `push`, `reverse`, `shift`, `slice`, `sort`, `splice`,
+     * and `unshift`
+     *
+     * Chaining is supported in custom builds as long as the `value` method is
+     * implicitly or explicitly included in the build.
+     *
+     * The chainable wrapper functions are:
+     * `after`, `assign`, `bind`, `bindAll`, `bindKey`, `chain`, `compact`,
+     * `compose`, `concat`, `countBy`, `create`, `createCallback`, `curry`,
+     * `debounce`, `defaults`, `defer`, `delay`, `difference`, `filter`, `flatten`,
+     * `forEach`, `forEachRight`, `forIn`, `forInRight`, `forOwn`, `forOwnRight`,
+     * `functions`, `groupBy`, `indexBy`, `initial`, `intersection`, `invert`,
+     * `invoke`, `keys`, `map`, `max`, `memoize`, `merge`, `min`, `object`, `omit`,
+     * `once`, `pairs`, `partial`, `partialRight`, `pick`, `pluck`, `pull`, `push`,
+     * `range`, `reject`, `remove`, `rest`, `reverse`, `shuffle`, `slice`, `sort`,
+     * `sortBy`, `splice`, `tap`, `throttle`, `times`, `toArray`, `transform`,
+     * `union`, `uniq`, `unshift`, `unzip`, `values`, `where`, `without`, `wrap`,
+     * and `zip`
+     *
+     * The non-chainable wrapper functions are:
+     * `clone`, `cloneDeep`, `contains`, `escape`, `every`, `find`, `findIndex`,
+     * `findKey`, `findLast`, `findLastIndex`, `findLastKey`, `has`, `identity`,
+     * `indexOf`, `isArguments`, `isArray`, `isBoolean`, `isDate`, `isElement`,
+     * `isEmpty`, `isEqual`, `isFinite`, `isFunction`, `isNaN`, `isNull`, `isNumber`,
+     * `isObject`, `isPlainObject`, `isRegExp`, `isString`, `isUndefined`, `join`,
+     * `lastIndexOf`, `mixin`, `noConflict`, `parseInt`, `pop`, `random`, `reduce`,
+     * `reduceRight`, `result`, `shift`, `size`, `some`, `sortedIndex`, `runInContext`,
+     * `template`, `unescape`, `uniqueId`, and `value`
+     *
+     * The wrapper functions `first` and `last` return wrapped values when `n` is
+     * provided, otherwise they return unwrapped values.
+     *
+     * Explicit chaining can be enabled by using the `_.chain` method.
+     *
+     * @name _
+     * @constructor
+     * @category Chaining
+     * @param {*} value The value to wrap in a `lodash` instance.
+     * @returns {Object} Returns a `lodash` instance.
+     * @example
+     *
+     * var wrapped = _([1, 2, 3]);
+     *
+     * // returns an unwrapped value
+     * wrapped.reduce(function(sum, num) {
+     *   return sum + num;
+     * });
+     * // => 6
+     *
+     * // returns a wrapped value
+     * var squares = wrapped.map(function(num) {
+     *   return num * num;
+     * });
+     *
+     * _.isArray(squares);
+     * // => false
+     *
+     * _.isArray(squares.value());
+     * // => true
+     */
+    function lodash(value) {
+      // don't wrap if already wrapped, even if wrapped by a different `lodash` constructor
+      return (value && typeof value == 'object' && !isArray(value) && hasOwnProperty.call(value, '__wrapped__'))
+       ? value
+       : new lodashWrapper(value);
+    }
+
+    /**
+     * A fast path for creating `lodash` wrapper objects.
+     *
+     * @private
+     * @param {*} value The value to wrap in a `lodash` instance.
+     * @param {boolean} chainAll A flag to enable chaining for all methods
+     * @returns {Object} Returns a `lodash` instance.
+     */
+    function lodashWrapper(value, chainAll) {
+      this.__chain__ = !!chainAll;
+      this.__wrapped__ = value;
+    }
+    // ensure `new lodashWrapper` is an instance of `lodash`
+    lodashWrapper.prototype = lodash.prototype;
+
+    /**
+     * An object used to flag environments features.
+     *
+     * @static
+     * @memberOf _
+     * @type Object
+     */
+    var support = lodash.support = {};
+
+    /**
+     * Detect if functions can be decompiled by `Function#toString`
+     * (all but PS3 and older Opera mobile browsers & avoided in Windows 8 apps).
+     *
+     * @memberOf _.support
+     * @type boolean
+     */
+    support.funcDecomp = !isNative(context.WinRTError) && reThis.test(runInContext);
+
+    /**
+     * Detect if `Function#name` is supported (all but IE).
+     *
+     * @memberOf _.support
+     * @type boolean
+     */
+    support.funcNames = typeof Function.name == 'string';
+
+    /**
+     * By default, the template delimiters used by Lo-Dash are similar to those in
+     * embedded Ruby (ERB). Change the following template settings to use alternative
+     * delimiters.
+     *
+     * @static
+     * @memberOf _
+     * @type Object
+     */
+    lodash.templateSettings = {
+
+      /**
+       * Used to detect `data` property values to be HTML-escaped.
+       *
+       * @memberOf _.templateSettings
+       * @type RegExp
+       */
+      'escape': /<%-([\s\S]+?)%>/g,
+
+      /**
+       * Used to detect code to be evaluated.
+       *
+       * @memberOf _.templateSettings
+       * @type RegExp
+       */
+      'evaluate': /<%([\s\S]+?)%>/g,
+
+      /**
+       * Used to detect `data` property values to inject.
+       *
+       * @memberOf _.templateSettings
+       * @type RegExp
+       */
+      'interpolate': reInterpolate,
+
+      /**
+       * Used to reference the data object in the template text.
+       *
+       * @memberOf _.templateSettings
+       * @type string
+       */
+      'variable': '',
+
+      /**
+       * Used to import variables into the compiled template.
+       *
+       * @memberOf _.templateSettings
+       * @type Object
+       */
+      'imports': {
+
+        /**
+         * A reference to the `lodash` function.
+         *
+         * @memberOf _.templateSettings.imports
+         * @type Function
+         */
+        '_': lodash
+      }
+    };
+
+    /*--------------------------------------------------------------------------*/
+
+    /**
+     * The base implementation of `_.bind` that creates the bound function and
+     * sets its meta data.
+     *
+     * @private
+     * @param {Array} bindData The bind data array.
+     * @returns {Function} Returns the new bound function.
+     */
+    function baseBind(bindData) {
+      var func = bindData[0],
+          partialArgs = bindData[2],
+          thisArg = bindData[4];
+
+      function bound() {
+        // `Function#bind` spec
+        // http://es5.github.io/#x15.3.4.5
+        if (partialArgs) {
+          // avoid `arguments` object deoptimizations by using `slice` instead
+          // of `Array.prototype.slice.call` and not assigning `arguments` to a
+          // variable as a ternary expression
+          var args = slice(partialArgs);
+          push.apply(args, arguments);
         }
-    }
-  }
-  //END FORM Hack
-
-  // If onResponse is boolean true, call back immediately when the response is known,
-  // not when the full request is complete.
-  options.onResponse = options.onResponse || noop
-  if(options.onResponse === true) {
-    options.onResponse = callback
-    options.callback = noop
-  }
-
-  // XXX Browsers do not like this.
-  //if(options.body)
-  //  options.headers['content-length'] = options.body.length;
-
-  // HTTP basic authentication
-  if(!options.headers.authorization && options.auth)
-    options.headers.authorization = 'Basic ' + b64_enc(options.auth.username + ':' + options.auth.password);
-
-  return run_xhr(options)
-}
-
-var req_seq = 0
-function run_xhr(options) {
-  var xhr = new XHR
-    , timed_out = false
-    , is_cors = is_crossDomain(options.uri)
-    , supports_cors = ('withCredentials' in xhr)
-
-  req_seq += 1
-  xhr.seq_id = req_seq
-  xhr.id = req_seq + ': ' + options.method + ' ' + options.uri
-  xhr._id = xhr.id // I know I will type "_id" from habit all the time.
-
-  if(is_cors && !supports_cors) {
-    var cors_err = new Error('Browser does not support cross-origin request: ' + options.uri)
-    cors_err.cors = 'unsupported'
-    return options.callback(cors_err, xhr)
-  }
-
-  xhr.timeoutTimer = setTimeout(too_late, options.timeout)
-  function too_late() {
-    timed_out = true
-    var er = new Error('ETIMEDOUT')
-    er.code = 'ETIMEDOUT'
-    er.duration = options.timeout
-
-    request.log.error('Timeout', { 'id':xhr._id, 'milliseconds':options.timeout })
-    return options.callback(er, xhr)
-  }
-
-  // Some states can be skipped over, so remember what is still incomplete.
-  var did = {'response':false, 'loading':false, 'end':false}
-
-  xhr.onreadystatechange = on_state_change
-  xhr.open(options.method, options.uri, true) // asynchronous
-  if(is_cors)
-    xhr.withCredentials = !! options.withCredentials
-  xhr.send(options.body)
-  return xhr
-
-  function on_state_change(event) {
-    if(timed_out)
-      return request.log.debug('Ignoring timed out state change', {'state':xhr.readyState, 'id':xhr.id})
-
-    request.log.debug('State change', {'state':xhr.readyState, 'id':xhr.id, 'timed_out':timed_out})
-
-    if(xhr.readyState === XHR.OPENED) {
-      request.log.debug('Request started', {'id':xhr.id})
-      for (var key in options.headers)
-        xhr.setRequestHeader(key, options.headers[key])
+        // mimic the constructor's `return` behavior
+        // http://es5.github.io/#x13.2.2
+        if (this instanceof bound) {
+          // ensure `new bound` is an instance of `func`
+          var thisBinding = baseCreate(func.prototype),
+              result = func.apply(thisBinding, args || arguments);
+          return isObject(result) ? result : thisBinding;
+        }
+        return func.apply(thisArg, args || arguments);
+      }
+      setBindData(bound, bindData);
+      return bound;
     }
 
-    else if(xhr.readyState === XHR.HEADERS_RECEIVED)
-      on_response()
+    /**
+     * The base implementation of `_.clone` without argument juggling or support
+     * for `thisArg` binding.
+     *
+     * @private
+     * @param {*} value The value to clone.
+     * @param {boolean} [isDeep=false] Specify a deep clone.
+     * @param {Function} [callback] The function to customize cloning values.
+     * @param {Array} [stackA=[]] Tracks traversed source objects.
+     * @param {Array} [stackB=[]] Associates clones with source counterparts.
+     * @returns {*} Returns the cloned value.
+     */
+    function baseClone(value, isDeep, callback, stackA, stackB) {
+      if (callback) {
+        var result = callback(value);
+        if (typeof result != 'undefined') {
+          return result;
+        }
+      }
+      // inspect [[Class]]
+      var isObj = isObject(value);
+      if (isObj) {
+        var className = toString.call(value);
+        if (!cloneableClasses[className]) {
+          return value;
+        }
+        var ctor = ctorByClass[className];
+        switch (className) {
+          case boolClass:
+          case dateClass:
+            return new ctor(+value);
 
-    else if(xhr.readyState === XHR.LOADING) {
-      on_response()
-      on_loading()
-    }
+          case numberClass:
+          case stringClass:
+            return new ctor(value);
 
-    else if(xhr.readyState === XHR.DONE) {
-      on_response()
-      on_loading()
-      on_end()
-    }
-  }
+          case regexpClass:
+            result = ctor(value.source, reFlags.exec(value));
+            result.lastIndex = value.lastIndex;
+            return result;
+        }
+      } else {
+        return value;
+      }
+      var isArr = isArray(value);
+      if (isDeep) {
+        // check for circular references and return corresponding clone
+        var initedStack = !stackA;
+        stackA || (stackA = getArray());
+        stackB || (stackB = getArray());
 
-  function on_response() {
-    if(did.response)
-      return
-
-    did.response = true
-    request.log.debug('Got response', {'id':xhr.id, 'status':xhr.status})
-    clearTimeout(xhr.timeoutTimer)
-    xhr.statusCode = xhr.status // Node request compatibility
-
-    // Detect failed CORS requests.
-    if(is_cors && xhr.statusCode == 0) {
-      var cors_err = new Error('CORS request rejected: ' + options.uri)
-      cors_err.cors = 'rejected'
-
-      // Do not process this request further.
-      did.loading = true
-      did.end = true
-
-      return options.callback(cors_err, xhr)
-    }
-
-    options.onResponse(null, xhr)
-  }
-
-  function on_loading() {
-    if(did.loading)
-      return
-
-    did.loading = true
-    request.log.debug('Response body loading', {'id':xhr.id})
-    // TODO: Maybe simulate "data" events by watching xhr.responseText
-  }
-
-  function on_end() {
-    if(did.end)
-      return
-
-    did.end = true
-    request.log.debug('Request done', {'id':xhr.id})
-
-    xhr.body = xhr.responseText
-    if(options.json) {
-      try        { xhr.body = JSON.parse(xhr.responseText) }
-      catch (er) { return options.callback(er, xhr)        }
-    }
-
-    options.callback(null, xhr, xhr.body)
-  }
-
-} // request
-
-request.withCredentials = false;
-request.DEFAULT_TIMEOUT = DEFAULT_TIMEOUT;
-
-//
-// defaults
-//
-
-request.defaults = function(options, requester) {
-  var def = function (method) {
-    var d = function (params, callback) {
-      if(typeof params === 'string')
-        params = {'uri': params};
+        var length = stackA.length;
+        while (length--) {
+          if (stackA[length] == value) {
+            return stackB[length];
+          }
+        }
+        result = isArr ? ctor(value.length) : {};
+      }
       else {
-        params = JSON.parse(JSON.stringify(params));
+        result = isArr ? slice(value) : assign({}, value);
       }
-      for (var i in options) {
-        if (params[i] === undefined) params[i] = options[i]
+      // add array properties assigned by `RegExp#exec`
+      if (isArr) {
+        if (hasOwnProperty.call(value, 'index')) {
+          result.index = value.index;
+        }
+        if (hasOwnProperty.call(value, 'input')) {
+          result.input = value.input;
+        }
       }
-      return method(params, callback)
+      // exit for shallow clone
+      if (!isDeep) {
+        return result;
+      }
+      // add the source value to the stack of traversed objects
+      // and associate it with its clone
+      stackA.push(value);
+      stackB.push(result);
+
+      // recursively populate clone (susceptible to call stack limits)
+      (isArr ? forEach : forOwn)(value, function(objValue, key) {
+        result[key] = baseClone(objValue, isDeep, callback, stackA, stackB);
+      });
+
+      if (initedStack) {
+        releaseArray(stackA);
+        releaseArray(stackB);
+      }
+      return result;
     }
-    return d
+
+    /**
+     * The base implementation of `_.create` without support for assigning
+     * properties to the created object.
+     *
+     * @private
+     * @param {Object} prototype The object to inherit from.
+     * @returns {Object} Returns the new object.
+     */
+    function baseCreate(prototype, properties) {
+      return isObject(prototype) ? nativeCreate(prototype) : {};
+    }
+    // fallback for browsers without `Object.create`
+    if (!nativeCreate) {
+      baseCreate = (function() {
+        function Object() {}
+        return function(prototype) {
+          if (isObject(prototype)) {
+            Object.prototype = prototype;
+            var result = new Object;
+            Object.prototype = null;
+          }
+          return result || context.Object();
+        };
+      }());
+    }
+
+    /**
+     * The base implementation of `_.createCallback` without support for creating
+     * "_.pluck" or "_.where" style callbacks.
+     *
+     * @private
+     * @param {*} [func=identity] The value to convert to a callback.
+     * @param {*} [thisArg] The `this` binding of the created callback.
+     * @param {number} [argCount] The number of arguments the callback accepts.
+     * @returns {Function} Returns a callback function.
+     */
+    function baseCreateCallback(func, thisArg, argCount) {
+      if (typeof func != 'function') {
+        return identity;
+      }
+      // exit early for no `thisArg` or already bound by `Function#bind`
+      if (typeof thisArg == 'undefined' || !('prototype' in func)) {
+        return func;
+      }
+      var bindData = func.__bindData__;
+      if (typeof bindData == 'undefined') {
+        if (support.funcNames) {
+          bindData = !func.name;
+        }
+        bindData = bindData || !support.funcDecomp;
+        if (!bindData) {
+          var source = fnToString.call(func);
+          if (!support.funcNames) {
+            bindData = !reFuncName.test(source);
+          }
+          if (!bindData) {
+            // checks if `func` references the `this` keyword and stores the result
+            bindData = reThis.test(source);
+            setBindData(func, bindData);
+          }
+        }
+      }
+      // exit early if there are no `this` references or `func` is bound
+      if (bindData === false || (bindData !== true && bindData[1] & 1)) {
+        return func;
+      }
+      switch (argCount) {
+        case 1: return function(value) {
+          return func.call(thisArg, value);
+        };
+        case 2: return function(a, b) {
+          return func.call(thisArg, a, b);
+        };
+        case 3: return function(value, index, collection) {
+          return func.call(thisArg, value, index, collection);
+        };
+        case 4: return function(accumulator, value, index, collection) {
+          return func.call(thisArg, accumulator, value, index, collection);
+        };
+      }
+      return bind(func, thisArg);
+    }
+
+    /**
+     * The base implementation of `createWrapper` that creates the wrapper and
+     * sets its meta data.
+     *
+     * @private
+     * @param {Array} bindData The bind data array.
+     * @returns {Function} Returns the new function.
+     */
+    function baseCreateWrapper(bindData) {
+      var func = bindData[0],
+          bitmask = bindData[1],
+          partialArgs = bindData[2],
+          partialRightArgs = bindData[3],
+          thisArg = bindData[4],
+          arity = bindData[5];
+
+      var isBind = bitmask & 1,
+          isBindKey = bitmask & 2,
+          isCurry = bitmask & 4,
+          isCurryBound = bitmask & 8,
+          key = func;
+
+      function bound() {
+        var thisBinding = isBind ? thisArg : this;
+        if (partialArgs) {
+          var args = slice(partialArgs);
+          push.apply(args, arguments);
+        }
+        if (partialRightArgs || isCurry) {
+          args || (args = slice(arguments));
+          if (partialRightArgs) {
+            push.apply(args, partialRightArgs);
+          }
+          if (isCurry && args.length < arity) {
+            bitmask |= 16 & ~32;
+            return baseCreateWrapper([func, (isCurryBound ? bitmask : bitmask & ~3), args, null, thisArg, arity]);
+          }
+        }
+        args || (args = arguments);
+        if (isBindKey) {
+          func = thisBinding[key];
+        }
+        if (this instanceof bound) {
+          thisBinding = baseCreate(func.prototype);
+          var result = func.apply(thisBinding, args);
+          return isObject(result) ? result : thisBinding;
+        }
+        return func.apply(thisBinding, args);
+      }
+      setBindData(bound, bindData);
+      return bound;
+    }
+
+    /**
+     * The base implementation of `_.difference` that accepts a single array
+     * of values to exclude.
+     *
+     * @private
+     * @param {Array} array The array to process.
+     * @param {Array} [values] The array of values to exclude.
+     * @returns {Array} Returns a new array of filtered values.
+     */
+    function baseDifference(array, values) {
+      var index = -1,
+          indexOf = getIndexOf(),
+          length = array ? array.length : 0,
+          isLarge = length >= largeArraySize && indexOf === baseIndexOf,
+          result = [];
+
+      if (isLarge) {
+        var cache = createCache(values);
+        if (cache) {
+          indexOf = cacheIndexOf;
+          values = cache;
+        } else {
+          isLarge = false;
+        }
+      }
+      while (++index < length) {
+        var value = array[index];
+        if (indexOf(values, value) < 0) {
+          result.push(value);
+        }
+      }
+      if (isLarge) {
+        releaseObject(values);
+      }
+      return result;
+    }
+
+    /**
+     * The base implementation of `_.flatten` without support for callback
+     * shorthands or `thisArg` binding.
+     *
+     * @private
+     * @param {Array} array The array to flatten.
+     * @param {boolean} [isShallow=false] A flag to restrict flattening to a single level.
+     * @param {boolean} [isStrict=false] A flag to restrict flattening to arrays and `arguments` objects.
+     * @param {number} [fromIndex=0] The index to start from.
+     * @returns {Array} Returns a new flattened array.
+     */
+    function baseFlatten(array, isShallow, isStrict, fromIndex) {
+      var index = (fromIndex || 0) - 1,
+          length = array ? array.length : 0,
+          result = [];
+
+      while (++index < length) {
+        var value = array[index];
+
+        if (value && typeof value == 'object' && typeof value.length == 'number'
+            && (isArray(value) || isArguments(value))) {
+          // recursively flatten arrays (susceptible to call stack limits)
+          if (!isShallow) {
+            value = baseFlatten(value, isShallow, isStrict);
+          }
+          var valIndex = -1,
+              valLength = value.length,
+              resIndex = result.length;
+
+          result.length += valLength;
+          while (++valIndex < valLength) {
+            result[resIndex++] = value[valIndex];
+          }
+        } else if (!isStrict) {
+          result.push(value);
+        }
+      }
+      return result;
+    }
+
+    /**
+     * The base implementation of `_.isEqual`, without support for `thisArg` binding,
+     * that allows partial "_.where" style comparisons.
+     *
+     * @private
+     * @param {*} a The value to compare.
+     * @param {*} b The other value to compare.
+     * @param {Function} [callback] The function to customize comparing values.
+     * @param {Function} [isWhere=false] A flag to indicate performing partial comparisons.
+     * @param {Array} [stackA=[]] Tracks traversed `a` objects.
+     * @param {Array} [stackB=[]] Tracks traversed `b` objects.
+     * @returns {boolean} Returns `true` if the values are equivalent, else `false`.
+     */
+    function baseIsEqual(a, b, callback, isWhere, stackA, stackB) {
+      // used to indicate that when comparing objects, `a` has at least the properties of `b`
+      if (callback) {
+        var result = callback(a, b);
+        if (typeof result != 'undefined') {
+          return !!result;
+        }
+      }
+      // exit early for identical values
+      if (a === b) {
+        // treat `+0` vs. `-0` as not equal
+        return a !== 0 || (1 / a == 1 / b);
+      }
+      var type = typeof a,
+          otherType = typeof b;
+
+      // exit early for unlike primitive values
+      if (a === a &&
+          !(a && objectTypes[type]) &&
+          !(b && objectTypes[otherType])) {
+        return false;
+      }
+      // exit early for `null` and `undefined` avoiding ES3's Function#call behavior
+      // http://es5.github.io/#x15.3.4.4
+      if (a == null || b == null) {
+        return a === b;
+      }
+      // compare [[Class]] names
+      var className = toString.call(a),
+          otherClass = toString.call(b);
+
+      if (className == argsClass) {
+        className = objectClass;
+      }
+      if (otherClass == argsClass) {
+        otherClass = objectClass;
+      }
+      if (className != otherClass) {
+        return false;
+      }
+      switch (className) {
+        case boolClass:
+        case dateClass:
+          // coerce dates and booleans to numbers, dates to milliseconds and booleans
+          // to `1` or `0` treating invalid dates coerced to `NaN` as not equal
+          return +a == +b;
+
+        case numberClass:
+          // treat `NaN` vs. `NaN` as equal
+          return (a != +a)
+            ? b != +b
+            // but treat `+0` vs. `-0` as not equal
+            : (a == 0 ? (1 / a == 1 / b) : a == +b);
+
+        case regexpClass:
+        case stringClass:
+          // coerce regexes to strings (http://es5.github.io/#x15.10.6.4)
+          // treat string primitives and their corresponding object instances as equal
+          return a == String(b);
+      }
+      var isArr = className == arrayClass;
+      if (!isArr) {
+        // unwrap any `lodash` wrapped values
+        var aWrapped = hasOwnProperty.call(a, '__wrapped__'),
+            bWrapped = hasOwnProperty.call(b, '__wrapped__');
+
+        if (aWrapped || bWrapped) {
+          return baseIsEqual(aWrapped ? a.__wrapped__ : a, bWrapped ? b.__wrapped__ : b, callback, isWhere, stackA, stackB);
+        }
+        // exit for functions and DOM nodes
+        if (className != objectClass) {
+          return false;
+        }
+        // in older versions of Opera, `arguments` objects have `Array` constructors
+        var ctorA = a.constructor,
+            ctorB = b.constructor;
+
+        // non `Object` object instances with different constructors are not equal
+        if (ctorA != ctorB &&
+              !(isFunction(ctorA) && ctorA instanceof ctorA && isFunction(ctorB) && ctorB instanceof ctorB) &&
+              ('constructor' in a && 'constructor' in b)
+            ) {
+          return false;
+        }
+      }
+      // assume cyclic structures are equal
+      // the algorithm for detecting cyclic structures is adapted from ES 5.1
+      // section 15.12.3, abstract operation `JO` (http://es5.github.io/#x15.12.3)
+      var initedStack = !stackA;
+      stackA || (stackA = getArray());
+      stackB || (stackB = getArray());
+
+      var length = stackA.length;
+      while (length--) {
+        if (stackA[length] == a) {
+          return stackB[length] == b;
+        }
+      }
+      var size = 0;
+      result = true;
+
+      // add `a` and `b` to the stack of traversed objects
+      stackA.push(a);
+      stackB.push(b);
+
+      // recursively compare objects and arrays (susceptible to call stack limits)
+      if (isArr) {
+        // compare lengths to determine if a deep comparison is necessary
+        length = a.length;
+        size = b.length;
+        result = size == length;
+
+        if (result || isWhere) {
+          // deep compare the contents, ignoring non-numeric properties
+          while (size--) {
+            var index = length,
+                value = b[size];
+
+            if (isWhere) {
+              while (index--) {
+                if ((result = baseIsEqual(a[index], value, callback, isWhere, stackA, stackB))) {
+                  break;
+                }
+              }
+            } else if (!(result = baseIsEqual(a[size], value, callback, isWhere, stackA, stackB))) {
+              break;
+            }
+          }
+        }
+      }
+      else {
+        // deep compare objects using `forIn`, instead of `forOwn`, to avoid `Object.keys`
+        // which, in this case, is more costly
+        forIn(b, function(value, key, b) {
+          if (hasOwnProperty.call(b, key)) {
+            // count the number of properties.
+            size++;
+            // deep compare each property value.
+            return (result = hasOwnProperty.call(a, key) && baseIsEqual(a[key], value, callback, isWhere, stackA, stackB));
+          }
+        });
+
+        if (result && !isWhere) {
+          // ensure both objects have the same number of properties
+          forIn(a, function(value, key, a) {
+            if (hasOwnProperty.call(a, key)) {
+              // `size` will be `-1` if `a` has more properties than `b`
+              return (result = --size > -1);
+            }
+          });
+        }
+      }
+      stackA.pop();
+      stackB.pop();
+
+      if (initedStack) {
+        releaseArray(stackA);
+        releaseArray(stackB);
+      }
+      return result;
+    }
+
+    /**
+     * The base implementation of `_.merge` without argument juggling or support
+     * for `thisArg` binding.
+     *
+     * @private
+     * @param {Object} object The destination object.
+     * @param {Object} source The source object.
+     * @param {Function} [callback] The function to customize merging properties.
+     * @param {Array} [stackA=[]] Tracks traversed source objects.
+     * @param {Array} [stackB=[]] Associates values with source counterparts.
+     */
+    function baseMerge(object, source, callback, stackA, stackB) {
+      (isArray(source) ? forEach : forOwn)(source, function(source, key) {
+        var found,
+            isArr,
+            result = source,
+            value = object[key];
+
+        if (source && ((isArr = isArray(source)) || isPlainObject(source))) {
+          // avoid merging previously merged cyclic sources
+          var stackLength = stackA.length;
+          while (stackLength--) {
+            if ((found = stackA[stackLength] == source)) {
+              value = stackB[stackLength];
+              break;
+            }
+          }
+          if (!found) {
+            var isShallow;
+            if (callback) {
+              result = callback(value, source);
+              if ((isShallow = typeof result != 'undefined')) {
+                value = result;
+              }
+            }
+            if (!isShallow) {
+              value = isArr
+                ? (isArray(value) ? value : [])
+                : (isPlainObject(value) ? value : {});
+            }
+            // add `source` and associated `value` to the stack of traversed objects
+            stackA.push(source);
+            stackB.push(value);
+
+            // recursively merge objects and arrays (susceptible to call stack limits)
+            if (!isShallow) {
+              baseMerge(value, source, callback, stackA, stackB);
+            }
+          }
+        }
+        else {
+          if (callback) {
+            result = callback(value, source);
+            if (typeof result == 'undefined') {
+              result = source;
+            }
+          }
+          if (typeof result != 'undefined') {
+            value = result;
+          }
+        }
+        object[key] = value;
+      });
+    }
+
+    /**
+     * The base implementation of `_.random` without argument juggling or support
+     * for returning floating-point numbers.
+     *
+     * @private
+     * @param {number} min The minimum possible value.
+     * @param {number} max The maximum possible value.
+     * @returns {number} Returns a random number.
+     */
+    function baseRandom(min, max) {
+      return min + floor(nativeRandom() * (max - min + 1));
+    }
+
+    /**
+     * The base implementation of `_.uniq` without support for callback shorthands
+     * or `thisArg` binding.
+     *
+     * @private
+     * @param {Array} array The array to process.
+     * @param {boolean} [isSorted=false] A flag to indicate that `array` is sorted.
+     * @param {Function} [callback] The function called per iteration.
+     * @returns {Array} Returns a duplicate-value-free array.
+     */
+    function baseUniq(array, isSorted, callback) {
+      var index = -1,
+          indexOf = getIndexOf(),
+          length = array ? array.length : 0,
+          result = [];
+
+      var isLarge = !isSorted && length >= largeArraySize && indexOf === baseIndexOf,
+          seen = (callback || isLarge) ? getArray() : result;
+
+      if (isLarge) {
+        var cache = createCache(seen);
+        indexOf = cacheIndexOf;
+        seen = cache;
+      }
+      while (++index < length) {
+        var value = array[index],
+            computed = callback ? callback(value, index, array) : value;
+
+        if (isSorted
+              ? !index || seen[seen.length - 1] !== computed
+              : indexOf(seen, computed) < 0
+            ) {
+          if (callback || isLarge) {
+            seen.push(computed);
+          }
+          result.push(value);
+        }
+      }
+      if (isLarge) {
+        releaseArray(seen.array);
+        releaseObject(seen);
+      } else if (callback) {
+        releaseArray(seen);
+      }
+      return result;
+    }
+
+    /**
+     * Creates a function that aggregates a collection, creating an object composed
+     * of keys generated from the results of running each element of the collection
+     * through a callback. The given `setter` function sets the keys and values
+     * of the composed object.
+     *
+     * @private
+     * @param {Function} setter The setter function.
+     * @returns {Function} Returns the new aggregator function.
+     */
+    function createAggregator(setter) {
+      return function(collection, callback, thisArg) {
+        var result = {};
+        callback = lodash.createCallback(callback, thisArg, 3);
+
+        var index = -1,
+            length = collection ? collection.length : 0;
+
+        if (typeof length == 'number') {
+          while (++index < length) {
+            var value = collection[index];
+            setter(result, value, callback(value, index, collection), collection);
+          }
+        } else {
+          forOwn(collection, function(value, key, collection) {
+            setter(result, value, callback(value, key, collection), collection);
+          });
+        }
+        return result;
+      };
+    }
+
+    /**
+     * Creates a function that, when called, either curries or invokes `func`
+     * with an optional `this` binding and partially applied arguments.
+     *
+     * @private
+     * @param {Function|string} func The function or method name to reference.
+     * @param {number} bitmask The bitmask of method flags to compose.
+     *  The bitmask may be composed of the following flags:
+     *  1 - `_.bind`
+     *  2 - `_.bindKey`
+     *  4 - `_.curry`
+     *  8 - `_.curry` (bound)
+     *  16 - `_.partial`
+     *  32 - `_.partialRight`
+     * @param {Array} [partialArgs] An array of arguments to prepend to those
+     *  provided to the new function.
+     * @param {Array} [partialRightArgs] An array of arguments to append to those
+     *  provided to the new function.
+     * @param {*} [thisArg] The `this` binding of `func`.
+     * @param {number} [arity] The arity of `func`.
+     * @returns {Function} Returns the new function.
+     */
+    function createWrapper(func, bitmask, partialArgs, partialRightArgs, thisArg, arity) {
+      var isBind = bitmask & 1,
+          isBindKey = bitmask & 2,
+          isCurry = bitmask & 4,
+          isCurryBound = bitmask & 8,
+          isPartial = bitmask & 16,
+          isPartialRight = bitmask & 32;
+
+      if (!isBindKey && !isFunction(func)) {
+        throw new TypeError;
+      }
+      if (isPartial && !partialArgs.length) {
+        bitmask &= ~16;
+        isPartial = partialArgs = false;
+      }
+      if (isPartialRight && !partialRightArgs.length) {
+        bitmask &= ~32;
+        isPartialRight = partialRightArgs = false;
+      }
+      var bindData = func && func.__bindData__;
+      if (bindData && bindData !== true) {
+        // clone `bindData`
+        bindData = slice(bindData);
+        if (bindData[2]) {
+          bindData[2] = slice(bindData[2]);
+        }
+        if (bindData[3]) {
+          bindData[3] = slice(bindData[3]);
+        }
+        // set `thisBinding` is not previously bound
+        if (isBind && !(bindData[1] & 1)) {
+          bindData[4] = thisArg;
+        }
+        // set if previously bound but not currently (subsequent curried functions)
+        if (!isBind && bindData[1] & 1) {
+          bitmask |= 8;
+        }
+        // set curried arity if not yet set
+        if (isCurry && !(bindData[1] & 4)) {
+          bindData[5] = arity;
+        }
+        // append partial left arguments
+        if (isPartial) {
+          push.apply(bindData[2] || (bindData[2] = []), partialArgs);
+        }
+        // append partial right arguments
+        if (isPartialRight) {
+          unshift.apply(bindData[3] || (bindData[3] = []), partialRightArgs);
+        }
+        // merge flags
+        bindData[1] |= bitmask;
+        return createWrapper.apply(null, bindData);
+      }
+      // fast path for `_.bind`
+      var creater = (bitmask == 1 || bitmask === 17) ? baseBind : baseCreateWrapper;
+      return creater([func, bitmask, partialArgs, partialRightArgs, thisArg, arity]);
+    }
+
+    /**
+     * Used by `escape` to convert characters to HTML entities.
+     *
+     * @private
+     * @param {string} match The matched character to escape.
+     * @returns {string} Returns the escaped character.
+     */
+    function escapeHtmlChar(match) {
+      return htmlEscapes[match];
+    }
+
+    /**
+     * Gets the appropriate "indexOf" function. If the `_.indexOf` method is
+     * customized, this method returns the custom method, otherwise it returns
+     * the `baseIndexOf` function.
+     *
+     * @private
+     * @returns {Function} Returns the "indexOf" function.
+     */
+    function getIndexOf() {
+      var result = (result = lodash.indexOf) === indexOf ? baseIndexOf : result;
+      return result;
+    }
+
+    /**
+     * Checks if `value` is a native function.
+     *
+     * @private
+     * @param {*} value The value to check.
+     * @returns {boolean} Returns `true` if the `value` is a native function, else `false`.
+     */
+    function isNative(value) {
+      return typeof value == 'function' && reNative.test(value);
+    }
+
+    /**
+     * Sets `this` binding data on a given function.
+     *
+     * @private
+     * @param {Function} func The function to set data on.
+     * @param {Array} value The data array to set.
+     */
+    var setBindData = !defineProperty ? noop : function(func, value) {
+      descriptor.value = value;
+      defineProperty(func, '__bindData__', descriptor);
+    };
+
+    /**
+     * A fallback implementation of `isPlainObject` which checks if a given value
+     * is an object created by the `Object` constructor, assuming objects created
+     * by the `Object` constructor have no inherited enumerable properties and that
+     * there are no `Object.prototype` extensions.
+     *
+     * @private
+     * @param {*} value The value to check.
+     * @returns {boolean} Returns `true` if `value` is a plain object, else `false`.
+     */
+    function shimIsPlainObject(value) {
+      var ctor,
+          result;
+
+      // avoid non Object objects, `arguments` objects, and DOM elements
+      if (!(value && toString.call(value) == objectClass) ||
+          (ctor = value.constructor, isFunction(ctor) && !(ctor instanceof ctor))) {
+        return false;
+      }
+      // In most environments an object's own properties are iterated before
+      // its inherited properties. If the last iterated property is an object's
+      // own property then there are no inherited enumerable properties.
+      forIn(value, function(value, key) {
+        result = key;
+      });
+      return typeof result == 'undefined' || hasOwnProperty.call(value, result);
+    }
+
+    /**
+     * Used by `unescape` to convert HTML entities to characters.
+     *
+     * @private
+     * @param {string} match The matched character to unescape.
+     * @returns {string} Returns the unescaped character.
+     */
+    function unescapeHtmlChar(match) {
+      return htmlUnescapes[match];
+    }
+
+    /*--------------------------------------------------------------------------*/
+
+    /**
+     * Checks if `value` is an `arguments` object.
+     *
+     * @static
+     * @memberOf _
+     * @category Objects
+     * @param {*} value The value to check.
+     * @returns {boolean} Returns `true` if the `value` is an `arguments` object, else `false`.
+     * @example
+     *
+     * (function() { return _.isArguments(arguments); })(1, 2, 3);
+     * // => true
+     *
+     * _.isArguments([1, 2, 3]);
+     * // => false
+     */
+    function isArguments(value) {
+      return value && typeof value == 'object' && typeof value.length == 'number' &&
+        toString.call(value) == argsClass || false;
+    }
+
+    /**
+     * Checks if `value` is an array.
+     *
+     * @static
+     * @memberOf _
+     * @type Function
+     * @category Objects
+     * @param {*} value The value to check.
+     * @returns {boolean} Returns `true` if the `value` is an array, else `false`.
+     * @example
+     *
+     * (function() { return _.isArray(arguments); })();
+     * // => false
+     *
+     * _.isArray([1, 2, 3]);
+     * // => true
+     */
+    var isArray = nativeIsArray || function(value) {
+      return value && typeof value == 'object' && typeof value.length == 'number' &&
+        toString.call(value) == arrayClass || false;
+    };
+
+    /**
+     * A fallback implementation of `Object.keys` which produces an array of the
+     * given object's own enumerable property names.
+     *
+     * @private
+     * @type Function
+     * @param {Object} object The object to inspect.
+     * @returns {Array} Returns an array of property names.
+     */
+    var shimKeys = function(object) {
+      var index, iterable = object, result = [];
+      if (!iterable) return result;
+      if (!(objectTypes[typeof object])) return result;
+        for (index in iterable) {
+          if (hasOwnProperty.call(iterable, index)) {
+            result.push(index);
+          }
+        }
+      return result
+    };
+
+    /**
+     * Creates an array composed of the own enumerable property names of an object.
+     *
+     * @static
+     * @memberOf _
+     * @category Objects
+     * @param {Object} object The object to inspect.
+     * @returns {Array} Returns an array of property names.
+     * @example
+     *
+     * _.keys({ 'one': 1, 'two': 2, 'three': 3 });
+     * // => ['one', 'two', 'three'] (property order is not guaranteed across environments)
+     */
+    var keys = !nativeKeys ? shimKeys : function(object) {
+      if (!isObject(object)) {
+        return [];
+      }
+      return nativeKeys(object);
+    };
+
+    /**
+     * Used to convert characters to HTML entities:
+     *
+     * Though the `>` character is escaped for symmetry, characters like `>` and `/`
+     * don't require escaping in HTML and have no special meaning unless they're part
+     * of a tag or an unquoted attribute value.
+     * http://mathiasbynens.be/notes/ambiguous-ampersands (under "semi-related fun fact")
+     */
+    var htmlEscapes = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;'
+    };
+
+    /** Used to convert HTML entities to characters */
+    var htmlUnescapes = invert(htmlEscapes);
+
+    /** Used to match HTML entities and HTML characters */
+    var reEscapedHtml = RegExp('(' + keys(htmlUnescapes).join('|') + ')', 'g'),
+        reUnescapedHtml = RegExp('[' + keys(htmlEscapes).join('') + ']', 'g');
+
+    /*--------------------------------------------------------------------------*/
+
+    /**
+     * Assigns own enumerable properties of source object(s) to the destination
+     * object. Subsequent sources will overwrite property assignments of previous
+     * sources. If a callback is provided it will be executed to produce the
+     * assigned values. The callback is bound to `thisArg` and invoked with two
+     * arguments; (objectValue, sourceValue).
+     *
+     * @static
+     * @memberOf _
+     * @type Function
+     * @alias extend
+     * @category Objects
+     * @param {Object} object The destination object.
+     * @param {...Object} [source] The source objects.
+     * @param {Function} [callback] The function to customize assigning values.
+     * @param {*} [thisArg] The `this` binding of `callback`.
+     * @returns {Object} Returns the destination object.
+     * @example
+     *
+     * _.assign({ 'name': 'fred' }, { 'employer': 'slate' });
+     * // => { 'name': 'fred', 'employer': 'slate' }
+     *
+     * var defaults = _.partialRight(_.assign, function(a, b) {
+     *   return typeof a == 'undefined' ? b : a;
+     * });
+     *
+     * var object = { 'name': 'barney' };
+     * defaults(object, { 'name': 'fred', 'employer': 'slate' });
+     * // => { 'name': 'barney', 'employer': 'slate' }
+     */
+    var assign = function(object, source, guard) {
+      var index, iterable = object, result = iterable;
+      if (!iterable) return result;
+      var args = arguments,
+          argsIndex = 0,
+          argsLength = typeof guard == 'number' ? 2 : args.length;
+      if (argsLength > 3 && typeof args[argsLength - 2] == 'function') {
+        var callback = baseCreateCallback(args[--argsLength - 1], args[argsLength--], 2);
+      } else if (argsLength > 2 && typeof args[argsLength - 1] == 'function') {
+        callback = args[--argsLength];
+      }
+      while (++argsIndex < argsLength) {
+        iterable = args[argsIndex];
+        if (iterable && objectTypes[typeof iterable]) {
+        var ownIndex = -1,
+            ownProps = objectTypes[typeof iterable] && keys(iterable),
+            length = ownProps ? ownProps.length : 0;
+
+        while (++ownIndex < length) {
+          index = ownProps[ownIndex];
+          result[index] = callback ? callback(result[index], iterable[index]) : iterable[index];
+        }
+        }
+      }
+      return result
+    };
+
+    /**
+     * Creates a clone of `value`. If `isDeep` is `true` nested objects will also
+     * be cloned, otherwise they will be assigned by reference. If a callback
+     * is provided it will be executed to produce the cloned values. If the
+     * callback returns `undefined` cloning will be handled by the method instead.
+     * The callback is bound to `thisArg` and invoked with one argument; (value).
+     *
+     * @static
+     * @memberOf _
+     * @category Objects
+     * @param {*} value The value to clone.
+     * @param {boolean} [isDeep=false] Specify a deep clone.
+     * @param {Function} [callback] The function to customize cloning values.
+     * @param {*} [thisArg] The `this` binding of `callback`.
+     * @returns {*} Returns the cloned value.
+     * @example
+     *
+     * var characters = [
+     *   { 'name': 'barney', 'age': 36 },
+     *   { 'name': 'fred',   'age': 40 }
+     * ];
+     *
+     * var shallow = _.clone(characters);
+     * shallow[0] === characters[0];
+     * // => true
+     *
+     * var deep = _.clone(characters, true);
+     * deep[0] === characters[0];
+     * // => false
+     *
+     * _.mixin({
+     *   'clone': _.partialRight(_.clone, function(value) {
+     *     return _.isElement(value) ? value.cloneNode(false) : undefined;
+     *   })
+     * });
+     *
+     * var clone = _.clone(document.body);
+     * clone.childNodes.length;
+     * // => 0
+     */
+    function clone(value, isDeep, callback, thisArg) {
+      // allows working with "Collections" methods without using their `index`
+      // and `collection` arguments for `isDeep` and `callback`
+      if (typeof isDeep != 'boolean' && isDeep != null) {
+        thisArg = callback;
+        callback = isDeep;
+        isDeep = false;
+      }
+      return baseClone(value, isDeep, typeof callback == 'function' && baseCreateCallback(callback, thisArg, 1));
+    }
+
+    /**
+     * Creates a deep clone of `value`. If a callback is provided it will be
+     * executed to produce the cloned values. If the callback returns `undefined`
+     * cloning will be handled by the method instead. The callback is bound to
+     * `thisArg` and invoked with one argument; (value).
+     *
+     * Note: This method is loosely based on the structured clone algorithm. Functions
+     * and DOM nodes are **not** cloned. The enumerable properties of `arguments` objects and
+     * objects created by constructors other than `Object` are cloned to plain `Object` objects.
+     * See http://www.w3.org/TR/html5/infrastructure.html#internal-structured-cloning-algorithm.
+     *
+     * @static
+     * @memberOf _
+     * @category Objects
+     * @param {*} value The value to deep clone.
+     * @param {Function} [callback] The function to customize cloning values.
+     * @param {*} [thisArg] The `this` binding of `callback`.
+     * @returns {*} Returns the deep cloned value.
+     * @example
+     *
+     * var characters = [
+     *   { 'name': 'barney', 'age': 36 },
+     *   { 'name': 'fred',   'age': 40 }
+     * ];
+     *
+     * var deep = _.cloneDeep(characters);
+     * deep[0] === characters[0];
+     * // => false
+     *
+     * var view = {
+     *   'label': 'docs',
+     *   'node': element
+     * };
+     *
+     * var clone = _.cloneDeep(view, function(value) {
+     *   return _.isElement(value) ? value.cloneNode(true) : undefined;
+     * });
+     *
+     * clone.node == view.node;
+     * // => false
+     */
+    function cloneDeep(value, callback, thisArg) {
+      return baseClone(value, true, typeof callback == 'function' && baseCreateCallback(callback, thisArg, 1));
+    }
+
+    /**
+     * Creates an object that inherits from the given `prototype` object. If a
+     * `properties` object is provided its own enumerable properties are assigned
+     * to the created object.
+     *
+     * @static
+     * @memberOf _
+     * @category Objects
+     * @param {Object} prototype The object to inherit from.
+     * @param {Object} [properties] The properties to assign to the object.
+     * @returns {Object} Returns the new object.
+     * @example
+     *
+     * function Shape() {
+     *   this.x = 0;
+     *   this.y = 0;
+     * }
+     *
+     * function Circle() {
+     *   Shape.call(this);
+     * }
+     *
+     * Circle.prototype = _.create(Shape.prototype, { 'constructor': Circle });
+     *
+     * var circle = new Circle;
+     * circle instanceof Circle;
+     * // => true
+     *
+     * circle instanceof Shape;
+     * // => true
+     */
+    function create(prototype, properties) {
+      var result = baseCreate(prototype);
+      return properties ? assign(result, properties) : result;
+    }
+
+    /**
+     * Assigns own enumerable properties of source object(s) to the destination
+     * object for all destination properties that resolve to `undefined`. Once a
+     * property is set, additional defaults of the same property will be ignored.
+     *
+     * @static
+     * @memberOf _
+     * @type Function
+     * @category Objects
+     * @param {Object} object The destination object.
+     * @param {...Object} [source] The source objects.
+     * @param- {Object} [guard] Allows working with `_.reduce` without using its
+     *  `key` and `object` arguments as sources.
+     * @returns {Object} Returns the destination object.
+     * @example
+     *
+     * var object = { 'name': 'barney' };
+     * _.defaults(object, { 'name': 'fred', 'employer': 'slate' });
+     * // => { 'name': 'barney', 'employer': 'slate' }
+     */
+    var defaults = function(object, source, guard) {
+      var index, iterable = object, result = iterable;
+      if (!iterable) return result;
+      var args = arguments,
+          argsIndex = 0,
+          argsLength = typeof guard == 'number' ? 2 : args.length;
+      while (++argsIndex < argsLength) {
+        iterable = args[argsIndex];
+        if (iterable && objectTypes[typeof iterable]) {
+        var ownIndex = -1,
+            ownProps = objectTypes[typeof iterable] && keys(iterable),
+            length = ownProps ? ownProps.length : 0;
+
+        while (++ownIndex < length) {
+          index = ownProps[ownIndex];
+          if (typeof result[index] == 'undefined') result[index] = iterable[index];
+        }
+        }
+      }
+      return result
+    };
+
+    /**
+     * This method is like `_.findIndex` except that it returns the key of the
+     * first element that passes the callback check, instead of the element itself.
+     *
+     * If a property name is provided for `callback` the created "_.pluck" style
+     * callback will return the property value of the given element.
+     *
+     * If an object is provided for `callback` the created "_.where" style callback
+     * will return `true` for elements that have the properties of the given object,
+     * else `false`.
+     *
+     * @static
+     * @memberOf _
+     * @category Objects
+     * @param {Object} object The object to search.
+     * @param {Function|Object|string} [callback=identity] The function called per
+     *  iteration. If a property name or object is provided it will be used to
+     *  create a "_.pluck" or "_.where" style callback, respectively.
+     * @param {*} [thisArg] The `this` binding of `callback`.
+     * @returns {string|undefined} Returns the key of the found element, else `undefined`.
+     * @example
+     *
+     * var characters = {
+     *   'barney': {  'age': 36, 'blocked': false },
+     *   'fred': {    'age': 40, 'blocked': true },
+     *   'pebbles': { 'age': 1,  'blocked': false }
+     * };
+     *
+     * _.findKey(characters, function(chr) {
+     *   return chr.age < 40;
+     * });
+     * // => 'barney' (property order is not guaranteed across environments)
+     *
+     * // using "_.where" callback shorthand
+     * _.findKey(characters, { 'age': 1 });
+     * // => 'pebbles'
+     *
+     * // using "_.pluck" callback shorthand
+     * _.findKey(characters, 'blocked');
+     * // => 'fred'
+     */
+    function findKey(object, callback, thisArg) {
+      var result;
+      callback = lodash.createCallback(callback, thisArg, 3);
+      forOwn(object, function(value, key, object) {
+        if (callback(value, key, object)) {
+          result = key;
+          return false;
+        }
+      });
+      return result;
+    }
+
+    /**
+     * This method is like `_.findKey` except that it iterates over elements
+     * of a `collection` in the opposite order.
+     *
+     * If a property name is provided for `callback` the created "_.pluck" style
+     * callback will return the property value of the given element.
+     *
+     * If an object is provided for `callback` the created "_.where" style callback
+     * will return `true` for elements that have the properties of the given object,
+     * else `false`.
+     *
+     * @static
+     * @memberOf _
+     * @category Objects
+     * @param {Object} object The object to search.
+     * @param {Function|Object|string} [callback=identity] The function called per
+     *  iteration. If a property name or object is provided it will be used to
+     *  create a "_.pluck" or "_.where" style callback, respectively.
+     * @param {*} [thisArg] The `this` binding of `callback`.
+     * @returns {string|undefined} Returns the key of the found element, else `undefined`.
+     * @example
+     *
+     * var characters = {
+     *   'barney': {  'age': 36, 'blocked': true },
+     *   'fred': {    'age': 40, 'blocked': false },
+     *   'pebbles': { 'age': 1,  'blocked': true }
+     * };
+     *
+     * _.findLastKey(characters, function(chr) {
+     *   return chr.age < 40;
+     * });
+     * // => returns `pebbles`, assuming `_.findKey` returns `barney`
+     *
+     * // using "_.where" callback shorthand
+     * _.findLastKey(characters, { 'age': 40 });
+     * // => 'fred'
+     *
+     * // using "_.pluck" callback shorthand
+     * _.findLastKey(characters, 'blocked');
+     * // => 'pebbles'
+     */
+    function findLastKey(object, callback, thisArg) {
+      var result;
+      callback = lodash.createCallback(callback, thisArg, 3);
+      forOwnRight(object, function(value, key, object) {
+        if (callback(value, key, object)) {
+          result = key;
+          return false;
+        }
+      });
+      return result;
+    }
+
+    /**
+     * Iterates over own and inherited enumerable properties of an object,
+     * executing the callback for each property. The callback is bound to `thisArg`
+     * and invoked with three arguments; (value, key, object). Callbacks may exit
+     * iteration early by explicitly returning `false`.
+     *
+     * @static
+     * @memberOf _
+     * @type Function
+     * @category Objects
+     * @param {Object} object The object to iterate over.
+     * @param {Function} [callback=identity] The function called per iteration.
+     * @param {*} [thisArg] The `this` binding of `callback`.
+     * @returns {Object} Returns `object`.
+     * @example
+     *
+     * function Shape() {
+     *   this.x = 0;
+     *   this.y = 0;
+     * }
+     *
+     * Shape.prototype.move = function(x, y) {
+     *   this.x += x;
+     *   this.y += y;
+     * };
+     *
+     * _.forIn(new Shape, function(value, key) {
+     *   console.log(key);
+     * });
+     * // => logs 'x', 'y', and 'move' (property order is not guaranteed across environments)
+     */
+    var forIn = function(collection, callback, thisArg) {
+      var index, iterable = collection, result = iterable;
+      if (!iterable) return result;
+      if (!objectTypes[typeof iterable]) return result;
+      callback = callback && typeof thisArg == 'undefined' ? callback : baseCreateCallback(callback, thisArg, 3);
+        for (index in iterable) {
+          if (callback(iterable[index], index, collection) === false) return result;
+        }
+      return result
+    };
+
+    /**
+     * This method is like `_.forIn` except that it iterates over elements
+     * of a `collection` in the opposite order.
+     *
+     * @static
+     * @memberOf _
+     * @category Objects
+     * @param {Object} object The object to iterate over.
+     * @param {Function} [callback=identity] The function called per iteration.
+     * @param {*} [thisArg] The `this` binding of `callback`.
+     * @returns {Object} Returns `object`.
+     * @example
+     *
+     * function Shape() {
+     *   this.x = 0;
+     *   this.y = 0;
+     * }
+     *
+     * Shape.prototype.move = function(x, y) {
+     *   this.x += x;
+     *   this.y += y;
+     * };
+     *
+     * _.forInRight(new Shape, function(value, key) {
+     *   console.log(key);
+     * });
+     * // => logs 'move', 'y', and 'x' assuming `_.forIn ` logs 'x', 'y', and 'move'
+     */
+    function forInRight(object, callback, thisArg) {
+      var pairs = [];
+
+      forIn(object, function(value, key) {
+        pairs.push(key, value);
+      });
+
+      var length = pairs.length;
+      callback = baseCreateCallback(callback, thisArg, 3);
+      while (length--) {
+        if (callback(pairs[length--], pairs[length], object) === false) {
+          break;
+        }
+      }
+      return object;
+    }
+
+    /**
+     * Iterates over own enumerable properties of an object, executing the callback
+     * for each property. The callback is bound to `thisArg` and invoked with three
+     * arguments; (value, key, object). Callbacks may exit iteration early by
+     * explicitly returning `false`.
+     *
+     * @static
+     * @memberOf _
+     * @type Function
+     * @category Objects
+     * @param {Object} object The object to iterate over.
+     * @param {Function} [callback=identity] The function called per iteration.
+     * @param {*} [thisArg] The `this` binding of `callback`.
+     * @returns {Object} Returns `object`.
+     * @example
+     *
+     * _.forOwn({ '0': 'zero', '1': 'one', 'length': 2 }, function(num, key) {
+     *   console.log(key);
+     * });
+     * // => logs '0', '1', and 'length' (property order is not guaranteed across environments)
+     */
+    var forOwn = function(collection, callback, thisArg) {
+      var index, iterable = collection, result = iterable;
+      if (!iterable) return result;
+      if (!objectTypes[typeof iterable]) return result;
+      callback = callback && typeof thisArg == 'undefined' ? callback : baseCreateCallback(callback, thisArg, 3);
+        var ownIndex = -1,
+            ownProps = objectTypes[typeof iterable] && keys(iterable),
+            length = ownProps ? ownProps.length : 0;
+
+        while (++ownIndex < length) {
+          index = ownProps[ownIndex];
+          if (callback(iterable[index], index, collection) === false) return result;
+        }
+      return result
+    };
+
+    /**
+     * This method is like `_.forOwn` except that it iterates over elements
+     * of a `collection` in the opposite order.
+     *
+     * @static
+     * @memberOf _
+     * @category Objects
+     * @param {Object} object The object to iterate over.
+     * @param {Function} [callback=identity] The function called per iteration.
+     * @param {*} [thisArg] The `this` binding of `callback`.
+     * @returns {Object} Returns `object`.
+     * @example
+     *
+     * _.forOwnRight({ '0': 'zero', '1': 'one', 'length': 2 }, function(num, key) {
+     *   console.log(key);
+     * });
+     * // => logs 'length', '1', and '0' assuming `_.forOwn` logs '0', '1', and 'length'
+     */
+    function forOwnRight(object, callback, thisArg) {
+      var props = keys(object),
+          length = props.length;
+
+      callback = baseCreateCallback(callback, thisArg, 3);
+      while (length--) {
+        var key = props[length];
+        if (callback(object[key], key, object) === false) {
+          break;
+        }
+      }
+      return object;
+    }
+
+    /**
+     * Creates a sorted array of property names of all enumerable properties,
+     * own and inherited, of `object` that have function values.
+     *
+     * @static
+     * @memberOf _
+     * @alias methods
+     * @category Objects
+     * @param {Object} object The object to inspect.
+     * @returns {Array} Returns an array of property names that have function values.
+     * @example
+     *
+     * _.functions(_);
+     * // => ['all', 'any', 'bind', 'bindAll', 'clone', 'compact', 'compose', ...]
+     */
+    function functions(object) {
+      var result = [];
+      forIn(object, function(value, key) {
+        if (isFunction(value)) {
+          result.push(key);
+        }
+      });
+      return result.sort();
+    }
+
+    /**
+     * Checks if the specified property name exists as a direct property of `object`,
+     * instead of an inherited property.
+     *
+     * @static
+     * @memberOf _
+     * @category Objects
+     * @param {Object} object The object to inspect.
+     * @param {string} key The name of the property to check.
+     * @returns {boolean} Returns `true` if key is a direct property, else `false`.
+     * @example
+     *
+     * _.has({ 'a': 1, 'b': 2, 'c': 3 }, 'b');
+     * // => true
+     */
+    function has(object, key) {
+      return object ? hasOwnProperty.call(object, key) : false;
+    }
+
+    /**
+     * Creates an object composed of the inverted keys and values of the given object.
+     *
+     * @static
+     * @memberOf _
+     * @category Objects
+     * @param {Object} object The object to invert.
+     * @returns {Object} Returns the created inverted object.
+     * @example
+     *
+     * _.invert({ 'first': 'fred', 'second': 'barney' });
+     * // => { 'fred': 'first', 'barney': 'second' }
+     */
+    function invert(object) {
+      var index = -1,
+          props = keys(object),
+          length = props.length,
+          result = {};
+
+      while (++index < length) {
+        var key = props[index];
+        result[object[key]] = key;
+      }
+      return result;
+    }
+
+    /**
+     * Checks if `value` is a boolean value.
+     *
+     * @static
+     * @memberOf _
+     * @category Objects
+     * @param {*} value The value to check.
+     * @returns {boolean} Returns `true` if the `value` is a boolean value, else `false`.
+     * @example
+     *
+     * _.isBoolean(null);
+     * // => false
+     */
+    function isBoolean(value) {
+      return value === true || value === false ||
+        value && typeof value == 'object' && toString.call(value) == boolClass || false;
+    }
+
+    /**
+     * Checks if `value` is a date.
+     *
+     * @static
+     * @memberOf _
+     * @category Objects
+     * @param {*} value The value to check.
+     * @returns {boolean} Returns `true` if the `value` is a date, else `false`.
+     * @example
+     *
+     * _.isDate(new Date);
+     * // => true
+     */
+    function isDate(value) {
+      return value && typeof value == 'object' && toString.call(value) == dateClass || false;
+    }
+
+    /**
+     * Checks if `value` is a DOM element.
+     *
+     * @static
+     * @memberOf _
+     * @category Objects
+     * @param {*} value The value to check.
+     * @returns {boolean} Returns `true` if the `value` is a DOM element, else `false`.
+     * @example
+     *
+     * _.isElement(document.body);
+     * // => true
+     */
+    function isElement(value) {
+      return value && value.nodeType === 1 || false;
+    }
+
+    /**
+     * Checks if `value` is empty. Arrays, strings, or `arguments` objects with a
+     * length of `0` and objects with no own enumerable properties are considered
+     * "empty".
+     *
+     * @static
+     * @memberOf _
+     * @category Objects
+     * @param {Array|Object|string} value The value to inspect.
+     * @returns {boolean} Returns `true` if the `value` is empty, else `false`.
+     * @example
+     *
+     * _.isEmpty([1, 2, 3]);
+     * // => false
+     *
+     * _.isEmpty({});
+     * // => true
+     *
+     * _.isEmpty('');
+     * // => true
+     */
+    function isEmpty(value) {
+      var result = true;
+      if (!value) {
+        return result;
+      }
+      var className = toString.call(value),
+          length = value.length;
+
+      if ((className == arrayClass || className == stringClass || className == argsClass ) ||
+          (className == objectClass && typeof length == 'number' && isFunction(value.splice))) {
+        return !length;
+      }
+      forOwn(value, function() {
+        return (result = false);
+      });
+      return result;
+    }
+
+    /**
+     * Performs a deep comparison between two values to determine if they are
+     * equivalent to each other. If a callback is provided it will be executed
+     * to compare values. If the callback returns `undefined` comparisons will
+     * be handled by the method instead. The callback is bound to `thisArg` and
+     * invoked with two arguments; (a, b).
+     *
+     * @static
+     * @memberOf _
+     * @category Objects
+     * @param {*} a The value to compare.
+     * @param {*} b The other value to compare.
+     * @param {Function} [callback] The function to customize comparing values.
+     * @param {*} [thisArg] The `this` binding of `callback`.
+     * @returns {boolean} Returns `true` if the values are equivalent, else `false`.
+     * @example
+     *
+     * var object = { 'name': 'fred' };
+     * var copy = { 'name': 'fred' };
+     *
+     * object == copy;
+     * // => false
+     *
+     * _.isEqual(object, copy);
+     * // => true
+     *
+     * var words = ['hello', 'goodbye'];
+     * var otherWords = ['hi', 'goodbye'];
+     *
+     * _.isEqual(words, otherWords, function(a, b) {
+     *   var reGreet = /^(?:hello|hi)$/i,
+     *       aGreet = _.isString(a) && reGreet.test(a),
+     *       bGreet = _.isString(b) && reGreet.test(b);
+     *
+     *   return (aGreet || bGreet) ? (aGreet == bGreet) : undefined;
+     * });
+     * // => true
+     */
+    function isEqual(a, b, callback, thisArg) {
+      return baseIsEqual(a, b, typeof callback == 'function' && baseCreateCallback(callback, thisArg, 2));
+    }
+
+    /**
+     * Checks if `value` is, or can be coerced to, a finite number.
+     *
+     * Note: This is not the same as native `isFinite` which will return true for
+     * booleans and empty strings. See http://es5.github.io/#x15.1.2.5.
+     *
+     * @static
+     * @memberOf _
+     * @category Objects
+     * @param {*} value The value to check.
+     * @returns {boolean} Returns `true` if the `value` is finite, else `false`.
+     * @example
+     *
+     * _.isFinite(-101);
+     * // => true
+     *
+     * _.isFinite('10');
+     * // => true
+     *
+     * _.isFinite(true);
+     * // => false
+     *
+     * _.isFinite('');
+     * // => false
+     *
+     * _.isFinite(Infinity);
+     * // => false
+     */
+    function isFinite(value) {
+      return nativeIsFinite(value) && !nativeIsNaN(parseFloat(value));
+    }
+
+    /**
+     * Checks if `value` is a function.
+     *
+     * @static
+     * @memberOf _
+     * @category Objects
+     * @param {*} value The value to check.
+     * @returns {boolean} Returns `true` if the `value` is a function, else `false`.
+     * @example
+     *
+     * _.isFunction(_);
+     * // => true
+     */
+    function isFunction(value) {
+      return typeof value == 'function';
+    }
+
+    /**
+     * Checks if `value` is the language type of Object.
+     * (e.g. arrays, functions, objects, regexes, `new Number(0)`, and `new String('')`)
+     *
+     * @static
+     * @memberOf _
+     * @category Objects
+     * @param {*} value The value to check.
+     * @returns {boolean} Returns `true` if the `value` is an object, else `false`.
+     * @example
+     *
+     * _.isObject({});
+     * // => true
+     *
+     * _.isObject([1, 2, 3]);
+     * // => true
+     *
+     * _.isObject(1);
+     * // => false
+     */
+    function isObject(value) {
+      // check if the value is the ECMAScript language type of Object
+      // http://es5.github.io/#x8
+      // and avoid a V8 bug
+      // http://code.google.com/p/v8/issues/detail?id=2291
+      return !!(value && objectTypes[typeof value]);
+    }
+
+    /**
+     * Checks if `value` is `NaN`.
+     *
+     * Note: This is not the same as native `isNaN` which will return `true` for
+     * `undefined` and other non-numeric values. See http://es5.github.io/#x15.1.2.4.
+     *
+     * @static
+     * @memberOf _
+     * @category Objects
+     * @param {*} value The value to check.
+     * @returns {boolean} Returns `true` if the `value` is `NaN`, else `false`.
+     * @example
+     *
+     * _.isNaN(NaN);
+     * // => true
+     *
+     * _.isNaN(new Number(NaN));
+     * // => true
+     *
+     * isNaN(undefined);
+     * // => true
+     *
+     * _.isNaN(undefined);
+     * // => false
+     */
+    function isNaN(value) {
+      // `NaN` as a primitive is the only value that is not equal to itself
+      // (perform the [[Class]] check first to avoid errors with some host objects in IE)
+      return isNumber(value) && value != +value;
+    }
+
+    /**
+     * Checks if `value` is `null`.
+     *
+     * @static
+     * @memberOf _
+     * @category Objects
+     * @param {*} value The value to check.
+     * @returns {boolean} Returns `true` if the `value` is `null`, else `false`.
+     * @example
+     *
+     * _.isNull(null);
+     * // => true
+     *
+     * _.isNull(undefined);
+     * // => false
+     */
+    function isNull(value) {
+      return value === null;
+    }
+
+    /**
+     * Checks if `value` is a number.
+     *
+     * Note: `NaN` is considered a number. See http://es5.github.io/#x8.5.
+     *
+     * @static
+     * @memberOf _
+     * @category Objects
+     * @param {*} value The value to check.
+     * @returns {boolean} Returns `true` if the `value` is a number, else `false`.
+     * @example
+     *
+     * _.isNumber(8.4 * 5);
+     * // => true
+     */
+    function isNumber(value) {
+      return typeof value == 'number' ||
+        value && typeof value == 'object' && toString.call(value) == numberClass || false;
+    }
+
+    /**
+     * Checks if `value` is an object created by the `Object` constructor.
+     *
+     * @static
+     * @memberOf _
+     * @category Objects
+     * @param {*} value The value to check.
+     * @returns {boolean} Returns `true` if `value` is a plain object, else `false`.
+     * @example
+     *
+     * function Shape() {
+     *   this.x = 0;
+     *   this.y = 0;
+     * }
+     *
+     * _.isPlainObject(new Shape);
+     * // => false
+     *
+     * _.isPlainObject([1, 2, 3]);
+     * // => false
+     *
+     * _.isPlainObject({ 'x': 0, 'y': 0 });
+     * // => true
+     */
+    var isPlainObject = !getPrototypeOf ? shimIsPlainObject : function(value) {
+      if (!(value && toString.call(value) == objectClass)) {
+        return false;
+      }
+      var valueOf = value.valueOf,
+          objProto = isNative(valueOf) && (objProto = getPrototypeOf(valueOf)) && getPrototypeOf(objProto);
+
+      return objProto
+        ? (value == objProto || getPrototypeOf(value) == objProto)
+        : shimIsPlainObject(value);
+    };
+
+    /**
+     * Checks if `value` is a regular expression.
+     *
+     * @static
+     * @memberOf _
+     * @category Objects
+     * @param {*} value The value to check.
+     * @returns {boolean} Returns `true` if the `value` is a regular expression, else `false`.
+     * @example
+     *
+     * _.isRegExp(/fred/);
+     * // => true
+     */
+    function isRegExp(value) {
+      return value && typeof value == 'object' && toString.call(value) == regexpClass || false;
+    }
+
+    /**
+     * Checks if `value` is a string.
+     *
+     * @static
+     * @memberOf _
+     * @category Objects
+     * @param {*} value The value to check.
+     * @returns {boolean} Returns `true` if the `value` is a string, else `false`.
+     * @example
+     *
+     * _.isString('fred');
+     * // => true
+     */
+    function isString(value) {
+      return typeof value == 'string' ||
+        value && typeof value == 'object' && toString.call(value) == stringClass || false;
+    }
+
+    /**
+     * Checks if `value` is `undefined`.
+     *
+     * @static
+     * @memberOf _
+     * @category Objects
+     * @param {*} value The value to check.
+     * @returns {boolean} Returns `true` if the `value` is `undefined`, else `false`.
+     * @example
+     *
+     * _.isUndefined(void 0);
+     * // => true
+     */
+    function isUndefined(value) {
+      return typeof value == 'undefined';
+    }
+
+    /**
+     * Creates an object with the same keys as `object` and values generated by
+     * running each own enumerable property of `object` through the callback.
+     * The callback is bound to `thisArg` and invoked with three arguments;
+     * (value, key, object).
+     *
+     * If a property name is provided for `callback` the created "_.pluck" style
+     * callback will return the property value of the given element.
+     *
+     * If an object is provided for `callback` the created "_.where" style callback
+     * will return `true` for elements that have the properties of the given object,
+     * else `false`.
+     *
+     * @static
+     * @memberOf _
+     * @category Objects
+     * @param {Object} object The object to iterate over.
+     * @param {Function|Object|string} [callback=identity] The function called
+     *  per iteration. If a property name or object is provided it will be used
+     *  to create a "_.pluck" or "_.where" style callback, respectively.
+     * @param {*} [thisArg] The `this` binding of `callback`.
+     * @returns {Array} Returns a new object with values of the results of each `callback` execution.
+     * @example
+     *
+     * _.mapValues({ 'a': 1, 'b': 2, 'c': 3} , function(num) { return num * 3; });
+     * // => { 'a': 3, 'b': 6, 'c': 9 }
+     *
+     * var characters = {
+     *   'fred': { 'name': 'fred', 'age': 40 },
+     *   'pebbles': { 'name': 'pebbles', 'age': 1 }
+     * };
+     *
+     * // using "_.pluck" callback shorthand
+     * _.mapValues(characters, 'age');
+     * // => { 'fred': 40, 'pebbles': 1 }
+     */
+    function mapValues(object, callback, thisArg) {
+      var result = {};
+      callback = lodash.createCallback(callback, thisArg, 3);
+
+      forOwn(object, function(value, key, object) {
+        result[key] = callback(value, key, object);
+      });
+      return result;
+    }
+
+    /**
+     * Recursively merges own enumerable properties of the source object(s), that
+     * don't resolve to `undefined` into the destination object. Subsequent sources
+     * will overwrite property assignments of previous sources. If a callback is
+     * provided it will be executed to produce the merged values of the destination
+     * and source properties. If the callback returns `undefined` merging will
+     * be handled by the method instead. The callback is bound to `thisArg` and
+     * invoked with two arguments; (objectValue, sourceValue).
+     *
+     * @static
+     * @memberOf _
+     * @category Objects
+     * @param {Object} object The destination object.
+     * @param {...Object} [source] The source objects.
+     * @param {Function} [callback] The function to customize merging properties.
+     * @param {*} [thisArg] The `this` binding of `callback`.
+     * @returns {Object} Returns the destination object.
+     * @example
+     *
+     * var names = {
+     *   'characters': [
+     *     { 'name': 'barney' },
+     *     { 'name': 'fred' }
+     *   ]
+     * };
+     *
+     * var ages = {
+     *   'characters': [
+     *     { 'age': 36 },
+     *     { 'age': 40 }
+     *   ]
+     * };
+     *
+     * _.merge(names, ages);
+     * // => { 'characters': [{ 'name': 'barney', 'age': 36 }, { 'name': 'fred', 'age': 40 }] }
+     *
+     * var food = {
+     *   'fruits': ['apple'],
+     *   'vegetables': ['beet']
+     * };
+     *
+     * var otherFood = {
+     *   'fruits': ['banana'],
+     *   'vegetables': ['carrot']
+     * };
+     *
+     * _.merge(food, otherFood, function(a, b) {
+     *   return _.isArray(a) ? a.concat(b) : undefined;
+     * });
+     * // => { 'fruits': ['apple', 'banana'], 'vegetables': ['beet', 'carrot] }
+     */
+    function merge(object) {
+      var args = arguments,
+          length = 2;
+
+      if (!isObject(object)) {
+        return object;
+      }
+      // allows working with `_.reduce` and `_.reduceRight` without using
+      // their `index` and `collection` arguments
+      if (typeof args[2] != 'number') {
+        length = args.length;
+      }
+      if (length > 3 && typeof args[length - 2] == 'function') {
+        var callback = baseCreateCallback(args[--length - 1], args[length--], 2);
+      } else if (length > 2 && typeof args[length - 1] == 'function') {
+        callback = args[--length];
+      }
+      var sources = slice(arguments, 1, length),
+          index = -1,
+          stackA = getArray(),
+          stackB = getArray();
+
+      while (++index < length) {
+        baseMerge(object, sources[index], callback, stackA, stackB);
+      }
+      releaseArray(stackA);
+      releaseArray(stackB);
+      return object;
+    }
+
+    /**
+     * Creates a shallow clone of `object` excluding the specified properties.
+     * Property names may be specified as individual arguments or as arrays of
+     * property names. If a callback is provided it will be executed for each
+     * property of `object` omitting the properties the callback returns truey
+     * for. The callback is bound to `thisArg` and invoked with three arguments;
+     * (value, key, object).
+     *
+     * @static
+     * @memberOf _
+     * @category Objects
+     * @param {Object} object The source object.
+     * @param {Function|...string|string[]} [callback] The properties to omit or the
+     *  function called per iteration.
+     * @param {*} [thisArg] The `this` binding of `callback`.
+     * @returns {Object} Returns an object without the omitted properties.
+     * @example
+     *
+     * _.omit({ 'name': 'fred', 'age': 40 }, 'age');
+     * // => { 'name': 'fred' }
+     *
+     * _.omit({ 'name': 'fred', 'age': 40 }, function(value) {
+     *   return typeof value == 'number';
+     * });
+     * // => { 'name': 'fred' }
+     */
+    function omit(object, callback, thisArg) {
+      var result = {};
+      if (typeof callback != 'function') {
+        var props = [];
+        forIn(object, function(value, key) {
+          props.push(key);
+        });
+        props = baseDifference(props, baseFlatten(arguments, true, false, 1));
+
+        var index = -1,
+            length = props.length;
+
+        while (++index < length) {
+          var key = props[index];
+          result[key] = object[key];
+        }
+      } else {
+        callback = lodash.createCallback(callback, thisArg, 3);
+        forIn(object, function(value, key, object) {
+          if (!callback(value, key, object)) {
+            result[key] = value;
+          }
+        });
+      }
+      return result;
+    }
+
+    /**
+     * Creates a two dimensional array of an object's key-value pairs,
+     * i.e. `[[key1, value1], [key2, value2]]`.
+     *
+     * @static
+     * @memberOf _
+     * @category Objects
+     * @param {Object} object The object to inspect.
+     * @returns {Array} Returns new array of key-value pairs.
+     * @example
+     *
+     * _.pairs({ 'barney': 36, 'fred': 40 });
+     * // => [['barney', 36], ['fred', 40]] (property order is not guaranteed across environments)
+     */
+    function pairs(object) {
+      var index = -1,
+          props = keys(object),
+          length = props.length,
+          result = Array(length);
+
+      while (++index < length) {
+        var key = props[index];
+        result[index] = [key, object[key]];
+      }
+      return result;
+    }
+
+    /**
+     * Creates a shallow clone of `object` composed of the specified properties.
+     * Property names may be specified as individual arguments or as arrays of
+     * property names. If a callback is provided it will be executed for each
+     * property of `object` picking the properties the callback returns truey
+     * for. The callback is bound to `thisArg` and invoked with three arguments;
+     * (value, key, object).
+     *
+     * @static
+     * @memberOf _
+     * @category Objects
+     * @param {Object} object The source object.
+     * @param {Function|...string|string[]} [callback] The function called per
+     *  iteration or property names to pick, specified as individual property
+     *  names or arrays of property names.
+     * @param {*} [thisArg] The `this` binding of `callback`.
+     * @returns {Object} Returns an object composed of the picked properties.
+     * @example
+     *
+     * _.pick({ 'name': 'fred', '_userid': 'fred1' }, 'name');
+     * // => { 'name': 'fred' }
+     *
+     * _.pick({ 'name': 'fred', '_userid': 'fred1' }, function(value, key) {
+     *   return key.charAt(0) != '_';
+     * });
+     * // => { 'name': 'fred' }
+     */
+    function pick(object, callback, thisArg) {
+      var result = {};
+      if (typeof callback != 'function') {
+        var index = -1,
+            props = baseFlatten(arguments, true, false, 1),
+            length = isObject(object) ? props.length : 0;
+
+        while (++index < length) {
+          var key = props[index];
+          if (key in object) {
+            result[key] = object[key];
+          }
+        }
+      } else {
+        callback = lodash.createCallback(callback, thisArg, 3);
+        forIn(object, function(value, key, object) {
+          if (callback(value, key, object)) {
+            result[key] = value;
+          }
+        });
+      }
+      return result;
+    }
+
+    /**
+     * An alternative to `_.reduce` this method transforms `object` to a new
+     * `accumulator` object which is the result of running each of its own
+     * enumerable properties through a callback, with each callback execution
+     * potentially mutating the `accumulator` object. The callback is bound to
+     * `thisArg` and invoked with four arguments; (accumulator, value, key, object).
+     * Callbacks may exit iteration early by explicitly returning `false`.
+     *
+     * @static
+     * @memberOf _
+     * @category Objects
+     * @param {Array|Object} object The object to iterate over.
+     * @param {Function} [callback=identity] The function called per iteration.
+     * @param {*} [accumulator] The custom accumulator value.
+     * @param {*} [thisArg] The `this` binding of `callback`.
+     * @returns {*} Returns the accumulated value.
+     * @example
+     *
+     * var squares = _.transform([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], function(result, num) {
+     *   num *= num;
+     *   if (num % 2) {
+     *     return result.push(num) < 3;
+     *   }
+     * });
+     * // => [1, 9, 25]
+     *
+     * var mapped = _.transform({ 'a': 1, 'b': 2, 'c': 3 }, function(result, num, key) {
+     *   result[key] = num * 3;
+     * });
+     * // => { 'a': 3, 'b': 6, 'c': 9 }
+     */
+    function transform(object, callback, accumulator, thisArg) {
+      var isArr = isArray(object);
+      if (accumulator == null) {
+        if (isArr) {
+          accumulator = [];
+        } else {
+          var ctor = object && object.constructor,
+              proto = ctor && ctor.prototype;
+
+          accumulator = baseCreate(proto);
+        }
+      }
+      if (callback) {
+        callback = lodash.createCallback(callback, thisArg, 4);
+        (isArr ? forEach : forOwn)(object, function(value, index, object) {
+          return callback(accumulator, value, index, object);
+        });
+      }
+      return accumulator;
+    }
+
+    /**
+     * Creates an array composed of the own enumerable property values of `object`.
+     *
+     * @static
+     * @memberOf _
+     * @category Objects
+     * @param {Object} object The object to inspect.
+     * @returns {Array} Returns an array of property values.
+     * @example
+     *
+     * _.values({ 'one': 1, 'two': 2, 'three': 3 });
+     * // => [1, 2, 3] (property order is not guaranteed across environments)
+     */
+    function values(object) {
+      var index = -1,
+          props = keys(object),
+          length = props.length,
+          result = Array(length);
+
+      while (++index < length) {
+        result[index] = object[props[index]];
+      }
+      return result;
+    }
+
+    /*--------------------------------------------------------------------------*/
+
+    /**
+     * Creates an array of elements from the specified indexes, or keys, of the
+     * `collection`. Indexes may be specified as individual arguments or as arrays
+     * of indexes.
+     *
+     * @static
+     * @memberOf _
+     * @category Collections
+     * @param {Array|Object|string} collection The collection to iterate over.
+     * @param {...(number|number[]|string|string[])} [index] The indexes of `collection`
+     *   to retrieve, specified as individual indexes or arrays of indexes.
+     * @returns {Array} Returns a new array of elements corresponding to the
+     *  provided indexes.
+     * @example
+     *
+     * _.at(['a', 'b', 'c', 'd', 'e'], [0, 2, 4]);
+     * // => ['a', 'c', 'e']
+     *
+     * _.at(['fred', 'barney', 'pebbles'], 0, 2);
+     * // => ['fred', 'pebbles']
+     */
+    function at(collection) {
+      var args = arguments,
+          index = -1,
+          props = baseFlatten(args, true, false, 1),
+          length = (args[2] && args[2][args[1]] === collection) ? 1 : props.length,
+          result = Array(length);
+
+      while(++index < length) {
+        result[index] = collection[props[index]];
+      }
+      return result;
+    }
+
+    /**
+     * Checks if a given value is present in a collection using strict equality
+     * for comparisons, i.e. `===`. If `fromIndex` is negative, it is used as the
+     * offset from the end of the collection.
+     *
+     * @static
+     * @memberOf _
+     * @alias include
+     * @category Collections
+     * @param {Array|Object|string} collection The collection to iterate over.
+     * @param {*} target The value to check for.
+     * @param {number} [fromIndex=0] The index to search from.
+     * @returns {boolean} Returns `true` if the `target` element is found, else `false`.
+     * @example
+     *
+     * _.contains([1, 2, 3], 1);
+     * // => true
+     *
+     * _.contains([1, 2, 3], 1, 2);
+     * // => false
+     *
+     * _.contains({ 'name': 'fred', 'age': 40 }, 'fred');
+     * // => true
+     *
+     * _.contains('pebbles', 'eb');
+     * // => true
+     */
+    function contains(collection, target, fromIndex) {
+      var index = -1,
+          indexOf = getIndexOf(),
+          length = collection ? collection.length : 0,
+          result = false;
+
+      fromIndex = (fromIndex < 0 ? nativeMax(0, length + fromIndex) : fromIndex) || 0;
+      if (isArray(collection)) {
+        result = indexOf(collection, target, fromIndex) > -1;
+      } else if (typeof length == 'number') {
+        result = (isString(collection) ? collection.indexOf(target, fromIndex) : indexOf(collection, target, fromIndex)) > -1;
+      } else {
+        forOwn(collection, function(value) {
+          if (++index >= fromIndex) {
+            return !(result = value === target);
+          }
+        });
+      }
+      return result;
+    }
+
+    /**
+     * Creates an object composed of keys generated from the results of running
+     * each element of `collection` through the callback. The corresponding value
+     * of each key is the number of times the key was returned by the callback.
+     * The callback is bound to `thisArg` and invoked with three arguments;
+     * (value, index|key, collection).
+     *
+     * If a property name is provided for `callback` the created "_.pluck" style
+     * callback will return the property value of the given element.
+     *
+     * If an object is provided for `callback` the created "_.where" style callback
+     * will return `true` for elements that have the properties of the given object,
+     * else `false`.
+     *
+     * @static
+     * @memberOf _
+     * @category Collections
+     * @param {Array|Object|string} collection The collection to iterate over.
+     * @param {Function|Object|string} [callback=identity] The function called
+     *  per iteration. If a property name or object is provided it will be used
+     *  to create a "_.pluck" or "_.where" style callback, respectively.
+     * @param {*} [thisArg] The `this` binding of `callback`.
+     * @returns {Object} Returns the composed aggregate object.
+     * @example
+     *
+     * _.countBy([4.3, 6.1, 6.4], function(num) { return Math.floor(num); });
+     * // => { '4': 1, '6': 2 }
+     *
+     * _.countBy([4.3, 6.1, 6.4], function(num) { return this.floor(num); }, Math);
+     * // => { '4': 1, '6': 2 }
+     *
+     * _.countBy(['one', 'two', 'three'], 'length');
+     * // => { '3': 2, '5': 1 }
+     */
+    var countBy = createAggregator(function(result, value, key) {
+      (hasOwnProperty.call(result, key) ? result[key]++ : result[key] = 1);
+    });
+
+    /**
+     * Checks if the given callback returns truey value for **all** elements of
+     * a collection. The callback is bound to `thisArg` and invoked with three
+     * arguments; (value, index|key, collection).
+     *
+     * If a property name is provided for `callback` the created "_.pluck" style
+     * callback will return the property value of the given element.
+     *
+     * If an object is provided for `callback` the created "_.where" style callback
+     * will return `true` for elements that have the properties of the given object,
+     * else `false`.
+     *
+     * @static
+     * @memberOf _
+     * @alias all
+     * @category Collections
+     * @param {Array|Object|string} collection The collection to iterate over.
+     * @param {Function|Object|string} [callback=identity] The function called
+     *  per iteration. If a property name or object is provided it will be used
+     *  to create a "_.pluck" or "_.where" style callback, respectively.
+     * @param {*} [thisArg] The `this` binding of `callback`.
+     * @returns {boolean} Returns `true` if all elements passed the callback check,
+     *  else `false`.
+     * @example
+     *
+     * _.every([true, 1, null, 'yes']);
+     * // => false
+     *
+     * var characters = [
+     *   { 'name': 'barney', 'age': 36 },
+     *   { 'name': 'fred',   'age': 40 }
+     * ];
+     *
+     * // using "_.pluck" callback shorthand
+     * _.every(characters, 'age');
+     * // => true
+     *
+     * // using "_.where" callback shorthand
+     * _.every(characters, { 'age': 36 });
+     * // => false
+     */
+    function every(collection, callback, thisArg) {
+      var result = true;
+      callback = lodash.createCallback(callback, thisArg, 3);
+
+      var index = -1,
+          length = collection ? collection.length : 0;
+
+      if (typeof length == 'number') {
+        while (++index < length) {
+          if (!(result = !!callback(collection[index], index, collection))) {
+            break;
+          }
+        }
+      } else {
+        forOwn(collection, function(value, index, collection) {
+          return (result = !!callback(value, index, collection));
+        });
+      }
+      return result;
+    }
+
+    /**
+     * Iterates over elements of a collection, returning an array of all elements
+     * the callback returns truey for. The callback is bound to `thisArg` and
+     * invoked with three arguments; (value, index|key, collection).
+     *
+     * If a property name is provided for `callback` the created "_.pluck" style
+     * callback will return the property value of the given element.
+     *
+     * If an object is provided for `callback` the created "_.where" style callback
+     * will return `true` for elements that have the properties of the given object,
+     * else `false`.
+     *
+     * @static
+     * @memberOf _
+     * @alias select
+     * @category Collections
+     * @param {Array|Object|string} collection The collection to iterate over.
+     * @param {Function|Object|string} [callback=identity] The function called
+     *  per iteration. If a property name or object is provided it will be used
+     *  to create a "_.pluck" or "_.where" style callback, respectively.
+     * @param {*} [thisArg] The `this` binding of `callback`.
+     * @returns {Array} Returns a new array of elements that passed the callback check.
+     * @example
+     *
+     * var evens = _.filter([1, 2, 3, 4, 5, 6], function(num) { return num % 2 == 0; });
+     * // => [2, 4, 6]
+     *
+     * var characters = [
+     *   { 'name': 'barney', 'age': 36, 'blocked': false },
+     *   { 'name': 'fred',   'age': 40, 'blocked': true }
+     * ];
+     *
+     * // using "_.pluck" callback shorthand
+     * _.filter(characters, 'blocked');
+     * // => [{ 'name': 'fred', 'age': 40, 'blocked': true }]
+     *
+     * // using "_.where" callback shorthand
+     * _.filter(characters, { 'age': 36 });
+     * // => [{ 'name': 'barney', 'age': 36, 'blocked': false }]
+     */
+    function filter(collection, callback, thisArg) {
+      var result = [];
+      callback = lodash.createCallback(callback, thisArg, 3);
+
+      var index = -1,
+          length = collection ? collection.length : 0;
+
+      if (typeof length == 'number') {
+        while (++index < length) {
+          var value = collection[index];
+          if (callback(value, index, collection)) {
+            result.push(value);
+          }
+        }
+      } else {
+        forOwn(collection, function(value, index, collection) {
+          if (callback(value, index, collection)) {
+            result.push(value);
+          }
+        });
+      }
+      return result;
+    }
+
+    /**
+     * Iterates over elements of a collection, returning the first element that
+     * the callback returns truey for. The callback is bound to `thisArg` and
+     * invoked with three arguments; (value, index|key, collection).
+     *
+     * If a property name is provided for `callback` the created "_.pluck" style
+     * callback will return the property value of the given element.
+     *
+     * If an object is provided for `callback` the created "_.where" style callback
+     * will return `true` for elements that have the properties of the given object,
+     * else `false`.
+     *
+     * @static
+     * @memberOf _
+     * @alias detect, findWhere
+     * @category Collections
+     * @param {Array|Object|string} collection The collection to iterate over.
+     * @param {Function|Object|string} [callback=identity] The function called
+     *  per iteration. If a property name or object is provided it will be used
+     *  to create a "_.pluck" or "_.where" style callback, respectively.
+     * @param {*} [thisArg] The `this` binding of `callback`.
+     * @returns {*} Returns the found element, else `undefined`.
+     * @example
+     *
+     * var characters = [
+     *   { 'name': 'barney',  'age': 36, 'blocked': false },
+     *   { 'name': 'fred',    'age': 40, 'blocked': true },
+     *   { 'name': 'pebbles', 'age': 1,  'blocked': false }
+     * ];
+     *
+     * _.find(characters, function(chr) {
+     *   return chr.age < 40;
+     * });
+     * // => { 'name': 'barney', 'age': 36, 'blocked': false }
+     *
+     * // using "_.where" callback shorthand
+     * _.find(characters, { 'age': 1 });
+     * // =>  { 'name': 'pebbles', 'age': 1, 'blocked': false }
+     *
+     * // using "_.pluck" callback shorthand
+     * _.find(characters, 'blocked');
+     * // => { 'name': 'fred', 'age': 40, 'blocked': true }
+     */
+    function find(collection, callback, thisArg) {
+      callback = lodash.createCallback(callback, thisArg, 3);
+
+      var index = -1,
+          length = collection ? collection.length : 0;
+
+      if (typeof length == 'number') {
+        while (++index < length) {
+          var value = collection[index];
+          if (callback(value, index, collection)) {
+            return value;
+          }
+        }
+      } else {
+        var result;
+        forOwn(collection, function(value, index, collection) {
+          if (callback(value, index, collection)) {
+            result = value;
+            return false;
+          }
+        });
+        return result;
+      }
+    }
+
+    /**
+     * This method is like `_.find` except that it iterates over elements
+     * of a `collection` from right to left.
+     *
+     * @static
+     * @memberOf _
+     * @category Collections
+     * @param {Array|Object|string} collection The collection to iterate over.
+     * @param {Function|Object|string} [callback=identity] The function called
+     *  per iteration. If a property name or object is provided it will be used
+     *  to create a "_.pluck" or "_.where" style callback, respectively.
+     * @param {*} [thisArg] The `this` binding of `callback`.
+     * @returns {*} Returns the found element, else `undefined`.
+     * @example
+     *
+     * _.findLast([1, 2, 3, 4], function(num) {
+     *   return num % 2 == 1;
+     * });
+     * // => 3
+     */
+    function findLast(collection, callback, thisArg) {
+      var result;
+      callback = lodash.createCallback(callback, thisArg, 3);
+      forEachRight(collection, function(value, index, collection) {
+        if (callback(value, index, collection)) {
+          result = value;
+          return false;
+        }
+      });
+      return result;
+    }
+
+    /**
+     * Iterates over elements of a collection, executing the callback for each
+     * element. The callback is bound to `thisArg` and invoked with three arguments;
+     * (value, index|key, collection). Callbacks may exit iteration early by
+     * explicitly returning `false`.
+     *
+     * Note: As with other "Collections" methods, objects with a `length` property
+     * are iterated like arrays. To avoid this behavior `_.forIn` or `_.forOwn`
+     * may be used for object iteration.
+     *
+     * @static
+     * @memberOf _
+     * @alias each
+     * @category Collections
+     * @param {Array|Object|string} collection The collection to iterate over.
+     * @param {Function} [callback=identity] The function called per iteration.
+     * @param {*} [thisArg] The `this` binding of `callback`.
+     * @returns {Array|Object|string} Returns `collection`.
+     * @example
+     *
+     * _([1, 2, 3]).forEach(function(num) { console.log(num); }).join(',');
+     * // => logs each number and returns '1,2,3'
+     *
+     * _.forEach({ 'one': 1, 'two': 2, 'three': 3 }, function(num) { console.log(num); });
+     * // => logs each number and returns the object (property order is not guaranteed across environments)
+     */
+    function forEach(collection, callback, thisArg) {
+      var index = -1,
+          length = collection ? collection.length : 0;
+
+      callback = callback && typeof thisArg == 'undefined' ? callback : baseCreateCallback(callback, thisArg, 3);
+      if (typeof length == 'number') {
+        while (++index < length) {
+          if (callback(collection[index], index, collection) === false) {
+            break;
+          }
+        }
+      } else {
+        forOwn(collection, callback);
+      }
+      return collection;
+    }
+
+    /**
+     * This method is like `_.forEach` except that it iterates over elements
+     * of a `collection` from right to left.
+     *
+     * @static
+     * @memberOf _
+     * @alias eachRight
+     * @category Collections
+     * @param {Array|Object|string} collection The collection to iterate over.
+     * @param {Function} [callback=identity] The function called per iteration.
+     * @param {*} [thisArg] The `this` binding of `callback`.
+     * @returns {Array|Object|string} Returns `collection`.
+     * @example
+     *
+     * _([1, 2, 3]).forEachRight(function(num) { console.log(num); }).join(',');
+     * // => logs each number from right to left and returns '3,2,1'
+     */
+    function forEachRight(collection, callback, thisArg) {
+      var length = collection ? collection.length : 0;
+      callback = callback && typeof thisArg == 'undefined' ? callback : baseCreateCallback(callback, thisArg, 3);
+      if (typeof length == 'number') {
+        while (length--) {
+          if (callback(collection[length], length, collection) === false) {
+            break;
+          }
+        }
+      } else {
+        var props = keys(collection);
+        length = props.length;
+        forOwn(collection, function(value, key, collection) {
+          key = props ? props[--length] : --length;
+          return callback(collection[key], key, collection);
+        });
+      }
+      return collection;
+    }
+
+    /**
+     * Creates an object composed of keys generated from the results of running
+     * each element of a collection through the callback. The corresponding value
+     * of each key is an array of the elements responsible for generating the key.
+     * The callback is bound to `thisArg` and invoked with three arguments;
+     * (value, index|key, collection).
+     *
+     * If a property name is provided for `callback` the created "_.pluck" style
+     * callback will return the property value of the given element.
+     *
+     * If an object is provided for `callback` the created "_.where" style callback
+     * will return `true` for elements that have the properties of the given object,
+     * else `false`
+     *
+     * @static
+     * @memberOf _
+     * @category Collections
+     * @param {Array|Object|string} collection The collection to iterate over.
+     * @param {Function|Object|string} [callback=identity] The function called
+     *  per iteration. If a property name or object is provided it will be used
+     *  to create a "_.pluck" or "_.where" style callback, respectively.
+     * @param {*} [thisArg] The `this` binding of `callback`.
+     * @returns {Object} Returns the composed aggregate object.
+     * @example
+     *
+     * _.groupBy([4.2, 6.1, 6.4], function(num) { return Math.floor(num); });
+     * // => { '4': [4.2], '6': [6.1, 6.4] }
+     *
+     * _.groupBy([4.2, 6.1, 6.4], function(num) { return this.floor(num); }, Math);
+     * // => { '4': [4.2], '6': [6.1, 6.4] }
+     *
+     * // using "_.pluck" callback shorthand
+     * _.groupBy(['one', 'two', 'three'], 'length');
+     * // => { '3': ['one', 'two'], '5': ['three'] }
+     */
+    var groupBy = createAggregator(function(result, value, key) {
+      (hasOwnProperty.call(result, key) ? result[key] : result[key] = []).push(value);
+    });
+
+    /**
+     * Creates an object composed of keys generated from the results of running
+     * each element of the collection through the given callback. The corresponding
+     * value of each key is the last element responsible for generating the key.
+     * The callback is bound to `thisArg` and invoked with three arguments;
+     * (value, index|key, collection).
+     *
+     * If a property name is provided for `callback` the created "_.pluck" style
+     * callback will return the property value of the given element.
+     *
+     * If an object is provided for `callback` the created "_.where" style callback
+     * will return `true` for elements that have the properties of the given object,
+     * else `false`.
+     *
+     * @static
+     * @memberOf _
+     * @category Collections
+     * @param {Array|Object|string} collection The collection to iterate over.
+     * @param {Function|Object|string} [callback=identity] The function called
+     *  per iteration. If a property name or object is provided it will be used
+     *  to create a "_.pluck" or "_.where" style callback, respectively.
+     * @param {*} [thisArg] The `this` binding of `callback`.
+     * @returns {Object} Returns the composed aggregate object.
+     * @example
+     *
+     * var keys = [
+     *   { 'dir': 'left', 'code': 97 },
+     *   { 'dir': 'right', 'code': 100 }
+     * ];
+     *
+     * _.indexBy(keys, 'dir');
+     * // => { 'left': { 'dir': 'left', 'code': 97 }, 'right': { 'dir': 'right', 'code': 100 } }
+     *
+     * _.indexBy(keys, function(key) { return String.fromCharCode(key.code); });
+     * // => { 'a': { 'dir': 'left', 'code': 97 }, 'd': { 'dir': 'right', 'code': 100 } }
+     *
+     * _.indexBy(characters, function(key) { this.fromCharCode(key.code); }, String);
+     * // => { 'a': { 'dir': 'left', 'code': 97 }, 'd': { 'dir': 'right', 'code': 100 } }
+     */
+    var indexBy = createAggregator(function(result, value, key) {
+      result[key] = value;
+    });
+
+    /**
+     * Invokes the method named by `methodName` on each element in the `collection`
+     * returning an array of the results of each invoked method. Additional arguments
+     * will be provided to each invoked method. If `methodName` is a function it
+     * will be invoked for, and `this` bound to, each element in the `collection`.
+     *
+     * @static
+     * @memberOf _
+     * @category Collections
+     * @param {Array|Object|string} collection The collection to iterate over.
+     * @param {Function|string} methodName The name of the method to invoke or
+     *  the function invoked per iteration.
+     * @param {...*} [arg] Arguments to invoke the method with.
+     * @returns {Array} Returns a new array of the results of each invoked method.
+     * @example
+     *
+     * _.invoke([[5, 1, 7], [3, 2, 1]], 'sort');
+     * // => [[1, 5, 7], [1, 2, 3]]
+     *
+     * _.invoke([123, 456], String.prototype.split, '');
+     * // => [['1', '2', '3'], ['4', '5', '6']]
+     */
+    function invoke(collection, methodName) {
+      var args = slice(arguments, 2),
+          index = -1,
+          isFunc = typeof methodName == 'function',
+          length = collection ? collection.length : 0,
+          result = Array(typeof length == 'number' ? length : 0);
+
+      forEach(collection, function(value) {
+        result[++index] = (isFunc ? methodName : value[methodName]).apply(value, args);
+      });
+      return result;
+    }
+
+    /**
+     * Creates an array of values by running each element in the collection
+     * through the callback. The callback is bound to `thisArg` and invoked with
+     * three arguments; (value, index|key, collection).
+     *
+     * If a property name is provided for `callback` the created "_.pluck" style
+     * callback will return the property value of the given element.
+     *
+     * If an object is provided for `callback` the created "_.where" style callback
+     * will return `true` for elements that have the properties of the given object,
+     * else `false`.
+     *
+     * @static
+     * @memberOf _
+     * @alias collect
+     * @category Collections
+     * @param {Array|Object|string} collection The collection to iterate over.
+     * @param {Function|Object|string} [callback=identity] The function called
+     *  per iteration. If a property name or object is provided it will be used
+     *  to create a "_.pluck" or "_.where" style callback, respectively.
+     * @param {*} [thisArg] The `this` binding of `callback`.
+     * @returns {Array} Returns a new array of the results of each `callback` execution.
+     * @example
+     *
+     * _.map([1, 2, 3], function(num) { return num * 3; });
+     * // => [3, 6, 9]
+     *
+     * _.map({ 'one': 1, 'two': 2, 'three': 3 }, function(num) { return num * 3; });
+     * // => [3, 6, 9] (property order is not guaranteed across environments)
+     *
+     * var characters = [
+     *   { 'name': 'barney', 'age': 36 },
+     *   { 'name': 'fred',   'age': 40 }
+     * ];
+     *
+     * // using "_.pluck" callback shorthand
+     * _.map(characters, 'name');
+     * // => ['barney', 'fred']
+     */
+    function map(collection, callback, thisArg) {
+      var index = -1,
+          length = collection ? collection.length : 0;
+
+      callback = lodash.createCallback(callback, thisArg, 3);
+      if (typeof length == 'number') {
+        var result = Array(length);
+        while (++index < length) {
+          result[index] = callback(collection[index], index, collection);
+        }
+      } else {
+        result = [];
+        forOwn(collection, function(value, key, collection) {
+          result[++index] = callback(value, key, collection);
+        });
+      }
+      return result;
+    }
+
+    /**
+     * Retrieves the maximum value of a collection. If the collection is empty or
+     * falsey `-Infinity` is returned. If a callback is provided it will be executed
+     * for each value in the collection to generate the criterion by which the value
+     * is ranked. The callback is bound to `thisArg` and invoked with three
+     * arguments; (value, index, collection).
+     *
+     * If a property name is provided for `callback` the created "_.pluck" style
+     * callback will return the property value of the given element.
+     *
+     * If an object is provided for `callback` the created "_.where" style callback
+     * will return `true` for elements that have the properties of the given object,
+     * else `false`.
+     *
+     * @static
+     * @memberOf _
+     * @category Collections
+     * @param {Array|Object|string} collection The collection to iterate over.
+     * @param {Function|Object|string} [callback=identity] The function called
+     *  per iteration. If a property name or object is provided it will be used
+     *  to create a "_.pluck" or "_.where" style callback, respectively.
+     * @param {*} [thisArg] The `this` binding of `callback`.
+     * @returns {*} Returns the maximum value.
+     * @example
+     *
+     * _.max([4, 2, 8, 6]);
+     * // => 8
+     *
+     * var characters = [
+     *   { 'name': 'barney', 'age': 36 },
+     *   { 'name': 'fred',   'age': 40 }
+     * ];
+     *
+     * _.max(characters, function(chr) { return chr.age; });
+     * // => { 'name': 'fred', 'age': 40 };
+     *
+     * // using "_.pluck" callback shorthand
+     * _.max(characters, 'age');
+     * // => { 'name': 'fred', 'age': 40 };
+     */
+    function max(collection, callback, thisArg) {
+      var computed = -Infinity,
+          result = computed;
+
+      // allows working with functions like `_.map` without using
+      // their `index` argument as a callback
+      if (typeof callback != 'function' && thisArg && thisArg[callback] === collection) {
+        callback = null;
+      }
+      if (callback == null && isArray(collection)) {
+        var index = -1,
+            length = collection.length;
+
+        while (++index < length) {
+          var value = collection[index];
+          if (value > result) {
+            result = value;
+          }
+        }
+      } else {
+        callback = (callback == null && isString(collection))
+          ? charAtCallback
+          : lodash.createCallback(callback, thisArg, 3);
+
+        forEach(collection, function(value, index, collection) {
+          var current = callback(value, index, collection);
+          if (current > computed) {
+            computed = current;
+            result = value;
+          }
+        });
+      }
+      return result;
+    }
+
+    /**
+     * Retrieves the minimum value of a collection. If the collection is empty or
+     * falsey `Infinity` is returned. If a callback is provided it will be executed
+     * for each value in the collection to generate the criterion by which the value
+     * is ranked. The callback is bound to `thisArg` and invoked with three
+     * arguments; (value, index, collection).
+     *
+     * If a property name is provided for `callback` the created "_.pluck" style
+     * callback will return the property value of the given element.
+     *
+     * If an object is provided for `callback` the created "_.where" style callback
+     * will return `true` for elements that have the properties of the given object,
+     * else `false`.
+     *
+     * @static
+     * @memberOf _
+     * @category Collections
+     * @param {Array|Object|string} collection The collection to iterate over.
+     * @param {Function|Object|string} [callback=identity] The function called
+     *  per iteration. If a property name or object is provided it will be used
+     *  to create a "_.pluck" or "_.where" style callback, respectively.
+     * @param {*} [thisArg] The `this` binding of `callback`.
+     * @returns {*} Returns the minimum value.
+     * @example
+     *
+     * _.min([4, 2, 8, 6]);
+     * // => 2
+     *
+     * var characters = [
+     *   { 'name': 'barney', 'age': 36 },
+     *   { 'name': 'fred',   'age': 40 }
+     * ];
+     *
+     * _.min(characters, function(chr) { return chr.age; });
+     * // => { 'name': 'barney', 'age': 36 };
+     *
+     * // using "_.pluck" callback shorthand
+     * _.min(characters, 'age');
+     * // => { 'name': 'barney', 'age': 36 };
+     */
+    function min(collection, callback, thisArg) {
+      var computed = Infinity,
+          result = computed;
+
+      // allows working with functions like `_.map` without using
+      // their `index` argument as a callback
+      if (typeof callback != 'function' && thisArg && thisArg[callback] === collection) {
+        callback = null;
+      }
+      if (callback == null && isArray(collection)) {
+        var index = -1,
+            length = collection.length;
+
+        while (++index < length) {
+          var value = collection[index];
+          if (value < result) {
+            result = value;
+          }
+        }
+      } else {
+        callback = (callback == null && isString(collection))
+          ? charAtCallback
+          : lodash.createCallback(callback, thisArg, 3);
+
+        forEach(collection, function(value, index, collection) {
+          var current = callback(value, index, collection);
+          if (current < computed) {
+            computed = current;
+            result = value;
+          }
+        });
+      }
+      return result;
+    }
+
+    /**
+     * Retrieves the value of a specified property from all elements in the collection.
+     *
+     * @static
+     * @memberOf _
+     * @type Function
+     * @category Collections
+     * @param {Array|Object|string} collection The collection to iterate over.
+     * @param {string} property The name of the property to pluck.
+     * @returns {Array} Returns a new array of property values.
+     * @example
+     *
+     * var characters = [
+     *   { 'name': 'barney', 'age': 36 },
+     *   { 'name': 'fred',   'age': 40 }
+     * ];
+     *
+     * _.pluck(characters, 'name');
+     * // => ['barney', 'fred']
+     */
+    var pluck = map;
+
+    /**
+     * Reduces a collection to a value which is the accumulated result of running
+     * each element in the collection through the callback, where each successive
+     * callback execution consumes the return value of the previous execution. If
+     * `accumulator` is not provided the first element of the collection will be
+     * used as the initial `accumulator` value. The callback is bound to `thisArg`
+     * and invoked with four arguments; (accumulator, value, index|key, collection).
+     *
+     * @static
+     * @memberOf _
+     * @alias foldl, inject
+     * @category Collections
+     * @param {Array|Object|string} collection The collection to iterate over.
+     * @param {Function} [callback=identity] The function called per iteration.
+     * @param {*} [accumulator] Initial value of the accumulator.
+     * @param {*} [thisArg] The `this` binding of `callback`.
+     * @returns {*} Returns the accumulated value.
+     * @example
+     *
+     * var sum = _.reduce([1, 2, 3], function(sum, num) {
+     *   return sum + num;
+     * });
+     * // => 6
+     *
+     * var mapped = _.reduce({ 'a': 1, 'b': 2, 'c': 3 }, function(result, num, key) {
+     *   result[key] = num * 3;
+     *   return result;
+     * }, {});
+     * // => { 'a': 3, 'b': 6, 'c': 9 }
+     */
+    function reduce(collection, callback, accumulator, thisArg) {
+      if (!collection) return accumulator;
+      var noaccum = arguments.length < 3;
+      callback = lodash.createCallback(callback, thisArg, 4);
+
+      var index = -1,
+          length = collection.length;
+
+      if (typeof length == 'number') {
+        if (noaccum) {
+          accumulator = collection[++index];
+        }
+        while (++index < length) {
+          accumulator = callback(accumulator, collection[index], index, collection);
+        }
+      } else {
+        forOwn(collection, function(value, index, collection) {
+          accumulator = noaccum
+            ? (noaccum = false, value)
+            : callback(accumulator, value, index, collection)
+        });
+      }
+      return accumulator;
+    }
+
+    /**
+     * This method is like `_.reduce` except that it iterates over elements
+     * of a `collection` from right to left.
+     *
+     * @static
+     * @memberOf _
+     * @alias foldr
+     * @category Collections
+     * @param {Array|Object|string} collection The collection to iterate over.
+     * @param {Function} [callback=identity] The function called per iteration.
+     * @param {*} [accumulator] Initial value of the accumulator.
+     * @param {*} [thisArg] The `this` binding of `callback`.
+     * @returns {*} Returns the accumulated value.
+     * @example
+     *
+     * var list = [[0, 1], [2, 3], [4, 5]];
+     * var flat = _.reduceRight(list, function(a, b) { return a.concat(b); }, []);
+     * // => [4, 5, 2, 3, 0, 1]
+     */
+    function reduceRight(collection, callback, accumulator, thisArg) {
+      var noaccum = arguments.length < 3;
+      callback = lodash.createCallback(callback, thisArg, 4);
+      forEachRight(collection, function(value, index, collection) {
+        accumulator = noaccum
+          ? (noaccum = false, value)
+          : callback(accumulator, value, index, collection);
+      });
+      return accumulator;
+    }
+
+    /**
+     * The opposite of `_.filter` this method returns the elements of a
+     * collection that the callback does **not** return truey for.
+     *
+     * If a property name is provided for `callback` the created "_.pluck" style
+     * callback will return the property value of the given element.
+     *
+     * If an object is provided for `callback` the created "_.where" style callback
+     * will return `true` for elements that have the properties of the given object,
+     * else `false`.
+     *
+     * @static
+     * @memberOf _
+     * @category Collections
+     * @param {Array|Object|string} collection The collection to iterate over.
+     * @param {Function|Object|string} [callback=identity] The function called
+     *  per iteration. If a property name or object is provided it will be used
+     *  to create a "_.pluck" or "_.where" style callback, respectively.
+     * @param {*} [thisArg] The `this` binding of `callback`.
+     * @returns {Array} Returns a new array of elements that failed the callback check.
+     * @example
+     *
+     * var odds = _.reject([1, 2, 3, 4, 5, 6], function(num) { return num % 2 == 0; });
+     * // => [1, 3, 5]
+     *
+     * var characters = [
+     *   { 'name': 'barney', 'age': 36, 'blocked': false },
+     *   { 'name': 'fred',   'age': 40, 'blocked': true }
+     * ];
+     *
+     * // using "_.pluck" callback shorthand
+     * _.reject(characters, 'blocked');
+     * // => [{ 'name': 'barney', 'age': 36, 'blocked': false }]
+     *
+     * // using "_.where" callback shorthand
+     * _.reject(characters, { 'age': 36 });
+     * // => [{ 'name': 'fred', 'age': 40, 'blocked': true }]
+     */
+    function reject(collection, callback, thisArg) {
+      callback = lodash.createCallback(callback, thisArg, 3);
+      return filter(collection, function(value, index, collection) {
+        return !callback(value, index, collection);
+      });
+    }
+
+    /**
+     * Retrieves a random element or `n` random elements from a collection.
+     *
+     * @static
+     * @memberOf _
+     * @category Collections
+     * @param {Array|Object|string} collection The collection to sample.
+     * @param {number} [n] The number of elements to sample.
+     * @param- {Object} [guard] Allows working with functions like `_.map`
+     *  without using their `index` arguments as `n`.
+     * @returns {Array} Returns the random sample(s) of `collection`.
+     * @example
+     *
+     * _.sample([1, 2, 3, 4]);
+     * // => 2
+     *
+     * _.sample([1, 2, 3, 4], 2);
+     * // => [3, 1]
+     */
+    function sample(collection, n, guard) {
+      if (collection && typeof collection.length != 'number') {
+        collection = values(collection);
+      }
+      if (n == null || guard) {
+        return collection ? collection[baseRandom(0, collection.length - 1)] : undefined;
+      }
+      var result = shuffle(collection);
+      result.length = nativeMin(nativeMax(0, n), result.length);
+      return result;
+    }
+
+    /**
+     * Creates an array of shuffled values, using a version of the Fisher-Yates
+     * shuffle. See http://en.wikipedia.org/wiki/Fisher-Yates_shuffle.
+     *
+     * @static
+     * @memberOf _
+     * @category Collections
+     * @param {Array|Object|string} collection The collection to shuffle.
+     * @returns {Array} Returns a new shuffled collection.
+     * @example
+     *
+     * _.shuffle([1, 2, 3, 4, 5, 6]);
+     * // => [4, 1, 6, 3, 5, 2]
+     */
+    function shuffle(collection) {
+      var index = -1,
+          length = collection ? collection.length : 0,
+          result = Array(typeof length == 'number' ? length : 0);
+
+      forEach(collection, function(value) {
+        var rand = baseRandom(0, ++index);
+        result[index] = result[rand];
+        result[rand] = value;
+      });
+      return result;
+    }
+
+    /**
+     * Gets the size of the `collection` by returning `collection.length` for arrays
+     * and array-like objects or the number of own enumerable properties for objects.
+     *
+     * @static
+     * @memberOf _
+     * @category Collections
+     * @param {Array|Object|string} collection The collection to inspect.
+     * @returns {number} Returns `collection.length` or number of own enumerable properties.
+     * @example
+     *
+     * _.size([1, 2]);
+     * // => 2
+     *
+     * _.size({ 'one': 1, 'two': 2, 'three': 3 });
+     * // => 3
+     *
+     * _.size('pebbles');
+     * // => 7
+     */
+    function size(collection) {
+      var length = collection ? collection.length : 0;
+      return typeof length == 'number' ? length : keys(collection).length;
+    }
+
+    /**
+     * Checks if the callback returns a truey value for **any** element of a
+     * collection. The function returns as soon as it finds a passing value and
+     * does not iterate over the entire collection. The callback is bound to
+     * `thisArg` and invoked with three arguments; (value, index|key, collection).
+     *
+     * If a property name is provided for `callback` the created "_.pluck" style
+     * callback will return the property value of the given element.
+     *
+     * If an object is provided for `callback` the created "_.where" style callback
+     * will return `true` for elements that have the properties of the given object,
+     * else `false`.
+     *
+     * @static
+     * @memberOf _
+     * @alias any
+     * @category Collections
+     * @param {Array|Object|string} collection The collection to iterate over.
+     * @param {Function|Object|string} [callback=identity] The function called
+     *  per iteration. If a property name or object is provided it will be used
+     *  to create a "_.pluck" or "_.where" style callback, respectively.
+     * @param {*} [thisArg] The `this` binding of `callback`.
+     * @returns {boolean} Returns `true` if any element passed the callback check,
+     *  else `false`.
+     * @example
+     *
+     * _.some([null, 0, 'yes', false], Boolean);
+     * // => true
+     *
+     * var characters = [
+     *   { 'name': 'barney', 'age': 36, 'blocked': false },
+     *   { 'name': 'fred',   'age': 40, 'blocked': true }
+     * ];
+     *
+     * // using "_.pluck" callback shorthand
+     * _.some(characters, 'blocked');
+     * // => true
+     *
+     * // using "_.where" callback shorthand
+     * _.some(characters, { 'age': 1 });
+     * // => false
+     */
+    function some(collection, callback, thisArg) {
+      var result;
+      callback = lodash.createCallback(callback, thisArg, 3);
+
+      var index = -1,
+          length = collection ? collection.length : 0;
+
+      if (typeof length == 'number') {
+        while (++index < length) {
+          if ((result = callback(collection[index], index, collection))) {
+            break;
+          }
+        }
+      } else {
+        forOwn(collection, function(value, index, collection) {
+          return !(result = callback(value, index, collection));
+        });
+      }
+      return !!result;
+    }
+
+    /**
+     * Creates an array of elements, sorted in ascending order by the results of
+     * running each element in a collection through the callback. This method
+     * performs a stable sort, that is, it will preserve the original sort order
+     * of equal elements. The callback is bound to `thisArg` and invoked with
+     * three arguments; (value, index|key, collection).
+     *
+     * If a property name is provided for `callback` the created "_.pluck" style
+     * callback will return the property value of the given element.
+     *
+     * If an array of property names is provided for `callback` the collection
+     * will be sorted by each property value.
+     *
+     * If an object is provided for `callback` the created "_.where" style callback
+     * will return `true` for elements that have the properties of the given object,
+     * else `false`.
+     *
+     * @static
+     * @memberOf _
+     * @category Collections
+     * @param {Array|Object|string} collection The collection to iterate over.
+     * @param {Array|Function|Object|string} [callback=identity] The function called
+     *  per iteration. If a property name or object is provided it will be used
+     *  to create a "_.pluck" or "_.where" style callback, respectively.
+     * @param {*} [thisArg] The `this` binding of `callback`.
+     * @returns {Array} Returns a new array of sorted elements.
+     * @example
+     *
+     * _.sortBy([1, 2, 3], function(num) { return Math.sin(num); });
+     * // => [3, 1, 2]
+     *
+     * _.sortBy([1, 2, 3], function(num) { return this.sin(num); }, Math);
+     * // => [3, 1, 2]
+     *
+     * var characters = [
+     *   { 'name': 'barney',  'age': 36 },
+     *   { 'name': 'fred',    'age': 40 },
+     *   { 'name': 'barney',  'age': 26 },
+     *   { 'name': 'fred',    'age': 30 }
+     * ];
+     *
+     * // using "_.pluck" callback shorthand
+     * _.map(_.sortBy(characters, 'age'), _.values);
+     * // => [['barney', 26], ['fred', 30], ['barney', 36], ['fred', 40]]
+     *
+     * // sorting by multiple properties
+     * _.map(_.sortBy(characters, ['name', 'age']), _.values);
+     * // = > [['barney', 26], ['barney', 36], ['fred', 30], ['fred', 40]]
+     */
+    function sortBy(collection, callback, thisArg) {
+      var index = -1,
+          isArr = isArray(callback),
+          length = collection ? collection.length : 0,
+          result = Array(typeof length == 'number' ? length : 0);
+
+      if (!isArr) {
+        callback = lodash.createCallback(callback, thisArg, 3);
+      }
+      forEach(collection, function(value, key, collection) {
+        var object = result[++index] = getObject();
+        if (isArr) {
+          object.criteria = map(callback, function(key) { return value[key]; });
+        } else {
+          (object.criteria = getArray())[0] = callback(value, key, collection);
+        }
+        object.index = index;
+        object.value = value;
+      });
+
+      length = result.length;
+      result.sort(compareAscending);
+      while (length--) {
+        var object = result[length];
+        result[length] = object.value;
+        if (!isArr) {
+          releaseArray(object.criteria);
+        }
+        releaseObject(object);
+      }
+      return result;
+    }
+
+    /**
+     * Converts the `collection` to an array.
+     *
+     * @static
+     * @memberOf _
+     * @category Collections
+     * @param {Array|Object|string} collection The collection to convert.
+     * @returns {Array} Returns the new converted array.
+     * @example
+     *
+     * (function() { return _.toArray(arguments).slice(1); })(1, 2, 3, 4);
+     * // => [2, 3, 4]
+     */
+    function toArray(collection) {
+      if (collection && typeof collection.length == 'number') {
+        return slice(collection);
+      }
+      return values(collection);
+    }
+
+    /**
+     * Performs a deep comparison of each element in a `collection` to the given
+     * `properties` object, returning an array of all elements that have equivalent
+     * property values.
+     *
+     * @static
+     * @memberOf _
+     * @type Function
+     * @category Collections
+     * @param {Array|Object|string} collection The collection to iterate over.
+     * @param {Object} props The object of property values to filter by.
+     * @returns {Array} Returns a new array of elements that have the given properties.
+     * @example
+     *
+     * var characters = [
+     *   { 'name': 'barney', 'age': 36, 'pets': ['hoppy'] },
+     *   { 'name': 'fred',   'age': 40, 'pets': ['baby puss', 'dino'] }
+     * ];
+     *
+     * _.where(characters, { 'age': 36 });
+     * // => [{ 'name': 'barney', 'age': 36, 'pets': ['hoppy'] }]
+     *
+     * _.where(characters, { 'pets': ['dino'] });
+     * // => [{ 'name': 'fred', 'age': 40, 'pets': ['baby puss', 'dino'] }]
+     */
+    var where = filter;
+
+    /*--------------------------------------------------------------------------*/
+
+    /**
+     * Creates an array with all falsey values removed. The values `false`, `null`,
+     * `0`, `""`, `undefined`, and `NaN` are all falsey.
+     *
+     * @static
+     * @memberOf _
+     * @category Arrays
+     * @param {Array} array The array to compact.
+     * @returns {Array} Returns a new array of filtered values.
+     * @example
+     *
+     * _.compact([0, 1, false, 2, '', 3]);
+     * // => [1, 2, 3]
+     */
+    function compact(array) {
+      var index = -1,
+          length = array ? array.length : 0,
+          result = [];
+
+      while (++index < length) {
+        var value = array[index];
+        if (value) {
+          result.push(value);
+        }
+      }
+      return result;
+    }
+
+    /**
+     * Creates an array excluding all values of the provided arrays using strict
+     * equality for comparisons, i.e. `===`.
+     *
+     * @static
+     * @memberOf _
+     * @category Arrays
+     * @param {Array} array The array to process.
+     * @param {...Array} [values] The arrays of values to exclude.
+     * @returns {Array} Returns a new array of filtered values.
+     * @example
+     *
+     * _.difference([1, 2, 3, 4, 5], [5, 2, 10]);
+     * // => [1, 3, 4]
+     */
+    function difference(array) {
+      return baseDifference(array, baseFlatten(arguments, true, true, 1));
+    }
+
+    /**
+     * This method is like `_.find` except that it returns the index of the first
+     * element that passes the callback check, instead of the element itself.
+     *
+     * If a property name is provided for `callback` the created "_.pluck" style
+     * callback will return the property value of the given element.
+     *
+     * If an object is provided for `callback` the created "_.where" style callback
+     * will return `true` for elements that have the properties of the given object,
+     * else `false`.
+     *
+     * @static
+     * @memberOf _
+     * @category Arrays
+     * @param {Array} array The array to search.
+     * @param {Function|Object|string} [callback=identity] The function called
+     *  per iteration. If a property name or object is provided it will be used
+     *  to create a "_.pluck" or "_.where" style callback, respectively.
+     * @param {*} [thisArg] The `this` binding of `callback`.
+     * @returns {number} Returns the index of the found element, else `-1`.
+     * @example
+     *
+     * var characters = [
+     *   { 'name': 'barney',  'age': 36, 'blocked': false },
+     *   { 'name': 'fred',    'age': 40, 'blocked': true },
+     *   { 'name': 'pebbles', 'age': 1,  'blocked': false }
+     * ];
+     *
+     * _.findIndex(characters, function(chr) {
+     *   return chr.age < 20;
+     * });
+     * // => 2
+     *
+     * // using "_.where" callback shorthand
+     * _.findIndex(characters, { 'age': 36 });
+     * // => 0
+     *
+     * // using "_.pluck" callback shorthand
+     * _.findIndex(characters, 'blocked');
+     * // => 1
+     */
+    function findIndex(array, callback, thisArg) {
+      var index = -1,
+          length = array ? array.length : 0;
+
+      callback = lodash.createCallback(callback, thisArg, 3);
+      while (++index < length) {
+        if (callback(array[index], index, array)) {
+          return index;
+        }
+      }
+      return -1;
+    }
+
+    /**
+     * This method is like `_.findIndex` except that it iterates over elements
+     * of a `collection` from right to left.
+     *
+     * If a property name is provided for `callback` the created "_.pluck" style
+     * callback will return the property value of the given element.
+     *
+     * If an object is provided for `callback` the created "_.where" style callback
+     * will return `true` for elements that have the properties of the given object,
+     * else `false`.
+     *
+     * @static
+     * @memberOf _
+     * @category Arrays
+     * @param {Array} array The array to search.
+     * @param {Function|Object|string} [callback=identity] The function called
+     *  per iteration. If a property name or object is provided it will be used
+     *  to create a "_.pluck" or "_.where" style callback, respectively.
+     * @param {*} [thisArg] The `this` binding of `callback`.
+     * @returns {number} Returns the index of the found element, else `-1`.
+     * @example
+     *
+     * var characters = [
+     *   { 'name': 'barney',  'age': 36, 'blocked': true },
+     *   { 'name': 'fred',    'age': 40, 'blocked': false },
+     *   { 'name': 'pebbles', 'age': 1,  'blocked': true }
+     * ];
+     *
+     * _.findLastIndex(characters, function(chr) {
+     *   return chr.age > 30;
+     * });
+     * // => 1
+     *
+     * // using "_.where" callback shorthand
+     * _.findLastIndex(characters, { 'age': 36 });
+     * // => 0
+     *
+     * // using "_.pluck" callback shorthand
+     * _.findLastIndex(characters, 'blocked');
+     * // => 2
+     */
+    function findLastIndex(array, callback, thisArg) {
+      var length = array ? array.length : 0;
+      callback = lodash.createCallback(callback, thisArg, 3);
+      while (length--) {
+        if (callback(array[length], length, array)) {
+          return length;
+        }
+      }
+      return -1;
+    }
+
+    /**
+     * Gets the first element or first `n` elements of an array. If a callback
+     * is provided elements at the beginning of the array are returned as long
+     * as the callback returns truey. The callback is bound to `thisArg` and
+     * invoked with three arguments; (value, index, array).
+     *
+     * If a property name is provided for `callback` the created "_.pluck" style
+     * callback will return the property value of the given element.
+     *
+     * If an object is provided for `callback` the created "_.where" style callback
+     * will return `true` for elements that have the properties of the given object,
+     * else `false`.
+     *
+     * @static
+     * @memberOf _
+     * @alias head, take
+     * @category Arrays
+     * @param {Array} array The array to query.
+     * @param {Function|Object|number|string} [callback] The function called
+     *  per element or the number of elements to return. If a property name or
+     *  object is provided it will be used to create a "_.pluck" or "_.where"
+     *  style callback, respectively.
+     * @param {*} [thisArg] The `this` binding of `callback`.
+     * @returns {*} Returns the first element(s) of `array`.
+     * @example
+     *
+     * _.first([1, 2, 3]);
+     * // => 1
+     *
+     * _.first([1, 2, 3], 2);
+     * // => [1, 2]
+     *
+     * _.first([1, 2, 3], function(num) {
+     *   return num < 3;
+     * });
+     * // => [1, 2]
+     *
+     * var characters = [
+     *   { 'name': 'barney',  'blocked': true,  'employer': 'slate' },
+     *   { 'name': 'fred',    'blocked': false, 'employer': 'slate' },
+     *   { 'name': 'pebbles', 'blocked': true,  'employer': 'na' }
+     * ];
+     *
+     * // using "_.pluck" callback shorthand
+     * _.first(characters, 'blocked');
+     * // => [{ 'name': 'barney', 'blocked': true, 'employer': 'slate' }]
+     *
+     * // using "_.where" callback shorthand
+     * _.pluck(_.first(characters, { 'employer': 'slate' }), 'name');
+     * // => ['barney', 'fred']
+     */
+    function first(array, callback, thisArg) {
+      var n = 0,
+          length = array ? array.length : 0;
+
+      if (typeof callback != 'number' && callback != null) {
+        var index = -1;
+        callback = lodash.createCallback(callback, thisArg, 3);
+        while (++index < length && callback(array[index], index, array)) {
+          n++;
+        }
+      } else {
+        n = callback;
+        if (n == null || thisArg) {
+          return array ? array[0] : undefined;
+        }
+      }
+      return slice(array, 0, nativeMin(nativeMax(0, n), length));
+    }
+
+    /**
+     * Flattens a nested array (the nesting can be to any depth). If `isShallow`
+     * is truey, the array will only be flattened a single level. If a callback
+     * is provided each element of the array is passed through the callback before
+     * flattening. The callback is bound to `thisArg` and invoked with three
+     * arguments; (value, index, array).
+     *
+     * If a property name is provided for `callback` the created "_.pluck" style
+     * callback will return the property value of the given element.
+     *
+     * If an object is provided for `callback` the created "_.where" style callback
+     * will return `true` for elements that have the properties of the given object,
+     * else `false`.
+     *
+     * @static
+     * @memberOf _
+     * @category Arrays
+     * @param {Array} array The array to flatten.
+     * @param {boolean} [isShallow=false] A flag to restrict flattening to a single level.
+     * @param {Function|Object|string} [callback=identity] The function called
+     *  per iteration. If a property name or object is provided it will be used
+     *  to create a "_.pluck" or "_.where" style callback, respectively.
+     * @param {*} [thisArg] The `this` binding of `callback`.
+     * @returns {Array} Returns a new flattened array.
+     * @example
+     *
+     * _.flatten([1, [2], [3, [[4]]]]);
+     * // => [1, 2, 3, 4];
+     *
+     * _.flatten([1, [2], [3, [[4]]]], true);
+     * // => [1, 2, 3, [[4]]];
+     *
+     * var characters = [
+     *   { 'name': 'barney', 'age': 30, 'pets': ['hoppy'] },
+     *   { 'name': 'fred',   'age': 40, 'pets': ['baby puss', 'dino'] }
+     * ];
+     *
+     * // using "_.pluck" callback shorthand
+     * _.flatten(characters, 'pets');
+     * // => ['hoppy', 'baby puss', 'dino']
+     */
+    function flatten(array, isShallow, callback, thisArg) {
+      // juggle arguments
+      if (typeof isShallow != 'boolean' && isShallow != null) {
+        thisArg = callback;
+        callback = (typeof isShallow != 'function' && thisArg && thisArg[isShallow] === array) ? null : isShallow;
+        isShallow = false;
+      }
+      if (callback != null) {
+        array = map(array, callback, thisArg);
+      }
+      return baseFlatten(array, isShallow);
+    }
+
+    /**
+     * Gets the index at which the first occurrence of `value` is found using
+     * strict equality for comparisons, i.e. `===`. If the array is already sorted
+     * providing `true` for `fromIndex` will run a faster binary search.
+     *
+     * @static
+     * @memberOf _
+     * @category Arrays
+     * @param {Array} array The array to search.
+     * @param {*} value The value to search for.
+     * @param {boolean|number} [fromIndex=0] The index to search from or `true`
+     *  to perform a binary search on a sorted array.
+     * @returns {number} Returns the index of the matched value or `-1`.
+     * @example
+     *
+     * _.indexOf([1, 2, 3, 1, 2, 3], 2);
+     * // => 1
+     *
+     * _.indexOf([1, 2, 3, 1, 2, 3], 2, 3);
+     * // => 4
+     *
+     * _.indexOf([1, 1, 2, 2, 3, 3], 2, true);
+     * // => 2
+     */
+    function indexOf(array, value, fromIndex) {
+      if (typeof fromIndex == 'number') {
+        var length = array ? array.length : 0;
+        fromIndex = (fromIndex < 0 ? nativeMax(0, length + fromIndex) : fromIndex || 0);
+      } else if (fromIndex) {
+        var index = sortedIndex(array, value);
+        return array[index] === value ? index : -1;
+      }
+      return baseIndexOf(array, value, fromIndex);
+    }
+
+    /**
+     * Gets all but the last element or last `n` elements of an array. If a
+     * callback is provided elements at the end of the array are excluded from
+     * the result as long as the callback returns truey. The callback is bound
+     * to `thisArg` and invoked with three arguments; (value, index, array).
+     *
+     * If a property name is provided for `callback` the created "_.pluck" style
+     * callback will return the property value of the given element.
+     *
+     * If an object is provided for `callback` the created "_.where" style callback
+     * will return `true` for elements that have the properties of the given object,
+     * else `false`.
+     *
+     * @static
+     * @memberOf _
+     * @category Arrays
+     * @param {Array} array The array to query.
+     * @param {Function|Object|number|string} [callback=1] The function called
+     *  per element or the number of elements to exclude. If a property name or
+     *  object is provided it will be used to create a "_.pluck" or "_.where"
+     *  style callback, respectively.
+     * @param {*} [thisArg] The `this` binding of `callback`.
+     * @returns {Array} Returns a slice of `array`.
+     * @example
+     *
+     * _.initial([1, 2, 3]);
+     * // => [1, 2]
+     *
+     * _.initial([1, 2, 3], 2);
+     * // => [1]
+     *
+     * _.initial([1, 2, 3], function(num) {
+     *   return num > 1;
+     * });
+     * // => [1]
+     *
+     * var characters = [
+     *   { 'name': 'barney',  'blocked': false, 'employer': 'slate' },
+     *   { 'name': 'fred',    'blocked': true,  'employer': 'slate' },
+     *   { 'name': 'pebbles', 'blocked': true,  'employer': 'na' }
+     * ];
+     *
+     * // using "_.pluck" callback shorthand
+     * _.initial(characters, 'blocked');
+     * // => [{ 'name': 'barney',  'blocked': false, 'employer': 'slate' }]
+     *
+     * // using "_.where" callback shorthand
+     * _.pluck(_.initial(characters, { 'employer': 'na' }), 'name');
+     * // => ['barney', 'fred']
+     */
+    function initial(array, callback, thisArg) {
+      var n = 0,
+          length = array ? array.length : 0;
+
+      if (typeof callback != 'number' && callback != null) {
+        var index = length;
+        callback = lodash.createCallback(callback, thisArg, 3);
+        while (index-- && callback(array[index], index, array)) {
+          n++;
+        }
+      } else {
+        n = (callback == null || thisArg) ? 1 : callback || n;
+      }
+      return slice(array, 0, nativeMin(nativeMax(0, length - n), length));
+    }
+
+    /**
+     * Creates an array of unique values present in all provided arrays using
+     * strict equality for comparisons, i.e. `===`.
+     *
+     * @static
+     * @memberOf _
+     * @category Arrays
+     * @param {...Array} [array] The arrays to inspect.
+     * @returns {Array} Returns an array of shared values.
+     * @example
+     *
+     * _.intersection([1, 2, 3], [5, 2, 1, 4], [2, 1]);
+     * // => [1, 2]
+     */
+    function intersection() {
+      var args = [],
+          argsIndex = -1,
+          argsLength = arguments.length,
+          caches = getArray(),
+          indexOf = getIndexOf(),
+          trustIndexOf = indexOf === baseIndexOf,
+          seen = getArray();
+
+      while (++argsIndex < argsLength) {
+        var value = arguments[argsIndex];
+        if (isArray(value) || isArguments(value)) {
+          args.push(value);
+          caches.push(trustIndexOf && value.length >= largeArraySize &&
+            createCache(argsIndex ? args[argsIndex] : seen));
+        }
+      }
+      var array = args[0],
+          index = -1,
+          length = array ? array.length : 0,
+          result = [];
+
+      outer:
+      while (++index < length) {
+        var cache = caches[0];
+        value = array[index];
+
+        if ((cache ? cacheIndexOf(cache, value) : indexOf(seen, value)) < 0) {
+          argsIndex = argsLength;
+          (cache || seen).push(value);
+          while (--argsIndex) {
+            cache = caches[argsIndex];
+            if ((cache ? cacheIndexOf(cache, value) : indexOf(args[argsIndex], value)) < 0) {
+              continue outer;
+            }
+          }
+          result.push(value);
+        }
+      }
+      while (argsLength--) {
+        cache = caches[argsLength];
+        if (cache) {
+          releaseObject(cache);
+        }
+      }
+      releaseArray(caches);
+      releaseArray(seen);
+      return result;
+    }
+
+    /**
+     * Gets the last element or last `n` elements of an array. If a callback is
+     * provided elements at the end of the array are returned as long as the
+     * callback returns truey. The callback is bound to `thisArg` and invoked
+     * with three arguments; (value, index, array).
+     *
+     * If a property name is provided for `callback` the created "_.pluck" style
+     * callback will return the property value of the given element.
+     *
+     * If an object is provided for `callback` the created "_.where" style callback
+     * will return `true` for elements that have the properties of the given object,
+     * else `false`.
+     *
+     * @static
+     * @memberOf _
+     * @category Arrays
+     * @param {Array} array The array to query.
+     * @param {Function|Object|number|string} [callback] The function called
+     *  per element or the number of elements to return. If a property name or
+     *  object is provided it will be used to create a "_.pluck" or "_.where"
+     *  style callback, respectively.
+     * @param {*} [thisArg] The `this` binding of `callback`.
+     * @returns {*} Returns the last element(s) of `array`.
+     * @example
+     *
+     * _.last([1, 2, 3]);
+     * // => 3
+     *
+     * _.last([1, 2, 3], 2);
+     * // => [2, 3]
+     *
+     * _.last([1, 2, 3], function(num) {
+     *   return num > 1;
+     * });
+     * // => [2, 3]
+     *
+     * var characters = [
+     *   { 'name': 'barney',  'blocked': false, 'employer': 'slate' },
+     *   { 'name': 'fred',    'blocked': true,  'employer': 'slate' },
+     *   { 'name': 'pebbles', 'blocked': true,  'employer': 'na' }
+     * ];
+     *
+     * // using "_.pluck" callback shorthand
+     * _.pluck(_.last(characters, 'blocked'), 'name');
+     * // => ['fred', 'pebbles']
+     *
+     * // using "_.where" callback shorthand
+     * _.last(characters, { 'employer': 'na' });
+     * // => [{ 'name': 'pebbles', 'blocked': true, 'employer': 'na' }]
+     */
+    function last(array, callback, thisArg) {
+      var n = 0,
+          length = array ? array.length : 0;
+
+      if (typeof callback != 'number' && callback != null) {
+        var index = length;
+        callback = lodash.createCallback(callback, thisArg, 3);
+        while (index-- && callback(array[index], index, array)) {
+          n++;
+        }
+      } else {
+        n = callback;
+        if (n == null || thisArg) {
+          return array ? array[length - 1] : undefined;
+        }
+      }
+      return slice(array, nativeMax(0, length - n));
+    }
+
+    /**
+     * Gets the index at which the last occurrence of `value` is found using strict
+     * equality for comparisons, i.e. `===`. If `fromIndex` is negative, it is used
+     * as the offset from the end of the collection.
+     *
+     * If a property name is provided for `callback` the created "_.pluck" style
+     * callback will return the property value of the given element.
+     *
+     * If an object is provided for `callback` the created "_.where" style callback
+     * will return `true` for elements that have the properties of the given object,
+     * else `false`.
+     *
+     * @static
+     * @memberOf _
+     * @category Arrays
+     * @param {Array} array The array to search.
+     * @param {*} value The value to search for.
+     * @param {number} [fromIndex=array.length-1] The index to search from.
+     * @returns {number} Returns the index of the matched value or `-1`.
+     * @example
+     *
+     * _.lastIndexOf([1, 2, 3, 1, 2, 3], 2);
+     * // => 4
+     *
+     * _.lastIndexOf([1, 2, 3, 1, 2, 3], 2, 3);
+     * // => 1
+     */
+    function lastIndexOf(array, value, fromIndex) {
+      var index = array ? array.length : 0;
+      if (typeof fromIndex == 'number') {
+        index = (fromIndex < 0 ? nativeMax(0, index + fromIndex) : nativeMin(fromIndex, index - 1)) + 1;
+      }
+      while (index--) {
+        if (array[index] === value) {
+          return index;
+        }
+      }
+      return -1;
+    }
+
+    /**
+     * Removes all provided values from the given array using strict equality for
+     * comparisons, i.e. `===`.
+     *
+     * @static
+     * @memberOf _
+     * @category Arrays
+     * @param {Array} array The array to modify.
+     * @param {...*} [value] The values to remove.
+     * @returns {Array} Returns `array`.
+     * @example
+     *
+     * var array = [1, 2, 3, 1, 2, 3];
+     * _.pull(array, 2, 3);
+     * console.log(array);
+     * // => [1, 1]
+     */
+    function pull(array) {
+      var args = arguments,
+          argsIndex = 0,
+          argsLength = args.length,
+          length = array ? array.length : 0;
+
+      while (++argsIndex < argsLength) {
+        var index = -1,
+            value = args[argsIndex];
+        while (++index < length) {
+          if (array[index] === value) {
+            splice.call(array, index--, 1);
+            length--;
+          }
+        }
+      }
+      return array;
+    }
+
+    /**
+     * Creates an array of numbers (positive and/or negative) progressing from
+     * `start` up to but not including `end`. If `start` is less than `stop` a
+     * zero-length range is created unless a negative `step` is specified.
+     *
+     * @static
+     * @memberOf _
+     * @category Arrays
+     * @param {number} [start=0] The start of the range.
+     * @param {number} end The end of the range.
+     * @param {number} [step=1] The value to increment or decrement by.
+     * @returns {Array} Returns a new range array.
+     * @example
+     *
+     * _.range(4);
+     * // => [0, 1, 2, 3]
+     *
+     * _.range(1, 5);
+     * // => [1, 2, 3, 4]
+     *
+     * _.range(0, 20, 5);
+     * // => [0, 5, 10, 15]
+     *
+     * _.range(0, -4, -1);
+     * // => [0, -1, -2, -3]
+     *
+     * _.range(1, 4, 0);
+     * // => [1, 1, 1]
+     *
+     * _.range(0);
+     * // => []
+     */
+    function range(start, end, step) {
+      start = +start || 0;
+      step = typeof step == 'number' ? step : (+step || 1);
+
+      if (end == null) {
+        end = start;
+        start = 0;
+      }
+      // use `Array(length)` so engines like Chakra and V8 avoid slower modes
+      // http://youtu.be/XAqIpGU8ZZk#t=17m25s
+      var index = -1,
+          length = nativeMax(0, ceil((end - start) / (step || 1))),
+          result = Array(length);
+
+      while (++index < length) {
+        result[index] = start;
+        start += step;
+      }
+      return result;
+    }
+
+    /**
+     * Removes all elements from an array that the callback returns truey for
+     * and returns an array of removed elements. The callback is bound to `thisArg`
+     * and invoked with three arguments; (value, index, array).
+     *
+     * If a property name is provided for `callback` the created "_.pluck" style
+     * callback will return the property value of the given element.
+     *
+     * If an object is provided for `callback` the created "_.where" style callback
+     * will return `true` for elements that have the properties of the given object,
+     * else `false`.
+     *
+     * @static
+     * @memberOf _
+     * @category Arrays
+     * @param {Array} array The array to modify.
+     * @param {Function|Object|string} [callback=identity] The function called
+     *  per iteration. If a property name or object is provided it will be used
+     *  to create a "_.pluck" or "_.where" style callback, respectively.
+     * @param {*} [thisArg] The `this` binding of `callback`.
+     * @returns {Array} Returns a new array of removed elements.
+     * @example
+     *
+     * var array = [1, 2, 3, 4, 5, 6];
+     * var evens = _.remove(array, function(num) { return num % 2 == 0; });
+     *
+     * console.log(array);
+     * // => [1, 3, 5]
+     *
+     * console.log(evens);
+     * // => [2, 4, 6]
+     */
+    function remove(array, callback, thisArg) {
+      var index = -1,
+          length = array ? array.length : 0,
+          result = [];
+
+      callback = lodash.createCallback(callback, thisArg, 3);
+      while (++index < length) {
+        var value = array[index];
+        if (callback(value, index, array)) {
+          result.push(value);
+          splice.call(array, index--, 1);
+          length--;
+        }
+      }
+      return result;
+    }
+
+    /**
+     * The opposite of `_.initial` this method gets all but the first element or
+     * first `n` elements of an array. If a callback function is provided elements
+     * at the beginning of the array are excluded from the result as long as the
+     * callback returns truey. The callback is bound to `thisArg` and invoked
+     * with three arguments; (value, index, array).
+     *
+     * If a property name is provided for `callback` the created "_.pluck" style
+     * callback will return the property value of the given element.
+     *
+     * If an object is provided for `callback` the created "_.where" style callback
+     * will return `true` for elements that have the properties of the given object,
+     * else `false`.
+     *
+     * @static
+     * @memberOf _
+     * @alias drop, tail
+     * @category Arrays
+     * @param {Array} array The array to query.
+     * @param {Function|Object|number|string} [callback=1] The function called
+     *  per element or the number of elements to exclude. If a property name or
+     *  object is provided it will be used to create a "_.pluck" or "_.where"
+     *  style callback, respectively.
+     * @param {*} [thisArg] The `this` binding of `callback`.
+     * @returns {Array} Returns a slice of `array`.
+     * @example
+     *
+     * _.rest([1, 2, 3]);
+     * // => [2, 3]
+     *
+     * _.rest([1, 2, 3], 2);
+     * // => [3]
+     *
+     * _.rest([1, 2, 3], function(num) {
+     *   return num < 3;
+     * });
+     * // => [3]
+     *
+     * var characters = [
+     *   { 'name': 'barney',  'blocked': true,  'employer': 'slate' },
+     *   { 'name': 'fred',    'blocked': false,  'employer': 'slate' },
+     *   { 'name': 'pebbles', 'blocked': true, 'employer': 'na' }
+     * ];
+     *
+     * // using "_.pluck" callback shorthand
+     * _.pluck(_.rest(characters, 'blocked'), 'name');
+     * // => ['fred', 'pebbles']
+     *
+     * // using "_.where" callback shorthand
+     * _.rest(characters, { 'employer': 'slate' });
+     * // => [{ 'name': 'pebbles', 'blocked': true, 'employer': 'na' }]
+     */
+    function rest(array, callback, thisArg) {
+      if (typeof callback != 'number' && callback != null) {
+        var n = 0,
+            index = -1,
+            length = array ? array.length : 0;
+
+        callback = lodash.createCallback(callback, thisArg, 3);
+        while (++index < length && callback(array[index], index, array)) {
+          n++;
+        }
+      } else {
+        n = (callback == null || thisArg) ? 1 : nativeMax(0, callback);
+      }
+      return slice(array, n);
+    }
+
+    /**
+     * Uses a binary search to determine the smallest index at which a value
+     * should be inserted into a given sorted array in order to maintain the sort
+     * order of the array. If a callback is provided it will be executed for
+     * `value` and each element of `array` to compute their sort ranking. The
+     * callback is bound to `thisArg` and invoked with one argument; (value).
+     *
+     * If a property name is provided for `callback` the created "_.pluck" style
+     * callback will return the property value of the given element.
+     *
+     * If an object is provided for `callback` the created "_.where" style callback
+     * will return `true` for elements that have the properties of the given object,
+     * else `false`.
+     *
+     * @static
+     * @memberOf _
+     * @category Arrays
+     * @param {Array} array The array to inspect.
+     * @param {*} value The value to evaluate.
+     * @param {Function|Object|string} [callback=identity] The function called
+     *  per iteration. If a property name or object is provided it will be used
+     *  to create a "_.pluck" or "_.where" style callback, respectively.
+     * @param {*} [thisArg] The `this` binding of `callback`.
+     * @returns {number} Returns the index at which `value` should be inserted
+     *  into `array`.
+     * @example
+     *
+     * _.sortedIndex([20, 30, 50], 40);
+     * // => 2
+     *
+     * // using "_.pluck" callback shorthand
+     * _.sortedIndex([{ 'x': 20 }, { 'x': 30 }, { 'x': 50 }], { 'x': 40 }, 'x');
+     * // => 2
+     *
+     * var dict = {
+     *   'wordToNumber': { 'twenty': 20, 'thirty': 30, 'fourty': 40, 'fifty': 50 }
+     * };
+     *
+     * _.sortedIndex(['twenty', 'thirty', 'fifty'], 'fourty', function(word) {
+     *   return dict.wordToNumber[word];
+     * });
+     * // => 2
+     *
+     * _.sortedIndex(['twenty', 'thirty', 'fifty'], 'fourty', function(word) {
+     *   return this.wordToNumber[word];
+     * }, dict);
+     * // => 2
+     */
+    function sortedIndex(array, value, callback, thisArg) {
+      var low = 0,
+          high = array ? array.length : low;
+
+      // explicitly reference `identity` for better inlining in Firefox
+      callback = callback ? lodash.createCallback(callback, thisArg, 1) : identity;
+      value = callback(value);
+
+      while (low < high) {
+        var mid = (low + high) >>> 1;
+        (callback(array[mid]) < value)
+          ? low = mid + 1
+          : high = mid;
+      }
+      return low;
+    }
+
+    /**
+     * Creates an array of unique values, in order, of the provided arrays using
+     * strict equality for comparisons, i.e. `===`.
+     *
+     * @static
+     * @memberOf _
+     * @category Arrays
+     * @param {...Array} [array] The arrays to inspect.
+     * @returns {Array} Returns an array of combined values.
+     * @example
+     *
+     * _.union([1, 2, 3], [5, 2, 1, 4], [2, 1]);
+     * // => [1, 2, 3, 5, 4]
+     */
+    function union() {
+      return baseUniq(baseFlatten(arguments, true, true));
+    }
+
+    /**
+     * Creates a duplicate-value-free version of an array using strict equality
+     * for comparisons, i.e. `===`. If the array is sorted, providing
+     * `true` for `isSorted` will use a faster algorithm. If a callback is provided
+     * each element of `array` is passed through the callback before uniqueness
+     * is computed. The callback is bound to `thisArg` and invoked with three
+     * arguments; (value, index, array).
+     *
+     * If a property name is provided for `callback` the created "_.pluck" style
+     * callback will return the property value of the given element.
+     *
+     * If an object is provided for `callback` the created "_.where" style callback
+     * will return `true` for elements that have the properties of the given object,
+     * else `false`.
+     *
+     * @static
+     * @memberOf _
+     * @alias unique
+     * @category Arrays
+     * @param {Array} array The array to process.
+     * @param {boolean} [isSorted=false] A flag to indicate that `array` is sorted.
+     * @param {Function|Object|string} [callback=identity] The function called
+     *  per iteration. If a property name or object is provided it will be used
+     *  to create a "_.pluck" or "_.where" style callback, respectively.
+     * @param {*} [thisArg] The `this` binding of `callback`.
+     * @returns {Array} Returns a duplicate-value-free array.
+     * @example
+     *
+     * _.uniq([1, 2, 1, 3, 1]);
+     * // => [1, 2, 3]
+     *
+     * _.uniq([1, 1, 2, 2, 3], true);
+     * // => [1, 2, 3]
+     *
+     * _.uniq(['A', 'b', 'C', 'a', 'B', 'c'], function(letter) { return letter.toLowerCase(); });
+     * // => ['A', 'b', 'C']
+     *
+     * _.uniq([1, 2.5, 3, 1.5, 2, 3.5], function(num) { return this.floor(num); }, Math);
+     * // => [1, 2.5, 3]
+     *
+     * // using "_.pluck" callback shorthand
+     * _.uniq([{ 'x': 1 }, { 'x': 2 }, { 'x': 1 }], 'x');
+     * // => [{ 'x': 1 }, { 'x': 2 }]
+     */
+    function uniq(array, isSorted, callback, thisArg) {
+      // juggle arguments
+      if (typeof isSorted != 'boolean' && isSorted != null) {
+        thisArg = callback;
+        callback = (typeof isSorted != 'function' && thisArg && thisArg[isSorted] === array) ? null : isSorted;
+        isSorted = false;
+      }
+      if (callback != null) {
+        callback = lodash.createCallback(callback, thisArg, 3);
+      }
+      return baseUniq(array, isSorted, callback);
+    }
+
+    /**
+     * Creates an array excluding all provided values using strict equality for
+     * comparisons, i.e. `===`.
+     *
+     * @static
+     * @memberOf _
+     * @category Arrays
+     * @param {Array} array The array to filter.
+     * @param {...*} [value] The values to exclude.
+     * @returns {Array} Returns a new array of filtered values.
+     * @example
+     *
+     * _.without([1, 2, 1, 0, 3, 1, 4], 0, 1);
+     * // => [2, 3, 4]
+     */
+    function without(array) {
+      return baseDifference(array, slice(arguments, 1));
+    }
+
+    /**
+     * Creates an array that is the symmetric difference of the provided arrays.
+     * See http://en.wikipedia.org/wiki/Symmetric_difference.
+     *
+     * @static
+     * @memberOf _
+     * @category Arrays
+     * @param {...Array} [array] The arrays to inspect.
+     * @returns {Array} Returns an array of values.
+     * @example
+     *
+     * _.xor([1, 2, 3], [5, 2, 1, 4]);
+     * // => [3, 5, 4]
+     *
+     * _.xor([1, 2, 5], [2, 3, 5], [3, 4, 5]);
+     * // => [1, 4, 5]
+     */
+    function xor() {
+      var index = -1,
+          length = arguments.length;
+
+      while (++index < length) {
+        var array = arguments[index];
+        if (isArray(array) || isArguments(array)) {
+          var result = result
+            ? baseUniq(baseDifference(result, array).concat(baseDifference(array, result)))
+            : array;
+        }
+      }
+      return result || [];
+    }
+
+    /**
+     * Creates an array of grouped elements, the first of which contains the first
+     * elements of the given arrays, the second of which contains the second
+     * elements of the given arrays, and so on.
+     *
+     * @static
+     * @memberOf _
+     * @alias unzip
+     * @category Arrays
+     * @param {...Array} [array] Arrays to process.
+     * @returns {Array} Returns a new array of grouped elements.
+     * @example
+     *
+     * _.zip(['fred', 'barney'], [30, 40], [true, false]);
+     * // => [['fred', 30, true], ['barney', 40, false]]
+     */
+    function zip() {
+      var array = arguments.length > 1 ? arguments : arguments[0],
+          index = -1,
+          length = array ? max(pluck(array, 'length')) : 0,
+          result = Array(length < 0 ? 0 : length);
+
+      while (++index < length) {
+        result[index] = pluck(array, index);
+      }
+      return result;
+    }
+
+    /**
+     * Creates an object composed from arrays of `keys` and `values`. Provide
+     * either a single two dimensional array, i.e. `[[key1, value1], [key2, value2]]`
+     * or two arrays, one of `keys` and one of corresponding `values`.
+     *
+     * @static
+     * @memberOf _
+     * @alias object
+     * @category Arrays
+     * @param {Array} keys The array of keys.
+     * @param {Array} [values=[]] The array of values.
+     * @returns {Object} Returns an object composed of the given keys and
+     *  corresponding values.
+     * @example
+     *
+     * _.zipObject(['fred', 'barney'], [30, 40]);
+     * // => { 'fred': 30, 'barney': 40 }
+     */
+    function zipObject(keys, values) {
+      var index = -1,
+          length = keys ? keys.length : 0,
+          result = {};
+
+      if (!values && length && !isArray(keys[0])) {
+        values = [];
+      }
+      while (++index < length) {
+        var key = keys[index];
+        if (values) {
+          result[key] = values[index];
+        } else if (key) {
+          result[key[0]] = key[1];
+        }
+      }
+      return result;
+    }
+
+    /*--------------------------------------------------------------------------*/
+
+    /**
+     * Creates a function that executes `func`, with  the `this` binding and
+     * arguments of the created function, only after being called `n` times.
+     *
+     * @static
+     * @memberOf _
+     * @category Functions
+     * @param {number} n The number of times the function must be called before
+     *  `func` is executed.
+     * @param {Function} func The function to restrict.
+     * @returns {Function} Returns the new restricted function.
+     * @example
+     *
+     * var saves = ['profile', 'settings'];
+     *
+     * var done = _.after(saves.length, function() {
+     *   console.log('Done saving!');
+     * });
+     *
+     * _.forEach(saves, function(type) {
+     *   asyncSave({ 'type': type, 'complete': done });
+     * });
+     * // => logs 'Done saving!', after all saves have completed
+     */
+    function after(n, func) {
+      if (!isFunction(func)) {
+        throw new TypeError;
+      }
+      return function() {
+        if (--n < 1) {
+          return func.apply(this, arguments);
+        }
+      };
+    }
+
+    /**
+     * Creates a function that, when called, invokes `func` with the `this`
+     * binding of `thisArg` and prepends any additional `bind` arguments to those
+     * provided to the bound function.
+     *
+     * @static
+     * @memberOf _
+     * @category Functions
+     * @param {Function} func The function to bind.
+     * @param {*} [thisArg] The `this` binding of `func`.
+     * @param {...*} [arg] Arguments to be partially applied.
+     * @returns {Function} Returns the new bound function.
+     * @example
+     *
+     * var func = function(greeting) {
+     *   return greeting + ' ' + this.name;
+     * };
+     *
+     * func = _.bind(func, { 'name': 'fred' }, 'hi');
+     * func();
+     * // => 'hi fred'
+     */
+    function bind(func, thisArg) {
+      return arguments.length > 2
+        ? createWrapper(func, 17, slice(arguments, 2), null, thisArg)
+        : createWrapper(func, 1, null, null, thisArg);
+    }
+
+    /**
+     * Binds methods of an object to the object itself, overwriting the existing
+     * method. Method names may be specified as individual arguments or as arrays
+     * of method names. If no method names are provided all the function properties
+     * of `object` will be bound.
+     *
+     * @static
+     * @memberOf _
+     * @category Functions
+     * @param {Object} object The object to bind and assign the bound methods to.
+     * @param {...string} [methodName] The object method names to
+     *  bind, specified as individual method names or arrays of method names.
+     * @returns {Object} Returns `object`.
+     * @example
+     *
+     * var view = {
+     *   'label': 'docs',
+     *   'onClick': function() { console.log('clicked ' + this.label); }
+     * };
+     *
+     * _.bindAll(view);
+     * jQuery('#docs').on('click', view.onClick);
+     * // => logs 'clicked docs', when the button is clicked
+     */
+    function bindAll(object) {
+      var funcs = arguments.length > 1 ? baseFlatten(arguments, true, false, 1) : functions(object),
+          index = -1,
+          length = funcs.length;
+
+      while (++index < length) {
+        var key = funcs[index];
+        object[key] = createWrapper(object[key], 1, null, null, object);
+      }
+      return object;
+    }
+
+    /**
+     * Creates a function that, when called, invokes the method at `object[key]`
+     * and prepends any additional `bindKey` arguments to those provided to the bound
+     * function. This method differs from `_.bind` by allowing bound functions to
+     * reference methods that will be redefined or don't yet exist.
+     * See http://michaux.ca/articles/lazy-function-definition-pattern.
+     *
+     * @static
+     * @memberOf _
+     * @category Functions
+     * @param {Object} object The object the method belongs to.
+     * @param {string} key The key of the method.
+     * @param {...*} [arg] Arguments to be partially applied.
+     * @returns {Function} Returns the new bound function.
+     * @example
+     *
+     * var object = {
+     *   'name': 'fred',
+     *   'greet': function(greeting) {
+     *     return greeting + ' ' + this.name;
+     *   }
+     * };
+     *
+     * var func = _.bindKey(object, 'greet', 'hi');
+     * func();
+     * // => 'hi fred'
+     *
+     * object.greet = function(greeting) {
+     *   return greeting + 'ya ' + this.name + '!';
+     * };
+     *
+     * func();
+     * // => 'hiya fred!'
+     */
+    function bindKey(object, key) {
+      return arguments.length > 2
+        ? createWrapper(key, 19, slice(arguments, 2), null, object)
+        : createWrapper(key, 3, null, null, object);
+    }
+
+    /**
+     * Creates a function that is the composition of the provided functions,
+     * where each function consumes the return value of the function that follows.
+     * For example, composing the functions `f()`, `g()`, and `h()` produces `f(g(h()))`.
+     * Each function is executed with the `this` binding of the composed function.
+     *
+     * @static
+     * @memberOf _
+     * @category Functions
+     * @param {...Function} [func] Functions to compose.
+     * @returns {Function} Returns the new composed function.
+     * @example
+     *
+     * var realNameMap = {
+     *   'pebbles': 'penelope'
+     * };
+     *
+     * var format = function(name) {
+     *   name = realNameMap[name.toLowerCase()] || name;
+     *   return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+     * };
+     *
+     * var greet = function(formatted) {
+     *   return 'Hiya ' + formatted + '!';
+     * };
+     *
+     * var welcome = _.compose(greet, format);
+     * welcome('pebbles');
+     * // => 'Hiya Penelope!'
+     */
+    function compose() {
+      var funcs = arguments,
+          length = funcs.length;
+
+      while (length--) {
+        if (!isFunction(funcs[length])) {
+          throw new TypeError;
+        }
+      }
+      return function() {
+        var args = arguments,
+            length = funcs.length;
+
+        while (length--) {
+          args = [funcs[length].apply(this, args)];
+        }
+        return args[0];
+      };
+    }
+
+    /**
+     * Creates a function which accepts one or more arguments of `func` that when
+     * invoked either executes `func` returning its result, if all `func` arguments
+     * have been provided, or returns a function that accepts one or more of the
+     * remaining `func` arguments, and so on. The arity of `func` can be specified
+     * if `func.length` is not sufficient.
+     *
+     * @static
+     * @memberOf _
+     * @category Functions
+     * @param {Function} func The function to curry.
+     * @param {number} [arity=func.length] The arity of `func`.
+     * @returns {Function} Returns the new curried function.
+     * @example
+     *
+     * var curried = _.curry(function(a, b, c) {
+     *   console.log(a + b + c);
+     * });
+     *
+     * curried(1)(2)(3);
+     * // => 6
+     *
+     * curried(1, 2)(3);
+     * // => 6
+     *
+     * curried(1, 2, 3);
+     * // => 6
+     */
+    function curry(func, arity) {
+      arity = typeof arity == 'number' ? arity : (+arity || func.length);
+      return createWrapper(func, 4, null, null, null, arity);
+    }
+
+    /**
+     * Creates a function that will delay the execution of `func` until after
+     * `wait` milliseconds have elapsed since the last time it was invoked.
+     * Provide an options object to indicate that `func` should be invoked on
+     * the leading and/or trailing edge of the `wait` timeout. Subsequent calls
+     * to the debounced function will return the result of the last `func` call.
+     *
+     * Note: If `leading` and `trailing` options are `true` `func` will be called
+     * on the trailing edge of the timeout only if the the debounced function is
+     * invoked more than once during the `wait` timeout.
+     *
+     * @static
+     * @memberOf _
+     * @category Functions
+     * @param {Function} func The function to debounce.
+     * @param {number} wait The number of milliseconds to delay.
+     * @param {Object} [options] The options object.
+     * @param {boolean} [options.leading=false] Specify execution on the leading edge of the timeout.
+     * @param {number} [options.maxWait] The maximum time `func` is allowed to be delayed before it's called.
+     * @param {boolean} [options.trailing=true] Specify execution on the trailing edge of the timeout.
+     * @returns {Function} Returns the new debounced function.
+     * @example
+     *
+     * // avoid costly calculations while the window size is in flux
+     * var lazyLayout = _.debounce(calculateLayout, 150);
+     * jQuery(window).on('resize', lazyLayout);
+     *
+     * // execute `sendMail` when the click event is fired, debouncing subsequent calls
+     * jQuery('#postbox').on('click', _.debounce(sendMail, 300, {
+     *   'leading': true,
+     *   'trailing': false
+     * });
+     *
+     * // ensure `batchLog` is executed once after 1 second of debounced calls
+     * var source = new EventSource('/stream');
+     * source.addEventListener('message', _.debounce(batchLog, 250, {
+     *   'maxWait': 1000
+     * }, false);
+     */
+    function debounce(func, wait, options) {
+      var args,
+          maxTimeoutId,
+          result,
+          stamp,
+          thisArg,
+          timeoutId,
+          trailingCall,
+          lastCalled = 0,
+          maxWait = false,
+          trailing = true;
+
+      if (!isFunction(func)) {
+        throw new TypeError;
+      }
+      wait = nativeMax(0, wait) || 0;
+      if (options === true) {
+        var leading = true;
+        trailing = false;
+      } else if (isObject(options)) {
+        leading = options.leading;
+        maxWait = 'maxWait' in options && (nativeMax(wait, options.maxWait) || 0);
+        trailing = 'trailing' in options ? options.trailing : trailing;
+      }
+      var delayed = function() {
+        var remaining = wait - (now() - stamp);
+        if (remaining <= 0) {
+          if (maxTimeoutId) {
+            clearTimeout(maxTimeoutId);
+          }
+          var isCalled = trailingCall;
+          maxTimeoutId = timeoutId = trailingCall = undefined;
+          if (isCalled) {
+            lastCalled = now();
+            result = func.apply(thisArg, args);
+            if (!timeoutId && !maxTimeoutId) {
+              args = thisArg = null;
+            }
+          }
+        } else {
+          timeoutId = setTimeout(delayed, remaining);
+        }
+      };
+
+      var maxDelayed = function() {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+        maxTimeoutId = timeoutId = trailingCall = undefined;
+        if (trailing || (maxWait !== wait)) {
+          lastCalled = now();
+          result = func.apply(thisArg, args);
+          if (!timeoutId && !maxTimeoutId) {
+            args = thisArg = null;
+          }
+        }
+      };
+
+      return function() {
+        args = arguments;
+        stamp = now();
+        thisArg = this;
+        trailingCall = trailing && (timeoutId || !leading);
+
+        if (maxWait === false) {
+          var leadingCall = leading && !timeoutId;
+        } else {
+          if (!maxTimeoutId && !leading) {
+            lastCalled = stamp;
+          }
+          var remaining = maxWait - (stamp - lastCalled),
+              isCalled = remaining <= 0;
+
+          if (isCalled) {
+            if (maxTimeoutId) {
+              maxTimeoutId = clearTimeout(maxTimeoutId);
+            }
+            lastCalled = stamp;
+            result = func.apply(thisArg, args);
+          }
+          else if (!maxTimeoutId) {
+            maxTimeoutId = setTimeout(maxDelayed, remaining);
+          }
+        }
+        if (isCalled && timeoutId) {
+          timeoutId = clearTimeout(timeoutId);
+        }
+        else if (!timeoutId && wait !== maxWait) {
+          timeoutId = setTimeout(delayed, wait);
+        }
+        if (leadingCall) {
+          isCalled = true;
+          result = func.apply(thisArg, args);
+        }
+        if (isCalled && !timeoutId && !maxTimeoutId) {
+          args = thisArg = null;
+        }
+        return result;
+      };
+    }
+
+    /**
+     * Defers executing the `func` function until the current call stack has cleared.
+     * Additional arguments will be provided to `func` when it is invoked.
+     *
+     * @static
+     * @memberOf _
+     * @category Functions
+     * @param {Function} func The function to defer.
+     * @param {...*} [arg] Arguments to invoke the function with.
+     * @returns {number} Returns the timer id.
+     * @example
+     *
+     * _.defer(function(text) { console.log(text); }, 'deferred');
+     * // logs 'deferred' after one or more milliseconds
+     */
+    function defer(func) {
+      if (!isFunction(func)) {
+        throw new TypeError;
+      }
+      var args = slice(arguments, 1);
+      return setTimeout(function() { func.apply(undefined, args); }, 1);
+    }
+
+    /**
+     * Executes the `func` function after `wait` milliseconds. Additional arguments
+     * will be provided to `func` when it is invoked.
+     *
+     * @static
+     * @memberOf _
+     * @category Functions
+     * @param {Function} func The function to delay.
+     * @param {number} wait The number of milliseconds to delay execution.
+     * @param {...*} [arg] Arguments to invoke the function with.
+     * @returns {number} Returns the timer id.
+     * @example
+     *
+     * _.delay(function(text) { console.log(text); }, 1000, 'later');
+     * // => logs 'later' after one second
+     */
+    function delay(func, wait) {
+      if (!isFunction(func)) {
+        throw new TypeError;
+      }
+      var args = slice(arguments, 2);
+      return setTimeout(function() { func.apply(undefined, args); }, wait);
+    }
+
+    /**
+     * Creates a function that memoizes the result of `func`. If `resolver` is
+     * provided it will be used to determine the cache key for storing the result
+     * based on the arguments provided to the memoized function. By default, the
+     * first argument provided to the memoized function is used as the cache key.
+     * The `func` is executed with the `this` binding of the memoized function.
+     * The result cache is exposed as the `cache` property on the memoized function.
+     *
+     * @static
+     * @memberOf _
+     * @category Functions
+     * @param {Function} func The function to have its output memoized.
+     * @param {Function} [resolver] A function used to resolve the cache key.
+     * @returns {Function} Returns the new memoizing function.
+     * @example
+     *
+     * var fibonacci = _.memoize(function(n) {
+     *   return n < 2 ? n : fibonacci(n - 1) + fibonacci(n - 2);
+     * });
+     *
+     * fibonacci(9)
+     * // => 34
+     *
+     * var data = {
+     *   'fred': { 'name': 'fred', 'age': 40 },
+     *   'pebbles': { 'name': 'pebbles', 'age': 1 }
+     * };
+     *
+     * // modifying the result cache
+     * var get = _.memoize(function(name) { return data[name]; }, _.identity);
+     * get('pebbles');
+     * // => { 'name': 'pebbles', 'age': 1 }
+     *
+     * get.cache.pebbles.name = 'penelope';
+     * get('pebbles');
+     * // => { 'name': 'penelope', 'age': 1 }
+     */
+    function memoize(func, resolver) {
+      if (!isFunction(func)) {
+        throw new TypeError;
+      }
+      var memoized = function() {
+        var cache = memoized.cache,
+            key = resolver ? resolver.apply(this, arguments) : keyPrefix + arguments[0];
+
+        return hasOwnProperty.call(cache, key)
+          ? cache[key]
+          : (cache[key] = func.apply(this, arguments));
+      }
+      memoized.cache = {};
+      return memoized;
+    }
+
+    /**
+     * Creates a function that is restricted to execute `func` once. Repeat calls to
+     * the function will return the value of the first call. The `func` is executed
+     * with the `this` binding of the created function.
+     *
+     * @static
+     * @memberOf _
+     * @category Functions
+     * @param {Function} func The function to restrict.
+     * @returns {Function} Returns the new restricted function.
+     * @example
+     *
+     * var initialize = _.once(createApplication);
+     * initialize();
+     * initialize();
+     * // `initialize` executes `createApplication` once
+     */
+    function once(func) {
+      var ran,
+          result;
+
+      if (!isFunction(func)) {
+        throw new TypeError;
+      }
+      return function() {
+        if (ran) {
+          return result;
+        }
+        ran = true;
+        result = func.apply(this, arguments);
+
+        // clear the `func` variable so the function may be garbage collected
+        func = null;
+        return result;
+      };
+    }
+
+    /**
+     * Creates a function that, when called, invokes `func` with any additional
+     * `partial` arguments prepended to those provided to the new function. This
+     * method is similar to `_.bind` except it does **not** alter the `this` binding.
+     *
+     * @static
+     * @memberOf _
+     * @category Functions
+     * @param {Function} func The function to partially apply arguments to.
+     * @param {...*} [arg] Arguments to be partially applied.
+     * @returns {Function} Returns the new partially applied function.
+     * @example
+     *
+     * var greet = function(greeting, name) { return greeting + ' ' + name; };
+     * var hi = _.partial(greet, 'hi');
+     * hi('fred');
+     * // => 'hi fred'
+     */
+    function partial(func) {
+      return createWrapper(func, 16, slice(arguments, 1));
+    }
+
+    /**
+     * This method is like `_.partial` except that `partial` arguments are
+     * appended to those provided to the new function.
+     *
+     * @static
+     * @memberOf _
+     * @category Functions
+     * @param {Function} func The function to partially apply arguments to.
+     * @param {...*} [arg] Arguments to be partially applied.
+     * @returns {Function} Returns the new partially applied function.
+     * @example
+     *
+     * var defaultsDeep = _.partialRight(_.merge, _.defaults);
+     *
+     * var options = {
+     *   'variable': 'data',
+     *   'imports': { 'jq': $ }
+     * };
+     *
+     * defaultsDeep(options, _.templateSettings);
+     *
+     * options.variable
+     * // => 'data'
+     *
+     * options.imports
+     * // => { '_': _, 'jq': $ }
+     */
+    function partialRight(func) {
+      return createWrapper(func, 32, null, slice(arguments, 1));
+    }
+
+    /**
+     * Creates a function that, when executed, will only call the `func` function
+     * at most once per every `wait` milliseconds. Provide an options object to
+     * indicate that `func` should be invoked on the leading and/or trailing edge
+     * of the `wait` timeout. Subsequent calls to the throttled function will
+     * return the result of the last `func` call.
+     *
+     * Note: If `leading` and `trailing` options are `true` `func` will be called
+     * on the trailing edge of the timeout only if the the throttled function is
+     * invoked more than once during the `wait` timeout.
+     *
+     * @static
+     * @memberOf _
+     * @category Functions
+     * @param {Function} func The function to throttle.
+     * @param {number} wait The number of milliseconds to throttle executions to.
+     * @param {Object} [options] The options object.
+     * @param {boolean} [options.leading=true] Specify execution on the leading edge of the timeout.
+     * @param {boolean} [options.trailing=true] Specify execution on the trailing edge of the timeout.
+     * @returns {Function} Returns the new throttled function.
+     * @example
+     *
+     * // avoid excessively updating the position while scrolling
+     * var throttled = _.throttle(updatePosition, 100);
+     * jQuery(window).on('scroll', throttled);
+     *
+     * // execute `renewToken` when the click event is fired, but not more than once every 5 minutes
+     * jQuery('.interactive').on('click', _.throttle(renewToken, 300000, {
+     *   'trailing': false
+     * }));
+     */
+    function throttle(func, wait, options) {
+      var leading = true,
+          trailing = true;
+
+      if (!isFunction(func)) {
+        throw new TypeError;
+      }
+      if (options === false) {
+        leading = false;
+      } else if (isObject(options)) {
+        leading = 'leading' in options ? options.leading : leading;
+        trailing = 'trailing' in options ? options.trailing : trailing;
+      }
+      debounceOptions.leading = leading;
+      debounceOptions.maxWait = wait;
+      debounceOptions.trailing = trailing;
+
+      return debounce(func, wait, debounceOptions);
+    }
+
+    /**
+     * Creates a function that provides `value` to the wrapper function as its
+     * first argument. Additional arguments provided to the function are appended
+     * to those provided to the wrapper function. The wrapper is executed with
+     * the `this` binding of the created function.
+     *
+     * @static
+     * @memberOf _
+     * @category Functions
+     * @param {*} value The value to wrap.
+     * @param {Function} wrapper The wrapper function.
+     * @returns {Function} Returns the new function.
+     * @example
+     *
+     * var p = _.wrap(_.escape, function(func, text) {
+     *   return '<p>' + func(text) + '</p>';
+     * });
+     *
+     * p('Fred, Wilma, & Pebbles');
+     * // => '<p>Fred, Wilma, &amp; Pebbles</p>'
+     */
+    function wrap(value, wrapper) {
+      return createWrapper(wrapper, 16, [value]);
+    }
+
+    /*--------------------------------------------------------------------------*/
+
+    /**
+     * Creates a function that returns `value`.
+     *
+     * @static
+     * @memberOf _
+     * @category Utilities
+     * @param {*} value The value to return from the new function.
+     * @returns {Function} Returns the new function.
+     * @example
+     *
+     * var object = { 'name': 'fred' };
+     * var getter = _.constant(object);
+     * getter() === object;
+     * // => true
+     */
+    function constant(value) {
+      return function() {
+        return value;
+      };
+    }
+
+    /**
+     * Produces a callback bound to an optional `thisArg`. If `func` is a property
+     * name the created callback will return the property value for a given element.
+     * If `func` is an object the created callback will return `true` for elements
+     * that contain the equivalent object properties, otherwise it will return `false`.
+     *
+     * @static
+     * @memberOf _
+     * @category Utilities
+     * @param {*} [func=identity] The value to convert to a callback.
+     * @param {*} [thisArg] The `this` binding of the created callback.
+     * @param {number} [argCount] The number of arguments the callback accepts.
+     * @returns {Function} Returns a callback function.
+     * @example
+     *
+     * var characters = [
+     *   { 'name': 'barney', 'age': 36 },
+     *   { 'name': 'fred',   'age': 40 }
+     * ];
+     *
+     * // wrap to create custom callback shorthands
+     * _.createCallback = _.wrap(_.createCallback, function(func, callback, thisArg) {
+     *   var match = /^(.+?)__([gl]t)(.+)$/.exec(callback);
+     *   return !match ? func(callback, thisArg) : function(object) {
+     *     return match[2] == 'gt' ? object[match[1]] > match[3] : object[match[1]] < match[3];
+     *   };
+     * });
+     *
+     * _.filter(characters, 'age__gt38');
+     * // => [{ 'name': 'fred', 'age': 40 }]
+     */
+    function createCallback(func, thisArg, argCount) {
+      var type = typeof func;
+      if (func == null || type == 'function') {
+        return baseCreateCallback(func, thisArg, argCount);
+      }
+      // handle "_.pluck" style callback shorthands
+      if (type != 'object') {
+        return property(func);
+      }
+      var props = keys(func),
+          key = props[0],
+          a = func[key];
+
+      // handle "_.where" style callback shorthands
+      if (props.length == 1 && a === a && !isObject(a)) {
+        // fast path the common case of providing an object with a single
+        // property containing a primitive value
+        return function(object) {
+          var b = object[key];
+          return a === b && (a !== 0 || (1 / a == 1 / b));
+        };
+      }
+      return function(object) {
+        var length = props.length,
+            result = false;
+
+        while (length--) {
+          if (!(result = baseIsEqual(object[props[length]], func[props[length]], null, true))) {
+            break;
+          }
+        }
+        return result;
+      };
+    }
+
+    /**
+     * Converts the characters `&`, `<`, `>`, `"`, and `'` in `string` to their
+     * corresponding HTML entities.
+     *
+     * @static
+     * @memberOf _
+     * @category Utilities
+     * @param {string} string The string to escape.
+     * @returns {string} Returns the escaped string.
+     * @example
+     *
+     * _.escape('Fred, Wilma, & Pebbles');
+     * // => 'Fred, Wilma, &amp; Pebbles'
+     */
+    function escape(string) {
+      return string == null ? '' : String(string).replace(reUnescapedHtml, escapeHtmlChar);
+    }
+
+    /**
+     * This method returns the first argument provided to it.
+     *
+     * @static
+     * @memberOf _
+     * @category Utilities
+     * @param {*} value Any value.
+     * @returns {*} Returns `value`.
+     * @example
+     *
+     * var object = { 'name': 'fred' };
+     * _.identity(object) === object;
+     * // => true
+     */
+    function identity(value) {
+      return value;
+    }
+
+    /**
+     * Adds function properties of a source object to the destination object.
+     * If `object` is a function methods will be added to its prototype as well.
+     *
+     * @static
+     * @memberOf _
+     * @category Utilities
+     * @param {Function|Object} [object=lodash] object The destination object.
+     * @param {Object} source The object of functions to add.
+     * @param {Object} [options] The options object.
+     * @param {boolean} [options.chain=true] Specify whether the functions added are chainable.
+     * @example
+     *
+     * function capitalize(string) {
+     *   return string.charAt(0).toUpperCase() + string.slice(1).toLowerCase();
+     * }
+     *
+     * _.mixin({ 'capitalize': capitalize });
+     * _.capitalize('fred');
+     * // => 'Fred'
+     *
+     * _('fred').capitalize().value();
+     * // => 'Fred'
+     *
+     * _.mixin({ 'capitalize': capitalize }, { 'chain': false });
+     * _('fred').capitalize();
+     * // => 'Fred'
+     */
+    function mixin(object, source, options) {
+      var chain = true,
+          methodNames = source && functions(source);
+
+      if (!source || (!options && !methodNames.length)) {
+        if (options == null) {
+          options = source;
+        }
+        ctor = lodashWrapper;
+        source = object;
+        object = lodash;
+        methodNames = functions(source);
+      }
+      if (options === false) {
+        chain = false;
+      } else if (isObject(options) && 'chain' in options) {
+        chain = options.chain;
+      }
+      var ctor = object,
+          isFunc = isFunction(ctor);
+
+      forEach(methodNames, function(methodName) {
+        var func = object[methodName] = source[methodName];
+        if (isFunc) {
+          ctor.prototype[methodName] = function() {
+            var chainAll = this.__chain__,
+                value = this.__wrapped__,
+                args = [value];
+
+            push.apply(args, arguments);
+            var result = func.apply(object, args);
+            if (chain || chainAll) {
+              if (value === result && isObject(result)) {
+                return this;
+              }
+              result = new ctor(result);
+              result.__chain__ = chainAll;
+            }
+            return result;
+          };
+        }
+      });
+    }
+
+    /**
+     * Reverts the '_' variable to its previous value and returns a reference to
+     * the `lodash` function.
+     *
+     * @static
+     * @memberOf _
+     * @category Utilities
+     * @returns {Function} Returns the `lodash` function.
+     * @example
+     *
+     * var lodash = _.noConflict();
+     */
+    function noConflict() {
+      context._ = oldDash;
+      return this;
+    }
+
+    /**
+     * A no-operation function.
+     *
+     * @static
+     * @memberOf _
+     * @category Utilities
+     * @example
+     *
+     * var object = { 'name': 'fred' };
+     * _.noop(object) === undefined;
+     * // => true
+     */
+    function noop() {
+      // no operation performed
+    }
+
+    /**
+     * Gets the number of milliseconds that have elapsed since the Unix epoch
+     * (1 January 1970 00:00:00 UTC).
+     *
+     * @static
+     * @memberOf _
+     * @category Utilities
+     * @example
+     *
+     * var stamp = _.now();
+     * _.defer(function() { console.log(_.now() - stamp); });
+     * // => logs the number of milliseconds it took for the deferred function to be called
+     */
+    var now = isNative(now = Date.now) && now || function() {
+      return new Date().getTime();
+    };
+
+    /**
+     * Converts the given value into an integer of the specified radix.
+     * If `radix` is `undefined` or `0` a `radix` of `10` is used unless the
+     * `value` is a hexadecimal, in which case a `radix` of `16` is used.
+     *
+     * Note: This method avoids differences in native ES3 and ES5 `parseInt`
+     * implementations. See http://es5.github.io/#E.
+     *
+     * @static
+     * @memberOf _
+     * @category Utilities
+     * @param {string} value The value to parse.
+     * @param {number} [radix] The radix used to interpret the value to parse.
+     * @returns {number} Returns the new integer value.
+     * @example
+     *
+     * _.parseInt('08');
+     * // => 8
+     */
+    var parseInt = nativeParseInt(whitespace + '08') == 8 ? nativeParseInt : function(value, radix) {
+      // Firefox < 21 and Opera < 15 follow the ES3 specified implementation of `parseInt`
+      return nativeParseInt(isString(value) ? value.replace(reLeadingSpacesAndZeros, '') : value, radix || 0);
+    };
+
+    /**
+     * Creates a "_.pluck" style function, which returns the `key` value of a
+     * given object.
+     *
+     * @static
+     * @memberOf _
+     * @category Utilities
+     * @param {string} key The name of the property to retrieve.
+     * @returns {Function} Returns the new function.
+     * @example
+     *
+     * var characters = [
+     *   { 'name': 'fred',   'age': 40 },
+     *   { 'name': 'barney', 'age': 36 }
+     * ];
+     *
+     * var getName = _.property('name');
+     *
+     * _.map(characters, getName);
+     * // => ['barney', 'fred']
+     *
+     * _.sortBy(characters, getName);
+     * // => [{ 'name': 'barney', 'age': 36 }, { 'name': 'fred',   'age': 40 }]
+     */
+    function property(key) {
+      return function(object) {
+        return object[key];
+      };
+    }
+
+    /**
+     * Produces a random number between `min` and `max` (inclusive). If only one
+     * argument is provided a number between `0` and the given number will be
+     * returned. If `floating` is truey or either `min` or `max` are floats a
+     * floating-point number will be returned instead of an integer.
+     *
+     * @static
+     * @memberOf _
+     * @category Utilities
+     * @param {number} [min=0] The minimum possible value.
+     * @param {number} [max=1] The maximum possible value.
+     * @param {boolean} [floating=false] Specify returning a floating-point number.
+     * @returns {number} Returns a random number.
+     * @example
+     *
+     * _.random(0, 5);
+     * // => an integer between 0 and 5
+     *
+     * _.random(5);
+     * // => also an integer between 0 and 5
+     *
+     * _.random(5, true);
+     * // => a floating-point number between 0 and 5
+     *
+     * _.random(1.2, 5.2);
+     * // => a floating-point number between 1.2 and 5.2
+     */
+    function random(min, max, floating) {
+      var noMin = min == null,
+          noMax = max == null;
+
+      if (floating == null) {
+        if (typeof min == 'boolean' && noMax) {
+          floating = min;
+          min = 1;
+        }
+        else if (!noMax && typeof max == 'boolean') {
+          floating = max;
+          noMax = true;
+        }
+      }
+      if (noMin && noMax) {
+        max = 1;
+      }
+      min = +min || 0;
+      if (noMax) {
+        max = min;
+        min = 0;
+      } else {
+        max = +max || 0;
+      }
+      if (floating || min % 1 || max % 1) {
+        var rand = nativeRandom();
+        return nativeMin(min + (rand * (max - min + parseFloat('1e-' + ((rand +'').length - 1)))), max);
+      }
+      return baseRandom(min, max);
+    }
+
+    /**
+     * Resolves the value of property `key` on `object`. If `key` is a function
+     * it will be invoked with the `this` binding of `object` and its result returned,
+     * else the property value is returned. If `object` is falsey then `undefined`
+     * is returned.
+     *
+     * @static
+     * @memberOf _
+     * @category Utilities
+     * @param {Object} object The object to inspect.
+     * @param {string} key The name of the property to resolve.
+     * @returns {*} Returns the resolved value.
+     * @example
+     *
+     * var object = {
+     *   'cheese': 'crumpets',
+     *   'stuff': function() {
+     *     return 'nonsense';
+     *   }
+     * };
+     *
+     * _.result(object, 'cheese');
+     * // => 'crumpets'
+     *
+     * _.result(object, 'stuff');
+     * // => 'nonsense'
+     */
+    function result(object, key) {
+      if (object) {
+        var value = object[key];
+        return isFunction(value) ? object[key]() : value;
+      }
+    }
+
+    /**
+     * A micro-templating method that handles arbitrary delimiters, preserves
+     * whitespace, and correctly escapes quotes within interpolated code.
+     *
+     * Note: In the development build, `_.template` utilizes sourceURLs for easier
+     * debugging. See http://www.html5rocks.com/en/tutorials/developertools/sourcemaps/#toc-sourceurl
+     *
+     * For more information on precompiling templates see:
+     * http://lodash.com/custom-builds
+     *
+     * For more information on Chrome extension sandboxes see:
+     * http://developer.chrome.com/stable/extensions/sandboxingEval.html
+     *
+     * @static
+     * @memberOf _
+     * @category Utilities
+     * @param {string} text The template text.
+     * @param {Object} data The data object used to populate the text.
+     * @param {Object} [options] The options object.
+     * @param {RegExp} [options.escape] The "escape" delimiter.
+     * @param {RegExp} [options.evaluate] The "evaluate" delimiter.
+     * @param {Object} [options.imports] An object to import into the template as local variables.
+     * @param {RegExp} [options.interpolate] The "interpolate" delimiter.
+     * @param {string} [sourceURL] The sourceURL of the template's compiled source.
+     * @param {string} [variable] The data object variable name.
+     * @returns {Function|string} Returns a compiled function when no `data` object
+     *  is given, else it returns the interpolated text.
+     * @example
+     *
+     * // using the "interpolate" delimiter to create a compiled template
+     * var compiled = _.template('hello <%= name %>');
+     * compiled({ 'name': 'fred' });
+     * // => 'hello fred'
+     *
+     * // using the "escape" delimiter to escape HTML in data property values
+     * _.template('<b><%- value %></b>', { 'value': '<script>' });
+     * // => '<b>&lt;script&gt;</b>'
+     *
+     * // using the "evaluate" delimiter to generate HTML
+     * var list = '<% _.forEach(people, function(name) { %><li><%- name %></li><% }); %>';
+     * _.template(list, { 'people': ['fred', 'barney'] });
+     * // => '<li>fred</li><li>barney</li>'
+     *
+     * // using the ES6 delimiter as an alternative to the default "interpolate" delimiter
+     * _.template('hello ${ name }', { 'name': 'pebbles' });
+     * // => 'hello pebbles'
+     *
+     * // using the internal `print` function in "evaluate" delimiters
+     * _.template('<% print("hello " + name); %>!', { 'name': 'barney' });
+     * // => 'hello barney!'
+     *
+     * // using a custom template delimiters
+     * _.templateSettings = {
+     *   'interpolate': /{{([\s\S]+?)}}/g
+     * };
+     *
+     * _.template('hello {{ name }}!', { 'name': 'mustache' });
+     * // => 'hello mustache!'
+     *
+     * // using the `imports` option to import jQuery
+     * var list = '<% jq.each(people, function(name) { %><li><%- name %></li><% }); %>';
+     * _.template(list, { 'people': ['fred', 'barney'] }, { 'imports': { 'jq': jQuery } });
+     * // => '<li>fred</li><li>barney</li>'
+     *
+     * // using the `sourceURL` option to specify a custom sourceURL for the template
+     * var compiled = _.template('hello <%= name %>', null, { 'sourceURL': '/basic/greeting.jst' });
+     * compiled(data);
+     * // => find the source of "greeting.jst" under the Sources tab or Resources panel of the web inspector
+     *
+     * // using the `variable` option to ensure a with-statement isn't used in the compiled template
+     * var compiled = _.template('hi <%= data.name %>!', null, { 'variable': 'data' });
+     * compiled.source;
+     * // => function(data) {
+     *   var __t, __p = '', __e = _.escape;
+     *   __p += 'hi ' + ((__t = ( data.name )) == null ? '' : __t) + '!';
+     *   return __p;
+     * }
+     *
+     * // using the `source` property to inline compiled templates for meaningful
+     * // line numbers in error messages and a stack trace
+     * fs.writeFileSync(path.join(cwd, 'jst.js'), '\
+     *   var JST = {\
+     *     "main": ' + _.template(mainText).source + '\
+     *   };\
+     * ');
+     */
+    function template(text, data, options) {
+      // based on John Resig's `tmpl` implementation
+      // http://ejohn.org/blog/javascript-micro-templating/
+      // and Laura Doktorova's doT.js
+      // https://github.com/olado/doT
+      var settings = lodash.templateSettings;
+      text = String(text || '');
+
+      // avoid missing dependencies when `iteratorTemplate` is not defined
+      options = defaults({}, options, settings);
+
+      var imports = defaults({}, options.imports, settings.imports),
+          importsKeys = keys(imports),
+          importsValues = values(imports);
+
+      var isEvaluating,
+          index = 0,
+          interpolate = options.interpolate || reNoMatch,
+          source = "__p += '";
+
+      // compile the regexp to match each delimiter
+      var reDelimiters = RegExp(
+        (options.escape || reNoMatch).source + '|' +
+        interpolate.source + '|' +
+        (interpolate === reInterpolate ? reEsTemplate : reNoMatch).source + '|' +
+        (options.evaluate || reNoMatch).source + '|$'
+      , 'g');
+
+      text.replace(reDelimiters, function(match, escapeValue, interpolateValue, esTemplateValue, evaluateValue, offset) {
+        interpolateValue || (interpolateValue = esTemplateValue);
+
+        // escape characters that cannot be included in string literals
+        source += text.slice(index, offset).replace(reUnescapedString, escapeStringChar);
+
+        // replace delimiters with snippets
+        if (escapeValue) {
+          source += "' +\n__e(" + escapeValue + ") +\n'";
+        }
+        if (evaluateValue) {
+          isEvaluating = true;
+          source += "';\n" + evaluateValue + ";\n__p += '";
+        }
+        if (interpolateValue) {
+          source += "' +\n((__t = (" + interpolateValue + ")) == null ? '' : __t) +\n'";
+        }
+        index = offset + match.length;
+
+        // the JS engine embedded in Adobe products requires returning the `match`
+        // string in order to produce the correct `offset` value
+        return match;
+      });
+
+      source += "';\n";
+
+      // if `variable` is not specified, wrap a with-statement around the generated
+      // code to add the data object to the top of the scope chain
+      var variable = options.variable,
+          hasVariable = variable;
+
+      if (!hasVariable) {
+        variable = 'obj';
+        source = 'with (' + variable + ') {\n' + source + '\n}\n';
+      }
+      // cleanup code by stripping empty strings
+      source = (isEvaluating ? source.replace(reEmptyStringLeading, '') : source)
+        .replace(reEmptyStringMiddle, '$1')
+        .replace(reEmptyStringTrailing, '$1;');
+
+      // frame code as the function body
+      source = 'function(' + variable + ') {\n' +
+        (hasVariable ? '' : variable + ' || (' + variable + ' = {});\n') +
+        "var __t, __p = '', __e = _.escape" +
+        (isEvaluating
+          ? ', __j = Array.prototype.join;\n' +
+            "function print() { __p += __j.call(arguments, '') }\n"
+          : ';\n'
+        ) +
+        source +
+        'return __p\n}';
+
+      // Use a sourceURL for easier debugging.
+      // http://www.html5rocks.com/en/tutorials/developertools/sourcemaps/#toc-sourceurl
+      var sourceURL = '\n/*\n//# sourceURL=' + (options.sourceURL || '/lodash/template/source[' + (templateCounter++) + ']') + '\n*/';
+
+      try {
+        var result = Function(importsKeys, 'return ' + source + sourceURL).apply(undefined, importsValues);
+      } catch(e) {
+        e.source = source;
+        throw e;
+      }
+      if (data) {
+        return result(data);
+      }
+      // provide the compiled function's source by its `toString` method, in
+      // supported environments, or the `source` property as a convenience for
+      // inlining compiled templates during the build process
+      result.source = source;
+      return result;
+    }
+
+    /**
+     * Executes the callback `n` times, returning an array of the results
+     * of each callback execution. The callback is bound to `thisArg` and invoked
+     * with one argument; (index).
+     *
+     * @static
+     * @memberOf _
+     * @category Utilities
+     * @param {number} n The number of times to execute the callback.
+     * @param {Function} callback The function called per iteration.
+     * @param {*} [thisArg] The `this` binding of `callback`.
+     * @returns {Array} Returns an array of the results of each `callback` execution.
+     * @example
+     *
+     * var diceRolls = _.times(3, _.partial(_.random, 1, 6));
+     * // => [3, 6, 4]
+     *
+     * _.times(3, function(n) { mage.castSpell(n); });
+     * // => calls `mage.castSpell(n)` three times, passing `n` of `0`, `1`, and `2` respectively
+     *
+     * _.times(3, function(n) { this.cast(n); }, mage);
+     * // => also calls `mage.castSpell(n)` three times
+     */
+    function times(n, callback, thisArg) {
+      n = (n = +n) > -1 ? n : 0;
+      var index = -1,
+          result = Array(n);
+
+      callback = baseCreateCallback(callback, thisArg, 1);
+      while (++index < n) {
+        result[index] = callback(index);
+      }
+      return result;
+    }
+
+    /**
+     * The inverse of `_.escape` this method converts the HTML entities
+     * `&amp;`, `&lt;`, `&gt;`, `&quot;`, and `&#39;` in `string` to their
+     * corresponding characters.
+     *
+     * @static
+     * @memberOf _
+     * @category Utilities
+     * @param {string} string The string to unescape.
+     * @returns {string} Returns the unescaped string.
+     * @example
+     *
+     * _.unescape('Fred, Barney &amp; Pebbles');
+     * // => 'Fred, Barney & Pebbles'
+     */
+    function unescape(string) {
+      return string == null ? '' : String(string).replace(reEscapedHtml, unescapeHtmlChar);
+    }
+
+    /**
+     * Generates a unique ID. If `prefix` is provided the ID will be appended to it.
+     *
+     * @static
+     * @memberOf _
+     * @category Utilities
+     * @param {string} [prefix] The value to prefix the ID with.
+     * @returns {string} Returns the unique ID.
+     * @example
+     *
+     * _.uniqueId('contact_');
+     * // => 'contact_104'
+     *
+     * _.uniqueId();
+     * // => '105'
+     */
+    function uniqueId(prefix) {
+      var id = ++idCounter;
+      return String(prefix == null ? '' : prefix) + id;
+    }
+
+    /*--------------------------------------------------------------------------*/
+
+    /**
+     * Creates a `lodash` object that wraps the given value with explicit
+     * method chaining enabled.
+     *
+     * @static
+     * @memberOf _
+     * @category Chaining
+     * @param {*} value The value to wrap.
+     * @returns {Object} Returns the wrapper object.
+     * @example
+     *
+     * var characters = [
+     *   { 'name': 'barney',  'age': 36 },
+     *   { 'name': 'fred',    'age': 40 },
+     *   { 'name': 'pebbles', 'age': 1 }
+     * ];
+     *
+     * var youngest = _.chain(characters)
+     *     .sortBy('age')
+     *     .map(function(chr) { return chr.name + ' is ' + chr.age; })
+     *     .first()
+     *     .value();
+     * // => 'pebbles is 1'
+     */
+    function chain(value) {
+      value = new lodashWrapper(value);
+      value.__chain__ = true;
+      return value;
+    }
+
+    /**
+     * Invokes `interceptor` with the `value` as the first argument and then
+     * returns `value`. The purpose of this method is to "tap into" a method
+     * chain in order to perform operations on intermediate results within
+     * the chain.
+     *
+     * @static
+     * @memberOf _
+     * @category Chaining
+     * @param {*} value The value to provide to `interceptor`.
+     * @param {Function} interceptor The function to invoke.
+     * @returns {*} Returns `value`.
+     * @example
+     *
+     * _([1, 2, 3, 4])
+     *  .tap(function(array) { array.pop(); })
+     *  .reverse()
+     *  .value();
+     * // => [3, 2, 1]
+     */
+    function tap(value, interceptor) {
+      interceptor(value);
+      return value;
+    }
+
+    /**
+     * Enables explicit method chaining on the wrapper object.
+     *
+     * @name chain
+     * @memberOf _
+     * @category Chaining
+     * @returns {*} Returns the wrapper object.
+     * @example
+     *
+     * var characters = [
+     *   { 'name': 'barney', 'age': 36 },
+     *   { 'name': 'fred',   'age': 40 }
+     * ];
+     *
+     * // without explicit chaining
+     * _(characters).first();
+     * // => { 'name': 'barney', 'age': 36 }
+     *
+     * // with explicit chaining
+     * _(characters).chain()
+     *   .first()
+     *   .pick('age')
+     *   .value();
+     * // => { 'age': 36 }
+     */
+    function wrapperChain() {
+      this.__chain__ = true;
+      return this;
+    }
+
+    /**
+     * Produces the `toString` result of the wrapped value.
+     *
+     * @name toString
+     * @memberOf _
+     * @category Chaining
+     * @returns {string} Returns the string result.
+     * @example
+     *
+     * _([1, 2, 3]).toString();
+     * // => '1,2,3'
+     */
+    function wrapperToString() {
+      return String(this.__wrapped__);
+    }
+
+    /**
+     * Extracts the wrapped value.
+     *
+     * @name valueOf
+     * @memberOf _
+     * @alias value
+     * @category Chaining
+     * @returns {*} Returns the wrapped value.
+     * @example
+     *
+     * _([1, 2, 3]).valueOf();
+     * // => [1, 2, 3]
+     */
+    function wrapperValueOf() {
+      return this.__wrapped__;
+    }
+
+    /*--------------------------------------------------------------------------*/
+
+    // add functions that return wrapped values when chaining
+    lodash.after = after;
+    lodash.assign = assign;
+    lodash.at = at;
+    lodash.bind = bind;
+    lodash.bindAll = bindAll;
+    lodash.bindKey = bindKey;
+    lodash.chain = chain;
+    lodash.compact = compact;
+    lodash.compose = compose;
+    lodash.constant = constant;
+    lodash.countBy = countBy;
+    lodash.create = create;
+    lodash.createCallback = createCallback;
+    lodash.curry = curry;
+    lodash.debounce = debounce;
+    lodash.defaults = defaults;
+    lodash.defer = defer;
+    lodash.delay = delay;
+    lodash.difference = difference;
+    lodash.filter = filter;
+    lodash.flatten = flatten;
+    lodash.forEach = forEach;
+    lodash.forEachRight = forEachRight;
+    lodash.forIn = forIn;
+    lodash.forInRight = forInRight;
+    lodash.forOwn = forOwn;
+    lodash.forOwnRight = forOwnRight;
+    lodash.functions = functions;
+    lodash.groupBy = groupBy;
+    lodash.indexBy = indexBy;
+    lodash.initial = initial;
+    lodash.intersection = intersection;
+    lodash.invert = invert;
+    lodash.invoke = invoke;
+    lodash.keys = keys;
+    lodash.map = map;
+    lodash.mapValues = mapValues;
+    lodash.max = max;
+    lodash.memoize = memoize;
+    lodash.merge = merge;
+    lodash.min = min;
+    lodash.omit = omit;
+    lodash.once = once;
+    lodash.pairs = pairs;
+    lodash.partial = partial;
+    lodash.partialRight = partialRight;
+    lodash.pick = pick;
+    lodash.pluck = pluck;
+    lodash.property = property;
+    lodash.pull = pull;
+    lodash.range = range;
+    lodash.reject = reject;
+    lodash.remove = remove;
+    lodash.rest = rest;
+    lodash.shuffle = shuffle;
+    lodash.sortBy = sortBy;
+    lodash.tap = tap;
+    lodash.throttle = throttle;
+    lodash.times = times;
+    lodash.toArray = toArray;
+    lodash.transform = transform;
+    lodash.union = union;
+    lodash.uniq = uniq;
+    lodash.values = values;
+    lodash.where = where;
+    lodash.without = without;
+    lodash.wrap = wrap;
+    lodash.xor = xor;
+    lodash.zip = zip;
+    lodash.zipObject = zipObject;
+
+    // add aliases
+    lodash.collect = map;
+    lodash.drop = rest;
+    lodash.each = forEach;
+    lodash.eachRight = forEachRight;
+    lodash.extend = assign;
+    lodash.methods = functions;
+    lodash.object = zipObject;
+    lodash.select = filter;
+    lodash.tail = rest;
+    lodash.unique = uniq;
+    lodash.unzip = zip;
+
+    // add functions to `lodash.prototype`
+    mixin(lodash);
+
+    /*--------------------------------------------------------------------------*/
+
+    // add functions that return unwrapped values when chaining
+    lodash.clone = clone;
+    lodash.cloneDeep = cloneDeep;
+    lodash.contains = contains;
+    lodash.escape = escape;
+    lodash.every = every;
+    lodash.find = find;
+    lodash.findIndex = findIndex;
+    lodash.findKey = findKey;
+    lodash.findLast = findLast;
+    lodash.findLastIndex = findLastIndex;
+    lodash.findLastKey = findLastKey;
+    lodash.has = has;
+    lodash.identity = identity;
+    lodash.indexOf = indexOf;
+    lodash.isArguments = isArguments;
+    lodash.isArray = isArray;
+    lodash.isBoolean = isBoolean;
+    lodash.isDate = isDate;
+    lodash.isElement = isElement;
+    lodash.isEmpty = isEmpty;
+    lodash.isEqual = isEqual;
+    lodash.isFinite = isFinite;
+    lodash.isFunction = isFunction;
+    lodash.isNaN = isNaN;
+    lodash.isNull = isNull;
+    lodash.isNumber = isNumber;
+    lodash.isObject = isObject;
+    lodash.isPlainObject = isPlainObject;
+    lodash.isRegExp = isRegExp;
+    lodash.isString = isString;
+    lodash.isUndefined = isUndefined;
+    lodash.lastIndexOf = lastIndexOf;
+    lodash.mixin = mixin;
+    lodash.noConflict = noConflict;
+    lodash.noop = noop;
+    lodash.now = now;
+    lodash.parseInt = parseInt;
+    lodash.random = random;
+    lodash.reduce = reduce;
+    lodash.reduceRight = reduceRight;
+    lodash.result = result;
+    lodash.runInContext = runInContext;
+    lodash.size = size;
+    lodash.some = some;
+    lodash.sortedIndex = sortedIndex;
+    lodash.template = template;
+    lodash.unescape = unescape;
+    lodash.uniqueId = uniqueId;
+
+    // add aliases
+    lodash.all = every;
+    lodash.any = some;
+    lodash.detect = find;
+    lodash.findWhere = find;
+    lodash.foldl = reduce;
+    lodash.foldr = reduceRight;
+    lodash.include = contains;
+    lodash.inject = reduce;
+
+    mixin(function() {
+      var source = {}
+      forOwn(lodash, function(func, methodName) {
+        if (!lodash.prototype[methodName]) {
+          source[methodName] = func;
+        }
+      });
+      return source;
+    }(), false);
+
+    /*--------------------------------------------------------------------------*/
+
+    // add functions capable of returning wrapped and unwrapped values when chaining
+    lodash.first = first;
+    lodash.last = last;
+    lodash.sample = sample;
+
+    // add aliases
+    lodash.take = first;
+    lodash.head = first;
+
+    forOwn(lodash, function(func, methodName) {
+      var callbackable = methodName !== 'sample';
+      if (!lodash.prototype[methodName]) {
+        lodash.prototype[methodName]= function(n, guard) {
+          var chainAll = this.__chain__,
+              result = func(this.__wrapped__, n, guard);
+
+          return !chainAll && (n == null || (guard && !(callbackable && typeof n == 'function')))
+            ? result
+            : new lodashWrapper(result, chainAll);
+        };
+      }
+    });
+
+    /*--------------------------------------------------------------------------*/
+
+    /**
+     * The semantic version number.
+     *
+     * @static
+     * @memberOf _
+     * @type string
+     */
+    lodash.VERSION = '2.4.1';
+
+    // add "Chaining" functions to the wrapper
+    lodash.prototype.chain = wrapperChain;
+    lodash.prototype.toString = wrapperToString;
+    lodash.prototype.value = wrapperValueOf;
+    lodash.prototype.valueOf = wrapperValueOf;
+
+    // add `Array` functions that return unwrapped values
+    forEach(['join', 'pop', 'shift'], function(methodName) {
+      var func = arrayRef[methodName];
+      lodash.prototype[methodName] = function() {
+        var chainAll = this.__chain__,
+            result = func.apply(this.__wrapped__, arguments);
+
+        return chainAll
+          ? new lodashWrapper(result, chainAll)
+          : result;
+      };
+    });
+
+    // add `Array` functions that return the existing wrapped value
+    forEach(['push', 'reverse', 'sort', 'unshift'], function(methodName) {
+      var func = arrayRef[methodName];
+      lodash.prototype[methodName] = function() {
+        func.apply(this.__wrapped__, arguments);
+        return this;
+      };
+    });
+
+    // add `Array` functions that return new wrapped values
+    forEach(['concat', 'slice', 'splice'], function(methodName) {
+      var func = arrayRef[methodName];
+      lodash.prototype[methodName] = function() {
+        return new lodashWrapper(func.apply(this.__wrapped__, arguments), this.__chain__);
+      };
+    });
+
+    return lodash;
   }
-  var de = def(request)
-  de.get = def(request.get)
-  de.post = def(request.post)
-  de.put = def(request.put)
-  de.head = def(request.head)
-  return de
-}
 
-//
-// HTTP method shortcuts
-//
+  /*--------------------------------------------------------------------------*/
 
-var shortcuts = [ 'get', 'put', 'post', 'head' ];
-shortcuts.forEach(function(shortcut) {
-  var method = shortcut.toUpperCase();
-  var func   = shortcut.toLowerCase();
+  // expose Lo-Dash
+  var _ = runInContext();
 
-  request[func] = function(opts) {
-    if(typeof opts === 'string')
-      opts = {'method':method, 'uri':opts};
+  // some AMD build optimizers like r.js check for condition patterns like the following:
+  if (typeof define == 'function' && typeof define.amd == 'object' && define.amd) {
+    // Expose Lo-Dash to the global object even when an AMD loader is present in
+    // case Lo-Dash is loaded with a RequireJS shim config.
+    // See http://requirejs.org/docs/api.html#config-shim
+    root._ = _;
+
+    // define as an anonymous module so, through path mapping, it can be
+    // referenced as the "underscore" module
+    define(function() {
+      return _;
+    });
+  }
+  // check for `exports` after `define` in case a build optimizer adds an `exports` object
+  else if (freeExports && freeModule) {
+    // in Node.js or RingoJS
+    if (moduleExports) {
+      (freeModule.exports = _)._ = _;
+    }
+    // in Narwhal or Rhino -require
     else {
-      opts = JSON.parse(JSON.stringify(opts));
-      opts.method = method;
+      freeExports._ = _;
     }
-
-    var args = [opts].concat(Array.prototype.slice.apply(arguments, [1]));
-    return request.apply(this, args);
   }
-})
-
-//
-// CouchDB shortcut
-//
-
-request.couch = function(options, callback) {
-  if(typeof options === 'string')
-    options = {'uri':options}
-
-  // Just use the request API to do JSON.
-  options.json = true
-  if(options.body)
-    options.json = options.body
-  delete options.body
-
-  callback = callback || noop
-
-  var xhr = request(options, couch_handler)
-  return xhr
-
-  function couch_handler(er, resp, body) {
-    if(er)
-      return callback(er, resp, body)
-
-    if((resp.statusCode < 200 || resp.statusCode > 299) && body.error) {
-      // The body is a Couch JSON object indicating the error.
-      er = new Error('CouchDB error: ' + (body.error.reason || body.error.error))
-      for (var key in body)
-        er[key] = body[key]
-      return callback(er, resp, body);
-    }
-
-    return callback(er, resp, body);
+  else {
+    // in a browser or Rhino
+    root._ = _;
   }
-}
+}.call(this));
 
-//
-// Utility
-//
-
-function noop() {}
-
-function getLogger() {
-  var logger = {}
-    , levels = ['trace', 'debug', 'info', 'warn', 'error']
-    , level, i
-
-  for(i = 0; i < levels.length; i++) {
-    level = levels[i]
-
-    logger[level] = noop
-    if(typeof console !== 'undefined' && console && console[level])
-      logger[level] = formatted(console, level)
-  }
-
-  return logger
-}
-
-function formatted(obj, method) {
-  return formatted_logger
-
-  function formatted_logger(str, context) {
-    if(typeof context === 'object')
-      str += ' ' + JSON.stringify(context)
-
-    return obj[method].call(obj, str)
-  }
-}
-
-// Return whether a URL is a cross-domain request.
-function is_crossDomain(url) {
-  var rurl = /^([\w\+\.\-]+:)(?:\/\/([^\/?#:]*)(?::(\d+))?)?/
-
-  // jQuery #8138, IE may throw an exception when accessing
-  // a field from window.location if document.domain has been set
-  var ajaxLocation
-  try { ajaxLocation = location.href }
-  catch (e) {
-    // Use the href attribute of an A element since IE will modify it given document.location
-    ajaxLocation = document.createElement( "a" );
-    ajaxLocation.href = "";
-    ajaxLocation = ajaxLocation.href;
-  }
-
-  var ajaxLocParts = rurl.exec(ajaxLocation.toLowerCase()) || []
-    , parts = rurl.exec(url.toLowerCase() )
-
-  var result = !!(
-    parts &&
-    (  parts[1] != ajaxLocParts[1]
-    || parts[2] != ajaxLocParts[2]
-    || (parts[3] || (parts[1] === "http:" ? 80 : 443)) != (ajaxLocParts[3] || (ajaxLocParts[1] === "http:" ? 80 : 443))
-    )
-  )
-
-  //console.debug('is_crossDomain('+url+') -> ' + result)
-  return result
-}
-
-// MIT License from http://phpjs.org/functions/base64_encode:358
-function b64_enc (data) {
-    // Encodes string using MIME base64 algorithm
-    var b64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
-    var o1, o2, o3, h1, h2, h3, h4, bits, i = 0, ac = 0, enc="", tmp_arr = [];
-
-    if (!data) {
-        return data;
-    }
-
-    // assume utf8 data
-    // data = this.utf8_encode(data+'');
-
-    do { // pack three octets into four hexets
-        o1 = data.charCodeAt(i++);
-        o2 = data.charCodeAt(i++);
-        o3 = data.charCodeAt(i++);
-
-        bits = o1<<16 | o2<<8 | o3;
-
-        h1 = bits>>18 & 0x3f;
-        h2 = bits>>12 & 0x3f;
-        h3 = bits>>6 & 0x3f;
-        h4 = bits & 0x3f;
-
-        // use hexets to index into b64, and append result to encoded string
-        tmp_arr[ac++] = b64.charAt(h1) + b64.charAt(h2) + b64.charAt(h3) + b64.charAt(h4);
-    } while (i < data.length);
-
-    enc = tmp_arr.join('');
-
-    switch (data.length % 3) {
-        case 1:
-            enc = enc.slice(0, -2) + '==';
-        break;
-        case 2:
-            enc = enc.slice(0, -1) + '=';
-        break;
-    }
-
-    return enc;
-}
-module.exports = request;
-
-},{}],"director":[function(require,module,exports){
-
-
-//
-// Generated on Fri Dec 27 2013 12:02:11 GMT-0500 (EST) by Nodejitsu, Inc (Using Codesurgeon).
-// Version 1.2.2
-//
-(function(a){function k(a,b,c,d){var e=0,f=0,g=0,c=(c||"(").toString(),d=(d||")").toString(),h;for(h=0;h<a.length;h++){var i=a[h];if(i.indexOf(c,e)>i.indexOf(d,e)||~i.indexOf(c,e)&&!~i.indexOf(d,e)||!~i.indexOf(c,e)&&~i.indexOf(d,e)){f=i.indexOf(c,e),g=i.indexOf(d,e);if(~f&&!~g||!~f&&~g){var j=a.slice(0,(h||1)+1).join(b);a=[j].concat(a.slice((h||1)+1))}e=(g>f?g:f)+1,h=0}else e=0}return a}function j(a,b){var c,d=0,e="";while(c=a.substr(d).match(/[^\w\d\- %@&]*\*[^\w\d\- %@&]*/))d=c.index+c[0].length,c[0]=c[0].replace(/^\*/,"([_.()!\\ %@&a-zA-Z0-9-]+)"),e+=a.substr(0,c.index)+c[0];a=e+=a.substr(d);var f=a.match(/:([^\/]+)/ig),g,h;if(f){h=f.length;for(var j=0;j<h;j++)g=f[j],g.slice(0,2)==="::"?a=g.slice(1):a=a.replace(g,i(g,b))}return a}function i(a,b,c){c=a;for(var d in b)if(b.hasOwnProperty(d)){c=b[d](a);if(c!==a)break}return c===a?"([._a-zA-Z0-9-]+)":c}function h(a,b,c){if(!a.length)return c();var d=0;(function e(){b(a[d],function(b){b||b===!1?(c(b),c=function(){}):(d+=1,d===a.length?c():e())})})()}function g(a){var b=[];for(var c=0,d=a.length;c<d;c++)b=b.concat(a[c]);return b}function f(a,b){for(var c=0;c<a.length;c+=1)if(b(a[c],c,a)===!1)return}function c(){return b.hash===""||b.hash==="#"}Array.prototype.filter||(Array.prototype.filter=function(a,b){var c=[],d;for(var e=0,f=this.length;e<f;e++)e in this&&a.call(b,d=this[e],e,this)&&c.push(d);return c}),Array.isArray||(Array.isArray=function(a){return Object.prototype.toString.call(a)==="[object Array]"});var b=document.location,d={mode:"modern",hash:b.hash,history:!1,check:function(){var a=b.hash;a!=this.hash&&(this.hash=a,this.onHashChanged())},fire:function(){this.mode==="modern"?this.history===!0?window.onpopstate():window.onhashchange():this.onHashChanged()},init:function(a,b){function d(a){for(var b=0,c=e.listeners.length;b<c;b++)e.listeners[b](a)}var c=this;this.history=b,e.listeners||(e.listeners=[]);if("onhashchange"in window&&(document.documentMode===undefined||document.documentMode>7))this.history===!0?setTimeout(function(){window.onpopstate=d},500):window.onhashchange=d,this.mode="modern";else{var f=document.createElement("iframe");f.id="state-frame",f.style.display="none",document.body.appendChild(f),this.writeFrame(""),"onpropertychange"in document&&"attachEvent"in document&&document.attachEvent("onpropertychange",function(){event.propertyName==="location"&&c.check()}),window.setInterval(function(){c.check()},50),this.onHashChanged=d,this.mode="legacy"}e.listeners.push(a);return this.mode},destroy:function(a){if(!!e&&!!e.listeners){var b=e.listeners;for(var c=b.length-1;c>=0;c--)b[c]===a&&b.splice(c,1)}},setHash:function(a){this.mode==="legacy"&&this.writeFrame(a),this.history===!0?(window.history.pushState({},document.title,a),this.fire()):b.hash=a[0]==="/"?a:"/"+a;return this},writeFrame:function(a){var b=document.getElementById("state-frame"),c=b.contentDocument||b.contentWindow.document;c.open(),c.write("<script>_hash = '"+a+"'; onload = parent.listener.syncHash;<script>"),c.close()},syncHash:function(){var a=this._hash;a!=b.hash&&(b.hash=a);return this},onHashChanged:function(){}},e=a.Router=function(a){if(this instanceof e)this.params={},this.routes={},this.methods=["on","once","after","before"],this.scope=[],this._methods={},this._insert=this.insert,this.insert=this.insertEx,this.historySupport=(window.history!=null?window.history.pushState:null)!=null,this.configure(),this.mount(a||{});else return new e(a)};e.prototype.init=function(a){var e=this;this.handler=function(a){var b=a&&a.newURL||window.location.hash,c=e.history===!0?e.getPath():b.replace(/.*#/,"");e.dispatch("on",c.charAt(0)==="/"?c:"/"+c)},d.init(this.handler,this.history);if(this.history===!1)c()&&a?b.hash=a:c()||e.dispatch("on","/"+b.hash.replace(/^(#\/|#|\/)/,""));else{var f=c()&&a?a:c()?null:b.hash.replace(/^#/,"");f&&window.history.replaceState({},document.title,f),(f||this.run_in_init===!0)&&this.handler()}return this},e.prototype.explode=function(){var a=this.history===!0?this.getPath():b.hash;a.charAt(1)==="/"&&(a=a.slice(1));return a.slice(1,a.length).split("/")},e.prototype.setRoute=function(a,b,c){var e=this.explode();typeof a=="number"&&typeof b=="string"?e[a]=b:typeof c=="string"?e.splice(a,b,s):e=[a],d.setHash(e.join("/"));return e},e.prototype.insertEx=function(a,b,c,d){a==="once"&&(a="on",c=function(a){var b=!1;return function(){if(!b){b=!0;return a.apply(this,arguments)}}}(c));return this._insert(a,b,c,d)},e.prototype.getRoute=function(a){var b=a;if(typeof a=="number")b=this.explode()[a];else if(typeof a=="string"){var c=this.explode();b=c.indexOf(a)}else b=this.explode();return b},e.prototype.destroy=function(){d.destroy(this.handler);return this},e.prototype.getPath=function(){var a=window.location.pathname;a.substr(0,1)!=="/"&&(a="/"+a);return a},e.prototype.configure=function(a){a=a||{};for(var b=0;b<this.methods.length;b++)this._methods[this.methods[b]]=!0;this.recurse=a.recurse||this.recurse||!1,this.async=a.async||!1,this.delimiter=a.delimiter||"/",this.strict=typeof a.strict=="undefined"?!0:a.strict,this.notfound=a.notfound,this.resource=a.resource,this.history=a.html5history&&this.historySupport||!1,this.run_in_init=this.history===!0&&a.run_handler_in_init!==!1,this.every={after:a.after||null,before:a.before||null,on:a.on||null};return this},e.prototype.param=function(a,b){a[0]!==":"&&(a=":"+a);var c=new RegExp(a,"g");this.params[a]=function(a){return a.replace(c,b.source||b)}},e.prototype.on=e.prototype.route=function(a,b,c){var d=this;!c&&typeof b=="function"&&(c=b,b=a,a="on");if(Array.isArray(b))return b.forEach(function(b){d.on(a,b,c)});b.source&&(b=b.source.replace(/\\\//ig,"/"));if(Array.isArray(a))return a.forEach(function(a){d.on(a.toLowerCase(),b,c)});b=b.split(new RegExp(this.delimiter)),b=k(b,this.delimiter),this.insert(a,this.scope.concat(b),c)},e.prototype.dispatch=function(a,b,c){function h(){d.last=e.after,d.invoke(d.runlist(e),d,c)}var d=this,e=this.traverse(a,b,this.routes,""),f=this._invoked,g;this._invoked=!0;if(!e||e.length===0){this.last=[],typeof this.notfound=="function"&&this.invoke([this.notfound],{method:a,path:b},c);return!1}this.recurse==="forward"&&(e=e.reverse()),g=this.every&&this.every.after?[this.every.after].concat(this.last):[this.last];if(g&&g.length>0&&f){this.async?this.invoke(g,this,h):(this.invoke(g,this),h());return!0}h();return!0},e.prototype.invoke=function(a,b,c){var d=this,e;this.async?(e=function(c,d){if(Array.isArray(c))return h(c,e,d);typeof c=="function"&&c.apply(b,a.captures.concat(d))},h(a,e,function(){c&&c.apply(b,arguments)})):(e=function(c){if(Array.isArray(c))return f(c,e);if(typeof c=="function")return c.apply(b,a.captures||[]);typeof c=="string"&&d.resource&&d.resource[c].apply(b,a.captures||[])},f(a,e))},e.prototype.traverse=function(a,b,c,d,e){function l(a){function c(a){for(var b=a.length-1;b>=0;b--)Array.isArray(a[b])?(c(a[b]),a[b].length===0&&a.splice(b,1)):e(a[b])||a.splice(b,1)}function b(a){var c=[];for(var d=0;d<a.length;d++)c[d]=Array.isArray(a[d])?b(a[d]):a[d];return c}if(!e)return a;var d=b(a);d.matched=a.matched,d.captures=a.captures,d.after=a.after.filter(e),c(d);return d}var f=[],g,h,i,j,k;if(b===this.delimiter&&c[a]){j=[[c.before,c[a]].filter(Boolean)],j.after=[c.after].filter(Boolean),j.matched=!0,j.captures=[];return l(j)}for(var m in c)if(c.hasOwnProperty(m)&&(!this._methods[m]||this._methods[m]&&typeof c[m]=="object"&&!Array.isArray(c[m]))){g=h=d+this.delimiter+m,this.strict||(h+="["+this.delimiter+"]?"),i=b.match(new RegExp("^"+h));if(!i)continue;if(i[0]&&i[0]==b&&c[m][a]){j=[[c[m].before,c[m][a]].filter(Boolean)],j.after=[c[m].after].filter(Boolean),j.matched=!0,j.captures=i.slice(1),this.recurse&&c===this.routes&&(j.push([c.before,c.on].filter(Boolean)),j.after=j.after.concat([c.after].filter(Boolean)));return l(j)}j=this.traverse(a,b,c[m],g);if(j.matched){j.length>0&&(f=f.concat(j)),this.recurse&&(f.push([c[m].before,c[m].on].filter(Boolean)),j.after=j.after.concat([c[m].after].filter(Boolean)),c===this.routes&&(f.push([c.before,c.on].filter(Boolean)),j.after=j.after.concat([c.after].filter(Boolean)))),f.matched=!0,f.captures=j.captures,f.after=j.after;return l(f)}}return!1},e.prototype.insert=function(a,b,c,d){var e,f,g,h,i;b=b.filter(function(a){return a&&a.length>0}),d=d||this.routes,i=b.shift(),/\:|\*/.test(i)&&!/\\d|\\w/.test(i)&&(i=j(i,this.params));if(b.length>0){d[i]=d[i]||{};return this.insert(a,b,c,d[i])}{if(!!i||!!b.length||d!==this.routes){f=typeof d[i],g=Array.isArray(d[i]);if(d[i]&&!g&&f=="object"){e=typeof d[i][a];switch(e){case"function":d[i][a]=[d[i][a],c];return;case"object":d[i][a].push(c);return;case"undefined":d[i][a]=c;return}}else if(f=="undefined"){h={},h[a]=c,d[i]=h;return}throw new Error("Invalid route context: "+f)}e=typeof d[a];switch(e){case"function":d[a]=[d[a],c];return;case"object":d[a].push(c);return;case"undefined":d[a]=c;return}}},e.prototype.extend=function(a){function e(a){b._methods[a]=!0,b[a]=function(){var c=arguments.length===1?[a,""]:[a];b.on.apply(b,c.concat(Array.prototype.slice.call(arguments)))}}var b=this,c=a.length,d;for(d=0;d<c;d++)e(a[d])},e.prototype.runlist=function(a){var b=this.every&&this.every.before?[this.every.before].concat(g(a)):g(a);this.every&&this.every.on&&b.push(this.every.on),b.captures=a.captures,b.source=a.source;return b},e.prototype.mount=function(a,b){function d(b,d){var e=b,f=b.split(c.delimiter),g=typeof a[b],h=f[0]===""||!c._methods[f[0]],i=h?"on":e;h&&(e=e.slice((e.match(new RegExp("^"+c.delimiter))||[""])[0].length),f.shift());h&&g==="object"&&!Array.isArray(a[b])?(d=d.concat(f),c.mount(a[b],d)):(h&&(d=d.concat(e.split(c.delimiter)),d=k(d,c.delimiter)),c.insert(i,d,a[b]))}if(!!a&&typeof a=="object"&&!Array.isArray(a)){var c=this;b=b||[],Array.isArray(b)||(b=b.split(c.delimiter));for(var e in a)a.hasOwnProperty(e)&&d(e,b.slice(0))}}})(typeof exports=="object"?exports:window)
+}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 },{}],"moment":[function(require,module,exports){
 (function (global){
 //! moment.js
@@ -25680,7 +41238,59 @@ return Q;
 });
 
 }).call(this,require('_process'))
-},{"_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"react/addons":[function(require,module,exports){
+},{"_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"react-bootstrap":[function(require,module,exports){
+module.exports = {
+  Accordion: require('./Accordion'),
+  Affix: require('./Affix'),
+  AffixMixin: require('./AffixMixin'),
+  Alert: require('./Alert'),
+  BootstrapMixin: require('./BootstrapMixin'),
+  Badge: require('./Badge'),
+  Button: require('./Button'),
+  ButtonGroup: require('./ButtonGroup'),
+  ButtonToolbar: require('./ButtonToolbar'),
+  Carousel: require('./Carousel'),
+  CarouselItem: require('./CarouselItem'),
+  Col: require('./Col'),
+  CollapsableMixin: require('./CollapsableMixin'),
+  DropdownButton: require('./DropdownButton'),
+  DropdownMenu: require('./DropdownMenu'),
+  DropdownStateMixin: require('./DropdownStateMixin'),
+  FadeMixin: require('./FadeMixin'),
+  Glyphicon: require('./Glyphicon'),
+  Grid: require('./Grid'),
+  Input: require('./Input'),
+  Interpolate: require('./Interpolate'),
+  Jumbotron: require('./Jumbotron'),
+  Label: require('./Label'),
+  ListGroup: require('./ListGroup'),
+  ListGroupItem: require('./ListGroupItem'),
+  MenuItem: require('./MenuItem'),
+  Modal: require('./Modal'),
+  Nav: require('./Nav'),
+  Navbar: require('./Navbar'),
+  NavItem: require('./NavItem'),
+  ModalTrigger: require('./ModalTrigger'),
+  OverlayTrigger: require('./OverlayTrigger'),
+  OverlayMixin: require('./OverlayMixin'),
+  PageHeader: require('./PageHeader'),
+  Panel: require('./Panel'),
+  PanelGroup: require('./PanelGroup'),
+  PageItem: require('./PageItem'),
+  Pager: require('./Pager'),
+  Popover: require('./Popover'),
+  ProgressBar: require('./ProgressBar'),
+  Row: require('./Row'),
+  SplitButton: require('./SplitButton'),
+  SubNav: require('./SubNav'),
+  TabbedArea: require('./TabbedArea'),
+  Table: require('./Table'),
+  TabPane: require('./TabPane'),
+  Tooltip: require('./Tooltip'),
+  Well: require('./Well')
+};
+
+},{"./Accordion":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Accordion.js","./Affix":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Affix.js","./AffixMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/AffixMixin.js","./Alert":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Alert.js","./Badge":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Badge.js","./BootstrapMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/BootstrapMixin.js","./Button":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Button.js","./ButtonGroup":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/ButtonGroup.js","./ButtonToolbar":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/ButtonToolbar.js","./Carousel":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Carousel.js","./CarouselItem":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/CarouselItem.js","./Col":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Col.js","./CollapsableMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/CollapsableMixin.js","./DropdownButton":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/DropdownButton.js","./DropdownMenu":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/DropdownMenu.js","./DropdownStateMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/DropdownStateMixin.js","./FadeMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/FadeMixin.js","./Glyphicon":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Glyphicon.js","./Grid":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Grid.js","./Input":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Input.js","./Interpolate":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Interpolate.js","./Jumbotron":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Jumbotron.js","./Label":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Label.js","./ListGroup":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/ListGroup.js","./ListGroupItem":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/ListGroupItem.js","./MenuItem":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/MenuItem.js","./Modal":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Modal.js","./ModalTrigger":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/ModalTrigger.js","./Nav":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Nav.js","./NavItem":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/NavItem.js","./Navbar":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Navbar.js","./OverlayMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/OverlayMixin.js","./OverlayTrigger":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/OverlayTrigger.js","./PageHeader":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/PageHeader.js","./PageItem":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/PageItem.js","./Pager":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Pager.js","./Panel":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Panel.js","./PanelGroup":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/PanelGroup.js","./Popover":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Popover.js","./ProgressBar":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/ProgressBar.js","./Row":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Row.js","./SplitButton":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/SplitButton.js","./SubNav":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/SubNav.js","./TabPane":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/TabPane.js","./TabbedArea":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/TabbedArea.js","./Table":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Table.js","./Tooltip":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Tooltip.js","./Well":"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Well.js"}],"react/addons":[function(require,module,exports){
 module.exports = require('./lib/ReactWithAddons');
 
 },{"./lib/ReactWithAddons":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactWithAddons.js"}]},{},[]);
