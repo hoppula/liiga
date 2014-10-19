@@ -1,4 +1,6 @@
-require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js":[function(require,module,exports){
+require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/browser-resolve/empty.js":[function(require,module,exports){
+
+},{}],"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js":[function(require,module,exports){
 // shim for using process in browser
 
 var process = module.exports = {};
@@ -63,6 +65,4341 @@ process.chdir = function (dir) {
     throw new Error('process.chdir is not supported');
 };
 
+},{}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/client.js":[function(require,module,exports){
+var director = require('director');
+var Store = require('./store');
+var Gator = require('./vendor/gator.shim');
+require('native-promise-only');
+
+var DOMReady = new Promise(function(resolve, reject) {
+  if (document.readyState === 'complete') {
+    resolve();
+  } else {
+    function onReady() {
+      resolve();
+      document.removeEventListener('DOMContentLoaded', onReady, true);
+    }
+    document.addEventListener('DOMContentLoaded', onReady, true);
+  }
+});
+
+function Client(options) {
+  var stores = options.stores;
+  var routes = options.routes;
+  var storeId = options.storeId;
+  var initializeCallback = options.initialize;
+  var render = options.render;
+  var passthrough = options.passthrough || [];
+
+  var store = new Store(stores);
+
+  DOMReady.then(function() {
+    store.import( document.getElementById(storeId).innerHTML );
+
+    var router = director.Router().configure({
+      html5history: true,
+      notfound: function() {
+        console.warn("Route handler for "+ this.path +" was not found.");
+      }
+    });
+
+    var route;
+    var action;
+    for (route in routes) {
+      action = routes[route];
+      (function(route, action) {
+        router.on(route, function() {
+          var routeThis = {
+            store: store
+          };
+          return action.apply(routeThis, arguments).then(function(options) {
+            return render(options);
+          }).catch(function(error) {
+            console.error("Render error while processing route "+ route +":", error);
+          });
+        });
+      })(route, action);
+    }
+
+    router.init();
+
+    Gator(document).on('click', 'a', function(event) {
+      var target = this;
+      var href = target.href;
+      var protocol = target.protocol +"//";
+      var local = document.location.host === target.host;
+      var relativeUrl = href != null ? href.slice(protocol.length + target.host.length) : void 0;
+      var properLocal = local && relativeUrl.match(/^\//) && !relativeUrl.match(/#$/);
+
+      var passThrough = passthrough.filter(function(url) {
+        return (href && href.indexOf(url) > -1);
+      }).length > 0;
+
+      if (!passThrough && properLocal && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
+        event.preventDefault();
+        router.setRoute(target.href);
+      }
+    });
+
+    if (initializeCallback && typeof initializeCallback === "function") {
+      initializeCallback.call(null, {
+        router: router,
+        store: store
+      });
+    }
+
+  });
+};
+
+module.exports = Client;
+
+},{"./store":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/store.js","./vendor/gator.shim":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/vendor/gator.shim.js","director":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/director/build/director.js","native-promise-only":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/native-promise-only/npo.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/store.js":[function(require,module,exports){
+var exoskeleton = require("./wrapper/exoskeleton");
+require('native-promise-only');
+
+var Store = (function() {
+  function Store(stores, options) {
+    var store, id;
+    if (options == null) {
+      options = {};
+    }
+
+    // store cookie for server side API request authentication
+    if (options.cookie) {
+      this.cookie = options.cookie;
+    }
+
+    // this.cached is used for storing actual instances
+    this.cached = {};
+
+    // empty instances of stores
+    // clone actual instances from these
+    this.stores = {};
+
+    for (id in stores) {
+      store = stores[id];
+      this.stores[id] = new store();
+      this.cached[id] = {};
+    }
+  }
+
+  // allows Store to be used as event bus
+  exoskeleton.utils.extend(Store.prototype, exoskeleton.Events);
+
+  Store.prototype.clearCookie = function() {
+    this.cookie = null;
+  };
+
+  // set caches from initial JSON
+  Store.prototype.import = function(json) {
+    var cachedStores, stores, storeId, id;
+
+    if (!json) {
+      return;
+    }
+
+    cachedStores = JSON.parse(json);
+    for (storeId in cachedStores) {
+      stores = cachedStores[storeId];
+      this.cached[storeId] = {};
+
+      for (id in stores) {
+        this.cached[storeId][id] = this.get(storeId).clone();
+        this.cached[storeId][id].set(stores[id]);
+      }
+    }
+
+    return true;
+  };
+
+  // export current cached stores to JSON
+  Store.prototype.export = function() {
+    var stores, cachedStores, storeId, id;
+
+    cachedStores = {};
+    for (storeId in this.cached) {
+      stores = this.cached[storeId];
+      cachedStores[storeId] = {};
+      for (id in stores) {
+        cachedStores[storeId][id] = stores[id].toJSON();
+      }
+    }
+    return JSON.stringify(cachedStores);
+  };
+
+  // returns empty store instance, clone from result of this
+  Store.prototype.get = function(storeId) {
+    return this.stores[storeId];
+  };
+
+  // get store from cache or fetch from server
+  Store.prototype.fetch = function(storeId, options) {
+    var fetchOptions = {};
+    var self = this;
+    var store, key, cacheKey, cachedStore;
+
+    if (this.cookie) {
+      fetchOptions.headers = {'cookie': this.cookie};
+    }
+
+    return new Promise(function(resolve, reject) {
+      store = self.get(storeId);
+      if (!store) {
+        reject(new Error("Store " + storeId + " not registered."));
+      }
+
+      // don't modify the original store instance
+      store = store.clone();
+      store.storeOptions = {};
+      for (key in options) {
+        if (options.hasOwnProperty(key)) {
+          store.storeOptions[key] = options[key];
+        }
+      }
+
+      if (!store.cacheKey) {
+        reject(new Error("Store " + storeId + " has no cacheKey method."));
+      }
+
+      cacheKey = store.cacheKey();
+      cachedStore = self.cached[storeId][cacheKey];
+
+      if (cachedStore) {
+        return resolve(cachedStore);
+      } else {
+        return store.fetch(fetchOptions).then(function() {
+          self.cached[storeId][cacheKey] = store;
+          return resolve(store);
+        }).catch(function(err) {
+          // We can't reject here, should resolve with 401 & 403 etc.
+          // TODO: handle other error statuses somehow
+          return resolve(store);
+        });
+      }
+    });
+  };
+
+  return Store;
+})();
+
+module.exports = Store;
+
+},{"./wrapper/exoskeleton":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/wrapper/exoskeleton.js","native-promise-only":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/native-promise-only/npo.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/vendor/gator.js":[function(require,module,exports){
+(function (global){
+/**
+ * Copyright 2014 Craig Campbell
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * GATOR.JS
+ * Simple Event Delegation
+ *
+ * @version 1.2.3
+ *
+ * Compatible with IE 9+, FF 3.6+, Safari 5+, Chrome
+ *
+ * Include legacy.js for compatibility with older browsers
+ *
+ *             .-._   _ _ _ _ _ _ _ _
+ *  .-''-.__.-'00  '-' ' ' ' ' ' ' ' '-.
+ * '.___ '    .   .--_'-' '-' '-' _'-' '._
+ *  V: V 'vv-'   '_   '.       .'  _..' '.'.
+ *    '=.____.=_.--'   :_.__.__:_   '.   : :
+ *            (((____.-'        '-.  /   : :
+ *                              (((-'\ .' /
+ *                            _____..'  .'
+ *                           '-._____.-'
+ */
+(function(window) {
+    var _matcher,
+        _level = 0,
+        _id = 0,
+        _handlers = {},
+        _gatorInstances = {};
+
+    function _addEvent(gator, type, callback) {
+
+        // blur and focus do not bubble up but if you use event capturing
+        // then you will get them
+        var useCapture = type == 'blur' || type == 'focus';
+        gator.element.addEventListener(type, callback, useCapture);
+    }
+
+    function _cancel(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    /**
+     * returns function to use for determining if an element
+     * matches a query selector
+     *
+     * @returns {Function}
+     */
+    function _getMatcher(element) {
+        if (_matcher) {
+            return _matcher;
+        }
+
+        if (element.matches) {
+            _matcher = element.matches;
+            return _matcher;
+        }
+
+        if (element.webkitMatchesSelector) {
+            _matcher = element.webkitMatchesSelector;
+            return _matcher;
+        }
+
+        if (element.mozMatchesSelector) {
+            _matcher = element.mozMatchesSelector;
+            return _matcher;
+        }
+
+        if (element.msMatchesSelector) {
+            _matcher = element.msMatchesSelector;
+            return _matcher;
+        }
+
+        if (element.oMatchesSelector) {
+            _matcher = element.oMatchesSelector;
+            return _matcher;
+        }
+
+        // if it doesn't match a native browser method
+        // fall back to the gator function
+        _matcher = Gator.matchesSelector;
+        return _matcher;
+    }
+
+    /**
+     * determines if the specified element matches a given selector
+     *
+     * @param {Node} element - the element to compare against the selector
+     * @param {string} selector
+     * @param {Node} boundElement - the element the listener was attached to
+     * @returns {void|Node}
+     */
+    function _matchesSelector(element, selector, boundElement) {
+
+        // no selector means this event was bound directly to this element
+        if (selector == '_root') {
+            return boundElement;
+        }
+
+        // if we have moved up to the element you bound the event to
+        // then we have come too far
+        if (element === boundElement) {
+            return;
+        }
+
+        // if this is a match then we are done!
+        if (_getMatcher(element).call(element, selector)) {
+            return element;
+        }
+
+        // if this element did not match but has a parent we should try
+        // going up the tree to see if any of the parent elements match
+        // for example if you are looking for a click on an <a> tag but there
+        // is a <span> inside of the a tag that it is the target,
+        // it should still work
+        if (element.parentNode) {
+            _level++;
+            return _matchesSelector(element.parentNode, selector, boundElement);
+        }
+    }
+
+    function _addHandler(gator, event, selector, callback) {
+        if (!_handlers[gator.id]) {
+            _handlers[gator.id] = {};
+        }
+
+        if (!_handlers[gator.id][event]) {
+            _handlers[gator.id][event] = {};
+        }
+
+        if (!_handlers[gator.id][event][selector]) {
+            _handlers[gator.id][event][selector] = [];
+        }
+
+        _handlers[gator.id][event][selector].push(callback);
+    }
+
+    function _removeHandler(gator, event, selector, callback) {
+
+        // if there are no events tied to this element at all
+        // then don't do anything
+        if (!_handlers[gator.id]) {
+            return;
+        }
+
+        // if there is no event type specified then remove all events
+        // example: Gator(element).off()
+        if (!event) {
+            for (var type in _handlers[gator.id]) {
+                if (_handlers[gator.id].hasOwnProperty(type)) {
+                    _handlers[gator.id][type] = {};
+                }
+            }
+            return;
+        }
+
+        // if no callback or selector is specified remove all events of this type
+        // example: Gator(element).off('click')
+        if (!callback && !selector) {
+            _handlers[gator.id][event] = {};
+            return;
+        }
+
+        // if a selector is specified but no callback remove all events
+        // for this selector
+        // example: Gator(element).off('click', '.sub-element')
+        if (!callback) {
+            delete _handlers[gator.id][event][selector];
+            return;
+        }
+
+        // if we have specified an event type, selector, and callback then we
+        // need to make sure there are callbacks tied to this selector to
+        // begin with.  if there aren't then we can stop here
+        if (!_handlers[gator.id][event][selector]) {
+            return;
+        }
+
+        // if there are then loop through all the callbacks and if we find
+        // one that matches remove it from the array
+        for (var i = 0; i < _handlers[gator.id][event][selector].length; i++) {
+            if (_handlers[gator.id][event][selector][i] === callback) {
+                _handlers[gator.id][event][selector].splice(i, 1);
+                break;
+            }
+        }
+    }
+
+    function _handleEvent(id, e, type) {
+        if (!_handlers[id][type]) {
+            return;
+        }
+
+        var target = e.target || e.srcElement,
+            selector,
+            match,
+            matches = {},
+            i = 0,
+            j = 0;
+
+        // find all events that match
+        _level = 0;
+        for (selector in _handlers[id][type]) {
+            if (_handlers[id][type].hasOwnProperty(selector)) {
+                match = _matchesSelector(target, selector, _gatorInstances[id].element);
+
+                if (match && Gator.matchesEvent(type, _gatorInstances[id].element, match, selector == '_root', e)) {
+                    _level++;
+                    _handlers[id][type][selector].match = match;
+                    matches[_level] = _handlers[id][type][selector];
+                }
+            }
+        }
+
+        // stopPropagation() fails to set cancelBubble to true in Webkit
+        // @see http://code.google.com/p/chromium/issues/detail?id=162270
+        e.stopPropagation = function() {
+            e.cancelBubble = true;
+        };
+
+        for (i = 0; i <= _level; i++) {
+            if (matches[i]) {
+                for (j = 0; j < matches[i].length; j++) {
+                    if (matches[i][j].call(matches[i].match, e) === false) {
+                        Gator.cancel(e);
+                        return;
+                    }
+
+                    if (e.cancelBubble) {
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * binds the specified events to the element
+     *
+     * @param {string|Array} events
+     * @param {string} selector
+     * @param {Function} callback
+     * @param {boolean=} remove
+     * @returns {Object}
+     */
+    function _bind(events, selector, callback, remove) {
+
+        // fail silently if you pass null or undefined as an alement
+        // in the Gator constructor
+        if (!this.element) {
+            return;
+        }
+
+        if (!(events instanceof Array)) {
+            events = [events];
+        }
+
+        if (!callback && typeof(selector) == 'function') {
+            callback = selector;
+            selector = '_root';
+        }
+
+        var id = this.id,
+            i;
+
+        function _getGlobalCallback(type) {
+            return function(e) {
+                _handleEvent(id, e, type);
+            };
+        }
+
+        for (i = 0; i < events.length; i++) {
+            if (remove) {
+                _removeHandler(this, events[i], selector, callback);
+                continue;
+            }
+
+            if (!_handlers[id] || !_handlers[id][events[i]]) {
+                Gator.addEvent(this, events[i], _getGlobalCallback(events[i]));
+            }
+
+            _addHandler(this, events[i], selector, callback);
+        }
+
+        return this;
+    }
+
+    /**
+     * Gator object constructor
+     *
+     * @param {Node} element
+     */
+    function Gator(element, id) {
+
+        // called as function
+        if (!(this instanceof Gator)) {
+            // only keep one Gator instance per node to make sure that
+            // we don't create a ton of new objects if you want to delegate
+            // multiple events from the same node
+            //
+            // for example: Gator(document).on(...
+            for (var key in _gatorInstances) {
+                if (_gatorInstances[key].element === element) {
+                    return _gatorInstances[key];
+                }
+            }
+
+            _id++;
+            _gatorInstances[_id] = new Gator(element, _id);
+
+            return _gatorInstances[_id];
+        }
+
+        this.element = element;
+        this.id = id;
+    }
+
+    /**
+     * adds an event
+     *
+     * @param {string|Array} events
+     * @param {string} selector
+     * @param {Function} callback
+     * @returns {Object}
+     */
+    Gator.prototype.on = function(events, selector, callback) {
+        return _bind.call(this, events, selector, callback);
+    };
+
+    /**
+     * removes an event
+     *
+     * @param {string|Array} events
+     * @param {string} selector
+     * @param {Function} callback
+     * @returns {Object}
+     */
+    Gator.prototype.off = function(events, selector, callback) {
+        return _bind.call(this, events, selector, callback, true);
+    };
+
+    Gator.matchesSelector = function() {};
+    Gator.cancel = _cancel;
+    Gator.addEvent = _addEvent;
+    Gator.matchesEvent = function() {
+        return true;
+    };
+
+    window.Gator = Gator;
+}) (global || window);
+
+}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/vendor/gator.shim.js":[function(require,module,exports){
+(function (global){
+require('./gator');
+module.exports = global.Gator;
+}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{"./gator":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/vendor/gator.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/wrapper/exoskeleton.js":[function(require,module,exports){
+var exoskeleton = require('exoskeleton');
+exoskeleton.$ = require("./sync");
+module.exports = exoskeleton;
+},{"./sync":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/wrapper/sync.js","exoskeleton":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/exoskeleton/exoskeleton.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/wrapper/sync.js":[function(require,module,exports){
+require('native-promise-only');
+var axios = require('axios');
+
+var Sync = {
+  ajax: function(settings) {
+    return new Promise(function(resolve, reject) {
+      var options = {
+        method: settings.type.toLowerCase(),
+        url: settings.url,
+        responseType: "text"
+      };
+      if (settings.headers) {
+        options.headers = settings.headers;
+      }
+      if (settings.processData) {
+        options.params = settings.data;
+      } else {
+        options.data = settings.data;
+      }
+      return axios(options).then(function(response) {
+        settings.success(response.data);
+        return resolve(response);
+      }).catch(function(response) {
+        settings.error(response.data);
+        return reject(response);
+      });
+    });
+  }
+};
+
+module.exports = Sync;
+
+},{"axios":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/index.js","native-promise-only":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/native-promise-only/npo.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/index.js":[function(require,module,exports){
+module.exports = require('./lib/axios');
+},{"./lib/axios":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/axios.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/adapters/xhr.js":[function(require,module,exports){
+var buildUrl = require('./../buildUrl');
+var cookies = require('./../cookies');
+var defaults = require('./../defaults');
+var parseHeaders = require('./../parseHeaders');
+var transformData = require('./../transformData');
+var urlIsSameOrigin = require('./../urlIsSameOrigin');
+var utils = require('./../utils');
+
+module.exports = function xhrAdapter(resolve, reject, config) {
+  // Transform request data
+  var data = transformData(
+    config.data,
+    config.headers,
+    config.transformRequest
+  );
+
+  // Merge headers
+  var headers = utils.merge(
+    defaults.headers.common,
+    defaults.headers[config.method] || {},
+    config.headers || {}
+  );
+
+  // Create the request
+  var request = new(XMLHttpRequest || ActiveXObject)('Microsoft.XMLHTTP');
+  request.open(config.method, buildUrl(config.url, config.params), true);
+
+  // Listen for ready state
+  request.onreadystatechange = function () {
+    if (request && request.readyState === 4) {
+      // Prepare the response
+      var headers = parseHeaders(request.getAllResponseHeaders());
+      var response = {
+        data: transformData(
+          request.responseText,
+          headers,
+          config.transformResponse
+        ),
+        status: request.status,
+        headers: headers,
+        config: config
+      };
+
+      // Resolve or reject the Promise based on the status
+      (request.status >= 200 && request.status < 300
+        ? resolve
+        : reject)(response);
+
+      // Clean up request
+      request = null;
+    }
+  };
+
+  // Add xsrf header
+  var xsrfValue = urlIsSameOrigin(config.url)
+    ? cookies.read(config.xsrfCookieName || defaults.xsrfCookieName)
+    : undefined;
+  if (xsrfValue) {
+    headers[config.xsrfHeaderName || defaults.xsrfHeaderName] = xsrfValue;
+  }
+
+  // Add headers to the request
+  utils.forEach(headers, function (val, key) {
+    // Remove Content-Type if data is undefined
+    if (!data && key.toLowerCase() === 'content-type') {
+      delete headers[key];
+    }
+    // Otherwise add header to the request
+    else {
+      request.setRequestHeader(key, val);
+    }
+  });
+
+  // Add withCredentials to request if needed
+  if (config.withCredentials) {
+    request.withCredentials = true;
+  }
+
+  // Add responseType to request if needed
+  if (config.responseType) {
+    try {
+      request.responseType = config.responseType;
+    } catch (e) {
+      if (request.responseType !== 'json') {
+        throw e;
+      }
+    }
+  }
+
+  // Send the request
+  request.send(data);
+};
+},{"./../buildUrl":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/buildUrl.js","./../cookies":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/cookies.js","./../defaults":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/defaults.js","./../parseHeaders":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/parseHeaders.js","./../transformData":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/transformData.js","./../urlIsSameOrigin":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/urlIsSameOrigin.js","./../utils":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/utils.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/axios.js":[function(require,module,exports){
+(function (process){
+var Promise = require('es6-promise').Promise;
+var defaults = require('./defaults');
+var utils = require('./utils');
+var spread = require('./spread');
+
+var axios = module.exports = function axios(config) {
+  config = utils.merge({
+    method: 'get',
+    transformRequest: defaults.transformRequest,
+    transformResponse: defaults.transformResponse
+  }, config);
+
+  // Don't allow overriding defaults.withCredentials
+  config.withCredentials = config.withCredentials || defaults.withCredentials;
+
+  var promise = new Promise(function (resolve, reject) {
+    try {
+      // For browsers use XHR adapter
+      if (typeof window !== 'undefined') {
+        require('./adapters/xhr')(resolve, reject, config);
+      }
+      // For node use HTTP adapter
+      else if (typeof process !== 'undefined') {
+        require('./adapters/http')(resolve, reject, config);
+      }
+    } catch (e) {
+      reject(e);
+    }
+  });
+
+  // Provide alias for success
+  promise.success = function success(fn) {
+    promise.then(function(response) {
+      fn(response.data, response.status, response.headers, response.config);
+    });
+    return promise;
+  };
+
+  // Provide alias for error
+  promise.error = function error(fn) {
+    promise.then(null, function(response) {
+      fn(response.data, response.status, response.headers, response.config);
+    });
+    return promise;
+  };
+
+  return promise;
+};
+
+// Expose defaults
+axios.defaults = defaults;
+
+// Expose all/spread
+axios.all = function (promises) {
+  return Promise.all(promises);
+};
+axios.spread = spread;
+
+// Provide aliases for supported request methods
+createShortMethods('delete', 'get', 'head');
+createShortMethodsWithData('post', 'put', 'patch');
+
+function createShortMethods() {
+  utils.forEach(arguments, function (method) {
+    axios[method] = function (url, config) {
+      return axios(utils.merge(config || {}, {
+        method: method,
+        url: url
+      }));
+    };
+  });
+}
+
+function createShortMethodsWithData() {
+  utils.forEach(arguments, function (method) {
+    axios[method] = function (url, data, config) {
+      return axios(utils.merge(config || {}, {
+        method: method,
+        url: url,
+        data: data
+      }));
+    };
+  });
+}
+}).call(this,require('_process'))
+},{"./adapters/http":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/adapters/xhr.js","./adapters/xhr":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/adapters/xhr.js","./defaults":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/defaults.js","./spread":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/spread.js","./utils":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/utils.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js","es6-promise":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/main.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/buildUrl.js":[function(require,module,exports){
+'use strict';
+
+var utils = require('./utils');
+
+function encode(val) {
+  return encodeURIComponent(val).
+    replace(/%40/gi, '@').
+    replace(/%3A/gi, ':').
+    replace(/%24/g, '$').
+    replace(/%2C/gi, ',').
+    replace(/%20/g, '+');
+}
+
+module.exports = function buildUrl(url, params) {
+  if (!params) {
+    return url;
+  }
+
+  var parts = [];
+
+  utils.forEach(params, function (val, key) {
+    if (val === null || typeof val === 'undefined') {
+      return;
+    }
+    if (!utils.isArray(val)) {
+      val = [val];
+    }
+
+    utils.forEach(val, function (v) {
+      if (utils.isDate(v)) {
+        v = v.toISOString();
+      }
+      else if (utils.isObject(v)) {
+        v = JSON.stringify(v);
+      }
+      parts.push(encode(key) + '=' + encode(v));
+    });
+  });
+
+  if (parts.length > 0) {
+    url += (url.indexOf('?') === -1 ? '?' : '&') + parts.join('&');
+  }
+
+  return url;
+};
+},{"./utils":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/utils.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/cookies.js":[function(require,module,exports){
+'use strict';
+
+var utils = require('./utils');
+
+module.exports = {
+  write: function write(name, value, expires, path, domain, secure) {
+    var cookie = [];
+    cookie.push(name + '=' + encodeURIComponent(value));
+
+    if (utils.isNumber(expires)) {
+      cookie.push('expires=' + new Date(expires).toGMTString());
+    }
+
+    if (utils.isString(path)) {
+      cookie.push('path=' + path);
+    }
+
+    if (utils.isString(domain)) {
+      cookie.push('domain=' + domain);
+    }
+
+    if (secure === true) {
+      cookie.push('secure');
+    }
+
+    document.cookie = cookie.join('; ');
+  },
+
+  read: function read(name) {
+    var match = document.cookie.match(new RegExp('(^|;\\s*)(' + name + ')=([^;]*)'));
+    return (match ? decodeURIComponent(match[3]) : null);
+  },
+
+  remove: function remove(name) {
+    this.write(name, '', Date.now() - 86400000);
+  }
+};
+},{"./utils":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/utils.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/defaults.js":[function(require,module,exports){
+'use strict';
+
+var utils = require('./utils');
+
+var JSON_START = /^\s*(\[|\{[^\{])/;
+var JSON_END = /[\}\]]\s*$/;
+var PROTECTION_PREFIX = /^\)\]\}',?\n/;
+var CONTENT_TYPE_APPLICATION_JSON = {
+  'Content-Type': 'application/json;charset=utf-8'
+};
+
+module.exports = {
+  transformRequest: [function (data) {
+    return utils.isObject(data) &&
+          !utils.isFile(data) &&
+          !utils.isBlob(data) ?
+            JSON.stringify(data) : data;
+  }],
+
+  transformResponse: [function (data) {
+    if (typeof data === 'string') {
+      data = data.replace(PROTECTION_PREFIX, '');
+      if (JSON_START.test(data) && JSON_END.test(data)) {
+        data = JSON.parse(data);
+      }
+    }
+    return data;
+  }],
+
+  headers: {
+    common: {
+      'Accept': 'application/json, text/plain, */*'
+    },
+    patch: utils.merge(CONTENT_TYPE_APPLICATION_JSON),
+    post: utils.merge(CONTENT_TYPE_APPLICATION_JSON),
+    put: utils.merge(CONTENT_TYPE_APPLICATION_JSON)
+  },
+
+  xsrfCookieName: 'XSRF-TOKEN',
+  xsrfHeaderName: 'X-XSRF-TOKEN'
+};
+},{"./utils":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/utils.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/parseHeaders.js":[function(require,module,exports){
+'use strict';
+
+var utils = require('./utils');
+
+/**
+ * Parse headers into an object
+ *
+ * ```
+ * Date: Wed, 27 Aug 2014 08:58:49 GMT
+ * Content-Type: application/json
+ * Connection: keep-alive
+ * Transfer-Encoding: chunked
+ * ```
+ *
+ * @param {String} headers Headers needing to be parsed
+ * @returns {Object} Headers parsed into an object
+ */
+module.exports = function parseHeaders(headers) {
+  var parsed = {}, key, val, i;
+
+  if (!headers) return parsed;
+
+  utils.forEach(headers.split('\n'), function(line) {
+    i = line.indexOf(':');
+    key = utils.trim(line.substr(0, i)).toLowerCase();
+    val = utils.trim(line.substr(i + 1));
+
+    if (key) {
+      parsed[key] = parsed[key] ? parsed[key] + ', ' + val : val;
+    }
+  });
+
+  return parsed;
+};
+},{"./utils":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/utils.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/spread.js":[function(require,module,exports){
+/**
+ * Syntactic sugar for invoking a function and expanding an array for arguments.
+ *
+ * Common use case would be to use `Function.prototype.apply`.
+ *
+ *  ```js
+ *  function f(x, y, z) {}
+ *  var args = [1, 2, 3];
+ *  f.apply(null, args);
+ *  ```
+ *
+ * With `spread` this example can be re-written.
+ *
+ *  ```js
+ *  spread(function(x, y, z) {})([1, 2, 3]);
+ *  ```
+ *
+ * @param {Function} callback
+ * @returns {Function}
+ */
+module.exports = function spread(callback) {
+  return function (arr) {
+    callback.apply(null, arr);
+  };
+};
+},{}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/transformData.js":[function(require,module,exports){
+'use strict';
+
+var utils = require('./utils');
+
+/**
+ * Transform the data for a request or a response
+ *
+ * @param {Object|String} data The data to be transformed
+ * @param {Array} headers The headers for the request or response
+ * @param {Array|Function} fns A single function or Array of functions
+ * @returns {*} The resulting transformed data
+ */
+module.exports = function transformData(data, headers, fns) {
+  utils.forEach(fns, function (fn) {
+    data = fn(data, headers);
+  });
+
+  return data;
+};
+},{"./utils":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/utils.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/urlIsSameOrigin.js":[function(require,module,exports){
+'use strict';
+
+var msie = /(msie|trident)/i.test(navigator.userAgent);
+var utils = require('./utils');
+var urlParsingNode = document.createElement('a');
+var originUrl = urlResolve(window.location.href);
+
+/**
+ * Parse a URL to discover it's components
+ *
+ * @param {String} url The URL to be parsed
+ * @returns {Object}
+ */
+function urlResolve(url) {
+  var href = url;
+
+  if (msie) {
+    // IE needs attribute set twice to normalize properties
+    urlParsingNode.setAttribute('href', href);
+    href = urlParsingNode.href;
+  }
+
+  urlParsingNode.setAttribute('href', href);
+
+  // urlParsingNode provides the UrlUtils interface - http://url.spec.whatwg.org/#urlutils
+  return {
+    href: urlParsingNode.href,
+    protocol: urlParsingNode.protocol ? urlParsingNode.protocol.replace(/:$/, '') : '',
+    host: urlParsingNode.host,
+    search: urlParsingNode.search ? urlParsingNode.search.replace(/^\?/, '') : '',
+    hash: urlParsingNode.hash ? urlParsingNode.hash.replace(/^#/, '') : '',
+    hostname: urlParsingNode.hostname,
+    port: urlParsingNode.port,
+    pathname: (urlParsingNode.pathname.charAt(0) === '/')
+      ? urlParsingNode.pathname
+      : '/' + urlParsingNode.pathname
+  };
+}
+
+/**
+ * Determine if a URL shares the same origin as the current location
+ *
+ * @param {String} requestUrl The URL to test
+ * @returns {boolean} True if URL shares the same origin, otherwise false
+ */
+module.exports = function urlIsSameOrigin(requestUrl) {
+  var parsed = (utils.isString(requestUrl)) ? urlResolve(requestUrl) : requestUrl;
+  return (parsed.protocol === originUrl.protocol &&
+        parsed.host === originUrl.host);
+};
+},{"./utils":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/utils.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/utils.js":[function(require,module,exports){
+// utils is a library of generic helper functions non-specific to axios
+
+var toString = Object.prototype.toString;
+
+/**
+ * Determine if a value is an Array
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is an Array, otherwise false
+ */
+function isArray(val) {
+  return toString.call(val) === '[object Array]';
+}
+
+/**
+ * Determine if a value is a String
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is a String, otherwise false
+ */
+function isString(val) {
+  return typeof val === 'string';
+}
+
+/**
+ * Determine if a value is a Number
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is a Number, otherwise false
+ */
+function isNumber(val) {
+  return typeof val === 'number';
+}
+
+/**
+ * Determine if a value is an Object
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is an Object, otherwise false
+ */
+function isObject(val) {
+  return val !== null && typeof val === 'object';
+}
+
+/**
+ * Determine if a value is a Date
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is a Date, otherwise false
+ */
+function isDate(val) {
+  return toString.call(val) === '[object Date]';
+}
+
+/**
+ * Determine if a value is a File
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is a File, otherwise false
+ */
+function isFile(val) {
+  return toString.call(val) === '[object File]';
+}
+
+/**
+ * Determine if a value is a Blob
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is a Blob, otherwise false
+ */
+function isBlob(val) {
+  return toString.call(val) === '[object Blob]';
+}
+
+/**
+ * Trim excess whitespace off the beginning and end of a string
+ *
+ * @param {String} str The String to trim
+ * @returns {String} The String freed of excess whitespace
+ */
+function trim(str) {
+  return str.replace(/^\s*/, '').replace(/\s*$/, '');
+}
+
+/**
+ * Iterate over an Array or an Object invoking a function for each item.
+ *
+ * If `obj` is an Array or arguments callback will be called passing
+ * the value, index, and complete array for each item.
+ *
+ * If 'obj' is an Object callback will be called passing
+ * the value, key, and complete object for each property.
+ *
+ * @param {Object|Array} obj The object to iterate
+ * @param {Function} fn The callback to invoke for each item
+ */
+function forEach(obj, fn) {
+  // Don't bother if no value provided
+  if (obj === null || typeof obj === 'undefined') {
+    return;
+  }
+
+  // Check if obj is array-like
+  var isArray = obj.constructor === Array || typeof obj.callee === 'function';
+
+  // Force an array if not already something iterable
+  if (typeof obj !== 'object' && !isArray) {
+    obj = [obj];
+  }
+
+  // Iterate over array values
+  if (isArray) {
+    for (var i=0, l=obj.length; i<l; i++) {
+      fn.call(null, obj[i], i, obj);
+    }
+  }
+  // Iterate over object keys
+  else {
+    for (var key in obj) {
+      if (obj.hasOwnProperty(key)) {
+        fn.call(null, obj[key], key, obj);
+      }
+    }
+  }
+}
+
+/**
+ * Accepts varargs expecting each argument to be an object, then
+ * immutably merges the properties of each object and returns result.
+ *
+ * When multiple objects contain the same key the later object in
+ * the arguments list will take precedence.
+ *
+ * Example:
+ *
+ * ```js
+ * var result = merge({foo: 123}, {foo: 456});
+ * console.log(result.foo); // outputs 456
+ * ```
+ *
+ * @param {Object} obj1 Object to merge
+ * @returns {Object} Result of all merge properties
+ */
+function merge(obj1/*, obj2, obj3, ...*/) {
+  var result = {};
+  forEach(arguments, function (obj) {
+    forEach(obj, function (val, key) {
+      result[key] = val;
+    });
+  });
+  return result;
+}
+
+module.exports = {
+  isArray: isArray,
+  isString: isString,
+  isNumber: isNumber,
+  isObject: isObject,
+  isDate: isDate,
+  isFile: isFile,
+  isBlob: isBlob,
+  forEach: forEach,
+  merge: merge,
+  trim: trim
+};
+},{}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/main.js":[function(require,module,exports){
+"use strict";
+var Promise = require("./promise/promise").Promise;
+var polyfill = require("./promise/polyfill").polyfill;
+exports.Promise = Promise;
+exports.polyfill = polyfill;
+},{"./promise/polyfill":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/promise/polyfill.js","./promise/promise":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/promise/promise.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/promise/all.js":[function(require,module,exports){
+"use strict";
+/* global toString */
+
+var isArray = require("./utils").isArray;
+var isFunction = require("./utils").isFunction;
+
+/**
+  Returns a promise that is fulfilled when all the given promises have been
+  fulfilled, or rejected if any of them become rejected. The return promise
+  is fulfilled with an array that gives all the values in the order they were
+  passed in the `promises` array argument.
+
+  Example:
+
+  ```javascript
+  var promise1 = RSVP.resolve(1);
+  var promise2 = RSVP.resolve(2);
+  var promise3 = RSVP.resolve(3);
+  var promises = [ promise1, promise2, promise3 ];
+
+  RSVP.all(promises).then(function(array){
+    // The array here would be [ 1, 2, 3 ];
+  });
+  ```
+
+  If any of the `promises` given to `RSVP.all` are rejected, the first promise
+  that is rejected will be given as an argument to the returned promises's
+  rejection handler. For example:
+
+  Example:
+
+  ```javascript
+  var promise1 = RSVP.resolve(1);
+  var promise2 = RSVP.reject(new Error("2"));
+  var promise3 = RSVP.reject(new Error("3"));
+  var promises = [ promise1, promise2, promise3 ];
+
+  RSVP.all(promises).then(function(array){
+    // Code here never runs because there are rejected promises!
+  }, function(error) {
+    // error.message === "2"
+  });
+  ```
+
+  @method all
+  @for RSVP
+  @param {Array} promises
+  @param {String} label
+  @return {Promise} promise that is fulfilled when all `promises` have been
+  fulfilled, or rejected if any of them become rejected.
+*/
+function all(promises) {
+  /*jshint validthis:true */
+  var Promise = this;
+
+  if (!isArray(promises)) {
+    throw new TypeError('You must pass an array to all.');
+  }
+
+  return new Promise(function(resolve, reject) {
+    var results = [], remaining = promises.length,
+    promise;
+
+    if (remaining === 0) {
+      resolve([]);
+    }
+
+    function resolver(index) {
+      return function(value) {
+        resolveAll(index, value);
+      };
+    }
+
+    function resolveAll(index, value) {
+      results[index] = value;
+      if (--remaining === 0) {
+        resolve(results);
+      }
+    }
+
+    for (var i = 0; i < promises.length; i++) {
+      promise = promises[i];
+
+      if (promise && isFunction(promise.then)) {
+        promise.then(resolver(i), reject);
+      } else {
+        resolveAll(i, promise);
+      }
+    }
+  });
+}
+
+exports.all = all;
+},{"./utils":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/promise/utils.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/promise/asap.js":[function(require,module,exports){
+(function (process,global){
+"use strict";
+var browserGlobal = (typeof window !== 'undefined') ? window : {};
+var BrowserMutationObserver = browserGlobal.MutationObserver || browserGlobal.WebKitMutationObserver;
+var local = (typeof global !== 'undefined') ? global : (this === undefined? window:this);
+
+// node
+function useNextTick() {
+  return function() {
+    process.nextTick(flush);
+  };
+}
+
+function useMutationObserver() {
+  var iterations = 0;
+  var observer = new BrowserMutationObserver(flush);
+  var node = document.createTextNode('');
+  observer.observe(node, { characterData: true });
+
+  return function() {
+    node.data = (iterations = ++iterations % 2);
+  };
+}
+
+function useSetTimeout() {
+  return function() {
+    local.setTimeout(flush, 1);
+  };
+}
+
+var queue = [];
+function flush() {
+  for (var i = 0; i < queue.length; i++) {
+    var tuple = queue[i];
+    var callback = tuple[0], arg = tuple[1];
+    callback(arg);
+  }
+  queue = [];
+}
+
+var scheduleFlush;
+
+// Decide what async method to use to triggering processing of queued callbacks:
+if (typeof process !== 'undefined' && {}.toString.call(process) === '[object process]') {
+  scheduleFlush = useNextTick();
+} else if (BrowserMutationObserver) {
+  scheduleFlush = useMutationObserver();
+} else {
+  scheduleFlush = useSetTimeout();
+}
+
+function asap(callback, arg) {
+  var length = queue.push([callback, arg]);
+  if (length === 1) {
+    // If length is 1, that means that we need to schedule an async flush.
+    // If additional callbacks are queued before the queue is flushed, they
+    // will be processed by this flush that we are scheduling.
+    scheduleFlush();
+  }
+}
+
+exports.asap = asap;
+}).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{"_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/promise/config.js":[function(require,module,exports){
+"use strict";
+var config = {
+  instrument: false
+};
+
+function configure(name, value) {
+  if (arguments.length === 2) {
+    config[name] = value;
+  } else {
+    return config[name];
+  }
+}
+
+exports.config = config;
+exports.configure = configure;
+},{}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/promise/polyfill.js":[function(require,module,exports){
+(function (global){
+"use strict";
+/*global self*/
+var RSVPPromise = require("./promise").Promise;
+var isFunction = require("./utils").isFunction;
+
+function polyfill() {
+  var local;
+
+  if (typeof global !== 'undefined') {
+    local = global;
+  } else if (typeof window !== 'undefined' && window.document) {
+    local = window;
+  } else {
+    local = self;
+  }
+
+  var es6PromiseSupport = 
+    "Promise" in local &&
+    // Some of these methods are missing from
+    // Firefox/Chrome experimental implementations
+    "resolve" in local.Promise &&
+    "reject" in local.Promise &&
+    "all" in local.Promise &&
+    "race" in local.Promise &&
+    // Older version of the spec had a resolver object
+    // as the arg rather than a function
+    (function() {
+      var resolve;
+      new local.Promise(function(r) { resolve = r; });
+      return isFunction(resolve);
+    }());
+
+  if (!es6PromiseSupport) {
+    local.Promise = RSVPPromise;
+  }
+}
+
+exports.polyfill = polyfill;
+}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{"./promise":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/promise/promise.js","./utils":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/promise/utils.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/promise/promise.js":[function(require,module,exports){
+"use strict";
+var config = require("./config").config;
+var configure = require("./config").configure;
+var objectOrFunction = require("./utils").objectOrFunction;
+var isFunction = require("./utils").isFunction;
+var now = require("./utils").now;
+var all = require("./all").all;
+var race = require("./race").race;
+var staticResolve = require("./resolve").resolve;
+var staticReject = require("./reject").reject;
+var asap = require("./asap").asap;
+
+var counter = 0;
+
+config.async = asap; // default async is asap;
+
+function Promise(resolver) {
+  if (!isFunction(resolver)) {
+    throw new TypeError('You must pass a resolver function as the first argument to the promise constructor');
+  }
+
+  if (!(this instanceof Promise)) {
+    throw new TypeError("Failed to construct 'Promise': Please use the 'new' operator, this object constructor cannot be called as a function.");
+  }
+
+  this._subscribers = [];
+
+  invokeResolver(resolver, this);
+}
+
+function invokeResolver(resolver, promise) {
+  function resolvePromise(value) {
+    resolve(promise, value);
+  }
+
+  function rejectPromise(reason) {
+    reject(promise, reason);
+  }
+
+  try {
+    resolver(resolvePromise, rejectPromise);
+  } catch(e) {
+    rejectPromise(e);
+  }
+}
+
+function invokeCallback(settled, promise, callback, detail) {
+  var hasCallback = isFunction(callback),
+      value, error, succeeded, failed;
+
+  if (hasCallback) {
+    try {
+      value = callback(detail);
+      succeeded = true;
+    } catch(e) {
+      failed = true;
+      error = e;
+    }
+  } else {
+    value = detail;
+    succeeded = true;
+  }
+
+  if (handleThenable(promise, value)) {
+    return;
+  } else if (hasCallback && succeeded) {
+    resolve(promise, value);
+  } else if (failed) {
+    reject(promise, error);
+  } else if (settled === FULFILLED) {
+    resolve(promise, value);
+  } else if (settled === REJECTED) {
+    reject(promise, value);
+  }
+}
+
+var PENDING   = void 0;
+var SEALED    = 0;
+var FULFILLED = 1;
+var REJECTED  = 2;
+
+function subscribe(parent, child, onFulfillment, onRejection) {
+  var subscribers = parent._subscribers;
+  var length = subscribers.length;
+
+  subscribers[length] = child;
+  subscribers[length + FULFILLED] = onFulfillment;
+  subscribers[length + REJECTED]  = onRejection;
+}
+
+function publish(promise, settled) {
+  var child, callback, subscribers = promise._subscribers, detail = promise._detail;
+
+  for (var i = 0; i < subscribers.length; i += 3) {
+    child = subscribers[i];
+    callback = subscribers[i + settled];
+
+    invokeCallback(settled, child, callback, detail);
+  }
+
+  promise._subscribers = null;
+}
+
+Promise.prototype = {
+  constructor: Promise,
+
+  _state: undefined,
+  _detail: undefined,
+  _subscribers: undefined,
+
+  then: function(onFulfillment, onRejection) {
+    var promise = this;
+
+    var thenPromise = new this.constructor(function() {});
+
+    if (this._state) {
+      var callbacks = arguments;
+      config.async(function invokePromiseCallback() {
+        invokeCallback(promise._state, thenPromise, callbacks[promise._state - 1], promise._detail);
+      });
+    } else {
+      subscribe(this, thenPromise, onFulfillment, onRejection);
+    }
+
+    return thenPromise;
+  },
+
+  'catch': function(onRejection) {
+    return this.then(null, onRejection);
+  }
+};
+
+Promise.all = all;
+Promise.race = race;
+Promise.resolve = staticResolve;
+Promise.reject = staticReject;
+
+function handleThenable(promise, value) {
+  var then = null,
+  resolved;
+
+  try {
+    if (promise === value) {
+      throw new TypeError("A promises callback cannot return that same promise.");
+    }
+
+    if (objectOrFunction(value)) {
+      then = value.then;
+
+      if (isFunction(then)) {
+        then.call(value, function(val) {
+          if (resolved) { return true; }
+          resolved = true;
+
+          if (value !== val) {
+            resolve(promise, val);
+          } else {
+            fulfill(promise, val);
+          }
+        }, function(val) {
+          if (resolved) { return true; }
+          resolved = true;
+
+          reject(promise, val);
+        });
+
+        return true;
+      }
+    }
+  } catch (error) {
+    if (resolved) { return true; }
+    reject(promise, error);
+    return true;
+  }
+
+  return false;
+}
+
+function resolve(promise, value) {
+  if (promise === value) {
+    fulfill(promise, value);
+  } else if (!handleThenable(promise, value)) {
+    fulfill(promise, value);
+  }
+}
+
+function fulfill(promise, value) {
+  if (promise._state !== PENDING) { return; }
+  promise._state = SEALED;
+  promise._detail = value;
+
+  config.async(publishFulfillment, promise);
+}
+
+function reject(promise, reason) {
+  if (promise._state !== PENDING) { return; }
+  promise._state = SEALED;
+  promise._detail = reason;
+
+  config.async(publishRejection, promise);
+}
+
+function publishFulfillment(promise) {
+  publish(promise, promise._state = FULFILLED);
+}
+
+function publishRejection(promise) {
+  publish(promise, promise._state = REJECTED);
+}
+
+exports.Promise = Promise;
+},{"./all":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/promise/all.js","./asap":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/promise/asap.js","./config":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/promise/config.js","./race":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/promise/race.js","./reject":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/promise/reject.js","./resolve":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/promise/resolve.js","./utils":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/promise/utils.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/promise/race.js":[function(require,module,exports){
+"use strict";
+/* global toString */
+var isArray = require("./utils").isArray;
+
+/**
+  `RSVP.race` allows you to watch a series of promises and act as soon as the
+  first promise given to the `promises` argument fulfills or rejects.
+
+  Example:
+
+  ```javascript
+  var promise1 = new RSVP.Promise(function(resolve, reject){
+    setTimeout(function(){
+      resolve("promise 1");
+    }, 200);
+  });
+
+  var promise2 = new RSVP.Promise(function(resolve, reject){
+    setTimeout(function(){
+      resolve("promise 2");
+    }, 100);
+  });
+
+  RSVP.race([promise1, promise2]).then(function(result){
+    // result === "promise 2" because it was resolved before promise1
+    // was resolved.
+  });
+  ```
+
+  `RSVP.race` is deterministic in that only the state of the first completed
+  promise matters. For example, even if other promises given to the `promises`
+  array argument are resolved, but the first completed promise has become
+  rejected before the other promises became fulfilled, the returned promise
+  will become rejected:
+
+  ```javascript
+  var promise1 = new RSVP.Promise(function(resolve, reject){
+    setTimeout(function(){
+      resolve("promise 1");
+    }, 200);
+  });
+
+  var promise2 = new RSVP.Promise(function(resolve, reject){
+    setTimeout(function(){
+      reject(new Error("promise 2"));
+    }, 100);
+  });
+
+  RSVP.race([promise1, promise2]).then(function(result){
+    // Code here never runs because there are rejected promises!
+  }, function(reason){
+    // reason.message === "promise2" because promise 2 became rejected before
+    // promise 1 became fulfilled
+  });
+  ```
+
+  @method race
+  @for RSVP
+  @param {Array} promises array of promises to observe
+  @param {String} label optional string for describing the promise returned.
+  Useful for tooling.
+  @return {Promise} a promise that becomes fulfilled with the value the first
+  completed promises is resolved with if the first completed promise was
+  fulfilled, or rejected with the reason that the first completed promise
+  was rejected with.
+*/
+function race(promises) {
+  /*jshint validthis:true */
+  var Promise = this;
+
+  if (!isArray(promises)) {
+    throw new TypeError('You must pass an array to race.');
+  }
+  return new Promise(function(resolve, reject) {
+    var results = [], promise;
+
+    for (var i = 0; i < promises.length; i++) {
+      promise = promises[i];
+
+      if (promise && typeof promise.then === 'function') {
+        promise.then(resolve, reject);
+      } else {
+        resolve(promise);
+      }
+    }
+  });
+}
+
+exports.race = race;
+},{"./utils":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/promise/utils.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/promise/reject.js":[function(require,module,exports){
+"use strict";
+/**
+  `RSVP.reject` returns a promise that will become rejected with the passed
+  `reason`. `RSVP.reject` is essentially shorthand for the following:
+
+  ```javascript
+  var promise = new RSVP.Promise(function(resolve, reject){
+    reject(new Error('WHOOPS'));
+  });
+
+  promise.then(function(value){
+    // Code here doesn't run because the promise is rejected!
+  }, function(reason){
+    // reason.message === 'WHOOPS'
+  });
+  ```
+
+  Instead of writing the above, your code now simply becomes the following:
+
+  ```javascript
+  var promise = RSVP.reject(new Error('WHOOPS'));
+
+  promise.then(function(value){
+    // Code here doesn't run because the promise is rejected!
+  }, function(reason){
+    // reason.message === 'WHOOPS'
+  });
+  ```
+
+  @method reject
+  @for RSVP
+  @param {Any} reason value that the returned promise will be rejected with.
+  @param {String} label optional string for identifying the returned promise.
+  Useful for tooling.
+  @return {Promise} a promise that will become rejected with the given
+  `reason`.
+*/
+function reject(reason) {
+  /*jshint validthis:true */
+  var Promise = this;
+
+  return new Promise(function (resolve, reject) {
+    reject(reason);
+  });
+}
+
+exports.reject = reject;
+},{}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/promise/resolve.js":[function(require,module,exports){
+"use strict";
+function resolve(value) {
+  /*jshint validthis:true */
+  if (value && typeof value === 'object' && value.constructor === this) {
+    return value;
+  }
+
+  var Promise = this;
+
+  return new Promise(function(resolve) {
+    resolve(value);
+  });
+}
+
+exports.resolve = resolve;
+},{}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/promise/utils.js":[function(require,module,exports){
+"use strict";
+function objectOrFunction(x) {
+  return isFunction(x) || (typeof x === "object" && x !== null);
+}
+
+function isFunction(x) {
+  return typeof x === "function";
+}
+
+function isArray(x) {
+  return Object.prototype.toString.call(x) === "[object Array]";
+}
+
+// Date.now is not available in browsers < IE9
+// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/now#Compatibility
+var now = Date.now || function() { return new Date().getTime(); };
+
+
+exports.objectOrFunction = objectOrFunction;
+exports.isFunction = isFunction;
+exports.isArray = isArray;
+exports.now = now;
+},{}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/director/build/director.js":[function(require,module,exports){
+
+
+//
+// Generated on Fri Dec 27 2013 12:02:11 GMT-0500 (EST) by Nodejitsu, Inc (Using Codesurgeon).
+// Version 1.2.2
+//
+
+(function (exports) {
+
+/*
+ * browser.js: Browser specific functionality for director.
+ *
+ * (C) 2011, Nodejitsu Inc.
+ * MIT LICENSE
+ *
+ */
+
+if (!Array.prototype.filter) {
+  Array.prototype.filter = function(filter, that) {
+    var other = [], v;
+    for (var i = 0, n = this.length; i < n; i++) {
+      if (i in this && filter.call(that, v = this[i], i, this)) {
+        other.push(v);
+      }
+    }
+    return other;
+  };
+}
+
+if (!Array.isArray){
+  Array.isArray = function(obj) {
+    return Object.prototype.toString.call(obj) === '[object Array]';
+  };
+}
+
+var dloc = document.location;
+
+function dlocHashEmpty() {
+  // Non-IE browsers return '' when the address bar shows '#'; Director's logic
+  // assumes both mean empty.
+  return dloc.hash === '' || dloc.hash === '#';
+}
+
+var listener = {
+  mode: 'modern',
+  hash: dloc.hash,
+  history: false,
+
+  check: function () {
+    var h = dloc.hash;
+    if (h != this.hash) {
+      this.hash = h;
+      this.onHashChanged();
+    }
+  },
+
+  fire: function () {
+    if (this.mode === 'modern') {
+      this.history === true ? window.onpopstate() : window.onhashchange();
+    }
+    else {
+      this.onHashChanged();
+    }
+  },
+
+  init: function (fn, history) {
+    var self = this;
+    this.history = history;
+
+    if (!Router.listeners) {
+      Router.listeners = [];
+    }
+
+    function onchange(onChangeEvent) {
+      for (var i = 0, l = Router.listeners.length; i < l; i++) {
+        Router.listeners[i](onChangeEvent);
+      }
+    }
+
+    //note IE8 is being counted as 'modern' because it has the hashchange event
+    if ('onhashchange' in window && (document.documentMode === undefined
+      || document.documentMode > 7)) {
+      // At least for now HTML5 history is available for 'modern' browsers only
+      if (this.history === true) {
+        // There is an old bug in Chrome that causes onpopstate to fire even
+        // upon initial page load. Since the handler is run manually in init(),
+        // this would cause Chrome to run it twise. Currently the only
+        // workaround seems to be to set the handler after the initial page load
+        // http://code.google.com/p/chromium/issues/detail?id=63040
+        setTimeout(function() {
+          window.onpopstate = onchange;
+        }, 500);
+      }
+      else {
+        window.onhashchange = onchange;
+      }
+      this.mode = 'modern';
+    }
+    else {
+      //
+      // IE support, based on a concept by Erik Arvidson ...
+      //
+      var frame = document.createElement('iframe');
+      frame.id = 'state-frame';
+      frame.style.display = 'none';
+      document.body.appendChild(frame);
+      this.writeFrame('');
+
+      if ('onpropertychange' in document && 'attachEvent' in document) {
+        document.attachEvent('onpropertychange', function () {
+          if (event.propertyName === 'location') {
+            self.check();
+          }
+        });
+      }
+
+      window.setInterval(function () { self.check(); }, 50);
+
+      this.onHashChanged = onchange;
+      this.mode = 'legacy';
+    }
+
+    Router.listeners.push(fn);
+
+    return this.mode;
+  },
+
+  destroy: function (fn) {
+    if (!Router || !Router.listeners) {
+      return;
+    }
+
+    var listeners = Router.listeners;
+
+    for (var i = listeners.length - 1; i >= 0; i--) {
+      if (listeners[i] === fn) {
+        listeners.splice(i, 1);
+      }
+    }
+  },
+
+  setHash: function (s) {
+    // Mozilla always adds an entry to the history
+    if (this.mode === 'legacy') {
+      this.writeFrame(s);
+    }
+
+    if (this.history === true) {
+      window.history.pushState({}, document.title, s);
+      // Fire an onpopstate event manually since pushing does not obviously
+      // trigger the pop event.
+      this.fire();
+    } else {
+      dloc.hash = (s[0] === '/') ? s : '/' + s;
+    }
+    return this;
+  },
+
+  writeFrame: function (s) {
+    // IE support...
+    var f = document.getElementById('state-frame');
+    var d = f.contentDocument || f.contentWindow.document;
+    d.open();
+    d.write("<script>_hash = '" + s + "'; onload = parent.listener.syncHash;<script>");
+    d.close();
+  },
+
+  syncHash: function () {
+    // IE support...
+    var s = this._hash;
+    if (s != dloc.hash) {
+      dloc.hash = s;
+    }
+    return this;
+  },
+
+  onHashChanged: function () {}
+};
+
+var Router = exports.Router = function (routes) {
+  if (!(this instanceof Router)) return new Router(routes);
+
+  this.params   = {};
+  this.routes   = {};
+  this.methods  = ['on', 'once', 'after', 'before'];
+  this.scope    = [];
+  this._methods = {};
+
+  this._insert = this.insert;
+  this.insert = this.insertEx;
+
+  this.historySupport = (window.history != null ? window.history.pushState : null) != null
+
+  this.configure();
+  this.mount(routes || {});
+};
+
+Router.prototype.init = function (r) {
+  var self = this;
+  this.handler = function(onChangeEvent) {
+    var newURL = onChangeEvent && onChangeEvent.newURL || window.location.hash;
+    var url = self.history === true ? self.getPath() : newURL.replace(/.*#/, '');
+    self.dispatch('on', url.charAt(0) === '/' ? url : '/' + url);
+  };
+
+  listener.init(this.handler, this.history);
+
+  if (this.history === false) {
+    if (dlocHashEmpty() && r) {
+      dloc.hash = r;
+    } else if (!dlocHashEmpty()) {
+      self.dispatch('on', '/' + dloc.hash.replace(/^(#\/|#|\/)/, ''));
+    }
+  }
+  else {
+    var routeTo = dlocHashEmpty() && r ? r : !dlocHashEmpty() ? dloc.hash.replace(/^#/, '') : null;
+    if (routeTo) {
+      window.history.replaceState({}, document.title, routeTo);
+    }
+
+    // Router has been initialized, but due to the chrome bug it will not
+    // yet actually route HTML5 history state changes. Thus, decide if should route.
+    if (routeTo || this.run_in_init === true) {
+      this.handler();
+    }
+  }
+
+  return this;
+};
+
+Router.prototype.explode = function () {
+  var v = this.history === true ? this.getPath() : dloc.hash;
+  if (v.charAt(1) === '/') { v=v.slice(1) }
+  return v.slice(1, v.length).split("/");
+};
+
+Router.prototype.setRoute = function (i, v, val) {
+  var url = this.explode();
+
+  if (typeof i === 'number' && typeof v === 'string') {
+    url[i] = v;
+  }
+  else if (typeof val === 'string') {
+    url.splice(i, v, s);
+  }
+  else {
+    url = [i];
+  }
+
+  listener.setHash(url.join('/'));
+  return url;
+};
+
+//
+// ### function insertEx(method, path, route, parent)
+// #### @method {string} Method to insert the specific `route`.
+// #### @path {Array} Parsed path to insert the `route` at.
+// #### @route {Array|function} Route handlers to insert.
+// #### @parent {Object} **Optional** Parent "routes" to insert into.
+// insert a callback that will only occur once per the matched route.
+//
+Router.prototype.insertEx = function(method, path, route, parent) {
+  if (method === "once") {
+    method = "on";
+    route = function(route) {
+      var once = false;
+      return function() {
+        if (once) return;
+        once = true;
+        return route.apply(this, arguments);
+      };
+    }(route);
+  }
+  return this._insert(method, path, route, parent);
+};
+
+Router.prototype.getRoute = function (v) {
+  var ret = v;
+
+  if (typeof v === "number") {
+    ret = this.explode()[v];
+  }
+  else if (typeof v === "string"){
+    var h = this.explode();
+    ret = h.indexOf(v);
+  }
+  else {
+    ret = this.explode();
+  }
+
+  return ret;
+};
+
+Router.prototype.destroy = function () {
+  listener.destroy(this.handler);
+  return this;
+};
+
+Router.prototype.getPath = function () {
+  var path = window.location.pathname;
+  if (path.substr(0, 1) !== '/') {
+    path = '/' + path;
+  }
+  return path;
+};
+function _every(arr, iterator) {
+  for (var i = 0; i < arr.length; i += 1) {
+    if (iterator(arr[i], i, arr) === false) {
+      return;
+    }
+  }
+}
+
+function _flatten(arr) {
+  var flat = [];
+  for (var i = 0, n = arr.length; i < n; i++) {
+    flat = flat.concat(arr[i]);
+  }
+  return flat;
+}
+
+function _asyncEverySeries(arr, iterator, callback) {
+  if (!arr.length) {
+    return callback();
+  }
+  var completed = 0;
+  (function iterate() {
+    iterator(arr[completed], function(err) {
+      if (err || err === false) {
+        callback(err);
+        callback = function() {};
+      } else {
+        completed += 1;
+        if (completed === arr.length) {
+          callback();
+        } else {
+          iterate();
+        }
+      }
+    });
+  })();
+}
+
+function paramifyString(str, params, mod) {
+  mod = str;
+  for (var param in params) {
+    if (params.hasOwnProperty(param)) {
+      mod = params[param](str);
+      if (mod !== str) {
+        break;
+      }
+    }
+  }
+  return mod === str ? "([._a-zA-Z0-9-]+)" : mod;
+}
+
+function regifyString(str, params) {
+  var matches, last = 0, out = "";
+  while (matches = str.substr(last).match(/[^\w\d\- %@&]*\*[^\w\d\- %@&]*/)) {
+    last = matches.index + matches[0].length;
+    matches[0] = matches[0].replace(/^\*/, "([_.()!\\ %@&a-zA-Z0-9-]+)");
+    out += str.substr(0, matches.index) + matches[0];
+  }
+  str = out += str.substr(last);
+  var captures = str.match(/:([^\/]+)/ig), capture, length;
+  if (captures) {
+    length = captures.length;
+    for (var i = 0; i < length; i++) {
+      capture = captures[i];
+      if (capture.slice(0, 2) === "::") {
+        str = capture.slice(1);
+      } else {
+        str = str.replace(capture, paramifyString(capture, params));
+      }
+    }
+  }
+  return str;
+}
+
+function terminator(routes, delimiter, start, stop) {
+  var last = 0, left = 0, right = 0, start = (start || "(").toString(), stop = (stop || ")").toString(), i;
+  for (i = 0; i < routes.length; i++) {
+    var chunk = routes[i];
+    if (chunk.indexOf(start, last) > chunk.indexOf(stop, last) || ~chunk.indexOf(start, last) && !~chunk.indexOf(stop, last) || !~chunk.indexOf(start, last) && ~chunk.indexOf(stop, last)) {
+      left = chunk.indexOf(start, last);
+      right = chunk.indexOf(stop, last);
+      if (~left && !~right || !~left && ~right) {
+        var tmp = routes.slice(0, (i || 1) + 1).join(delimiter);
+        routes = [ tmp ].concat(routes.slice((i || 1) + 1));
+      }
+      last = (right > left ? right : left) + 1;
+      i = 0;
+    } else {
+      last = 0;
+    }
+  }
+  return routes;
+}
+
+Router.prototype.configure = function(options) {
+  options = options || {};
+  for (var i = 0; i < this.methods.length; i++) {
+    this._methods[this.methods[i]] = true;
+  }
+  this.recurse = options.recurse || this.recurse || false;
+  this.async = options.async || false;
+  this.delimiter = options.delimiter || "/";
+  this.strict = typeof options.strict === "undefined" ? true : options.strict;
+  this.notfound = options.notfound;
+  this.resource = options.resource;
+  this.history = options.html5history && this.historySupport || false;
+  this.run_in_init = this.history === true && options.run_handler_in_init !== false;
+  this.every = {
+    after: options.after || null,
+    before: options.before || null,
+    on: options.on || null
+  };
+  return this;
+};
+
+Router.prototype.param = function(token, matcher) {
+  if (token[0] !== ":") {
+    token = ":" + token;
+  }
+  var compiled = new RegExp(token, "g");
+  this.params[token] = function(str) {
+    return str.replace(compiled, matcher.source || matcher);
+  };
+};
+
+Router.prototype.on = Router.prototype.route = function(method, path, route) {
+  var self = this;
+  if (!route && typeof path == "function") {
+    route = path;
+    path = method;
+    method = "on";
+  }
+  if (Array.isArray(path)) {
+    return path.forEach(function(p) {
+      self.on(method, p, route);
+    });
+  }
+  if (path.source) {
+    path = path.source.replace(/\\\//ig, "/");
+  }
+  if (Array.isArray(method)) {
+    return method.forEach(function(m) {
+      self.on(m.toLowerCase(), path, route);
+    });
+  }
+  path = path.split(new RegExp(this.delimiter));
+  path = terminator(path, this.delimiter);
+  this.insert(method, this.scope.concat(path), route);
+};
+
+Router.prototype.dispatch = function(method, path, callback) {
+  var self = this, fns = this.traverse(method, path, this.routes, ""), invoked = this._invoked, after;
+  this._invoked = true;
+  if (!fns || fns.length === 0) {
+    this.last = [];
+    if (typeof this.notfound === "function") {
+      this.invoke([ this.notfound ], {
+        method: method,
+        path: path
+      }, callback);
+    }
+    return false;
+  }
+  if (this.recurse === "forward") {
+    fns = fns.reverse();
+  }
+  function updateAndInvoke() {
+    self.last = fns.after;
+    self.invoke(self.runlist(fns), self, callback);
+  }
+  after = this.every && this.every.after ? [ this.every.after ].concat(this.last) : [ this.last ];
+  if (after && after.length > 0 && invoked) {
+    if (this.async) {
+      this.invoke(after, this, updateAndInvoke);
+    } else {
+      this.invoke(after, this);
+      updateAndInvoke();
+    }
+    return true;
+  }
+  updateAndInvoke();
+  return true;
+};
+
+Router.prototype.invoke = function(fns, thisArg, callback) {
+  var self = this;
+  var apply;
+  if (this.async) {
+    apply = function(fn, next) {
+      if (Array.isArray(fn)) {
+        return _asyncEverySeries(fn, apply, next);
+      } else if (typeof fn == "function") {
+        fn.apply(thisArg, fns.captures.concat(next));
+      }
+    };
+    _asyncEverySeries(fns, apply, function() {
+      if (callback) {
+        callback.apply(thisArg, arguments);
+      }
+    });
+  } else {
+    apply = function(fn) {
+      if (Array.isArray(fn)) {
+        return _every(fn, apply);
+      } else if (typeof fn === "function") {
+        return fn.apply(thisArg, fns.captures || []);
+      } else if (typeof fn === "string" && self.resource) {
+        self.resource[fn].apply(thisArg, fns.captures || []);
+      }
+    };
+    _every(fns, apply);
+  }
+};
+
+Router.prototype.traverse = function(method, path, routes, regexp, filter) {
+  var fns = [], current, exact, match, next, that;
+  function filterRoutes(routes) {
+    if (!filter) {
+      return routes;
+    }
+    function deepCopy(source) {
+      var result = [];
+      for (var i = 0; i < source.length; i++) {
+        result[i] = Array.isArray(source[i]) ? deepCopy(source[i]) : source[i];
+      }
+      return result;
+    }
+    function applyFilter(fns) {
+      for (var i = fns.length - 1; i >= 0; i--) {
+        if (Array.isArray(fns[i])) {
+          applyFilter(fns[i]);
+          if (fns[i].length === 0) {
+            fns.splice(i, 1);
+          }
+        } else {
+          if (!filter(fns[i])) {
+            fns.splice(i, 1);
+          }
+        }
+      }
+    }
+    var newRoutes = deepCopy(routes);
+    newRoutes.matched = routes.matched;
+    newRoutes.captures = routes.captures;
+    newRoutes.after = routes.after.filter(filter);
+    applyFilter(newRoutes);
+    return newRoutes;
+  }
+  if (path === this.delimiter && routes[method]) {
+    next = [ [ routes.before, routes[method] ].filter(Boolean) ];
+    next.after = [ routes.after ].filter(Boolean);
+    next.matched = true;
+    next.captures = [];
+    return filterRoutes(next);
+  }
+  for (var r in routes) {
+    if (routes.hasOwnProperty(r) && (!this._methods[r] || this._methods[r] && typeof routes[r] === "object" && !Array.isArray(routes[r]))) {
+      current = exact = regexp + this.delimiter + r;
+      if (!this.strict) {
+        exact += "[" + this.delimiter + "]?";
+      }
+      match = path.match(new RegExp("^" + exact));
+      if (!match) {
+        continue;
+      }
+      if (match[0] && match[0] == path && routes[r][method]) {
+        next = [ [ routes[r].before, routes[r][method] ].filter(Boolean) ];
+        next.after = [ routes[r].after ].filter(Boolean);
+        next.matched = true;
+        next.captures = match.slice(1);
+        if (this.recurse && routes === this.routes) {
+          next.push([ routes.before, routes.on ].filter(Boolean));
+          next.after = next.after.concat([ routes.after ].filter(Boolean));
+        }
+        return filterRoutes(next);
+      }
+      next = this.traverse(method, path, routes[r], current);
+      if (next.matched) {
+        if (next.length > 0) {
+          fns = fns.concat(next);
+        }
+        if (this.recurse) {
+          fns.push([ routes[r].before, routes[r].on ].filter(Boolean));
+          next.after = next.after.concat([ routes[r].after ].filter(Boolean));
+          if (routes === this.routes) {
+            fns.push([ routes["before"], routes["on"] ].filter(Boolean));
+            next.after = next.after.concat([ routes["after"] ].filter(Boolean));
+          }
+        }
+        fns.matched = true;
+        fns.captures = next.captures;
+        fns.after = next.after;
+        return filterRoutes(fns);
+      }
+    }
+  }
+  return false;
+};
+
+Router.prototype.insert = function(method, path, route, parent) {
+  var methodType, parentType, isArray, nested, part;
+  path = path.filter(function(p) {
+    return p && p.length > 0;
+  });
+  parent = parent || this.routes;
+  part = path.shift();
+  if (/\:|\*/.test(part) && !/\\d|\\w/.test(part)) {
+    part = regifyString(part, this.params);
+  }
+  if (path.length > 0) {
+    parent[part] = parent[part] || {};
+    return this.insert(method, path, route, parent[part]);
+  }
+  if (!part && !path.length && parent === this.routes) {
+    methodType = typeof parent[method];
+    switch (methodType) {
+     case "function":
+      parent[method] = [ parent[method], route ];
+      return;
+     case "object":
+      parent[method].push(route);
+      return;
+     case "undefined":
+      parent[method] = route;
+      return;
+    }
+    return;
+  }
+  parentType = typeof parent[part];
+  isArray = Array.isArray(parent[part]);
+  if (parent[part] && !isArray && parentType == "object") {
+    methodType = typeof parent[part][method];
+    switch (methodType) {
+     case "function":
+      parent[part][method] = [ parent[part][method], route ];
+      return;
+     case "object":
+      parent[part][method].push(route);
+      return;
+     case "undefined":
+      parent[part][method] = route;
+      return;
+    }
+  } else if (parentType == "undefined") {
+    nested = {};
+    nested[method] = route;
+    parent[part] = nested;
+    return;
+  }
+  throw new Error("Invalid route context: " + parentType);
+};
+
+
+
+Router.prototype.extend = function(methods) {
+  var self = this, len = methods.length, i;
+  function extend(method) {
+    self._methods[method] = true;
+    self[method] = function() {
+      var extra = arguments.length === 1 ? [ method, "" ] : [ method ];
+      self.on.apply(self, extra.concat(Array.prototype.slice.call(arguments)));
+    };
+  }
+  for (i = 0; i < len; i++) {
+    extend(methods[i]);
+  }
+};
+
+Router.prototype.runlist = function(fns) {
+  var runlist = this.every && this.every.before ? [ this.every.before ].concat(_flatten(fns)) : _flatten(fns);
+  if (this.every && this.every.on) {
+    runlist.push(this.every.on);
+  }
+  runlist.captures = fns.captures;
+  runlist.source = fns.source;
+  return runlist;
+};
+
+Router.prototype.mount = function(routes, path) {
+  if (!routes || typeof routes !== "object" || Array.isArray(routes)) {
+    return;
+  }
+  var self = this;
+  path = path || [];
+  if (!Array.isArray(path)) {
+    path = path.split(self.delimiter);
+  }
+  function insertOrMount(route, local) {
+    var rename = route, parts = route.split(self.delimiter), routeType = typeof routes[route], isRoute = parts[0] === "" || !self._methods[parts[0]], event = isRoute ? "on" : rename;
+    if (isRoute) {
+      rename = rename.slice((rename.match(new RegExp("^" + self.delimiter)) || [ "" ])[0].length);
+      parts.shift();
+    }
+    if (isRoute && routeType === "object" && !Array.isArray(routes[route])) {
+      local = local.concat(parts);
+      self.mount(routes[route], local);
+      return;
+    }
+    if (isRoute) {
+      local = local.concat(rename.split(self.delimiter));
+      local = terminator(local, self.delimiter);
+    }
+    self.insert(event, local, routes[route]);
+  }
+  for (var route in routes) {
+    if (routes.hasOwnProperty(route)) {
+      insertOrMount(route, path.slice(0));
+    }
+  }
+};
+
+
+
+}(typeof exports === "object" ? exports : window));
+},{}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/exoskeleton/exoskeleton.js":[function(require,module,exports){
+/*!
+ * Exoskeleton.js 0.7.0
+ * (c) 2013 Paul Miller <http://paulmillr.com>
+ * Based on Backbone.js
+ * (c) 2010-2013 Jeremy Ashkenas, DocumentCloud
+ * Exoskeleton may be freely distributed under the MIT license.
+ * For all details and documentation: <http://exosjs.com>
+ */
+
+(function(root, factory) {
+  // Set up Backbone appropriately for the environment.
+  if (typeof define === 'function' && define.amd) {
+    define(['underscore', 'jquery', 'exports'], function(_, $, exports) {
+      root.Backbone = root.Exoskeleton = factory(root, exports, _, $);
+    });
+  } else if (typeof exports !== 'undefined') {
+    var _, $;
+    try { _ = require('underscore'); } catch(e) { }
+    try { $ = require('jquery'); } catch(e) { }
+    factory(root, exports, _, $);
+  } else {
+    root.Backbone = root.Exoskeleton = factory(root, {}, root._, (root.jQuery || root.Zepto || root.ender || root.$));
+  }
+
+})(this, function(root, Backbone, _, $) {
+  'use strict';
+
+  // Initial Setup
+  // -------------
+
+  // Save the previous value of the `Backbone` variable, so that it can be
+  // restored later on, if `noConflict` is used.
+  var previousBackbone = root.Backbone;
+  var previousExoskeleton = root.Exoskeleton;
+
+  // Underscore replacement.
+  var utils = Backbone.utils = _ = (_ || {});
+
+  // Hold onto a local reference to `$`. Can be changed at any point.
+  Backbone.$ = $;
+
+  // Create local references to array methods we'll want to use later.
+  var array = [];
+  var push = array.push;
+  var slice = array.slice;
+  var toString = ({}).toString;
+
+  // Current version of the library. Keep in sync with `package.json`.
+  // Backbone.VERSION = '1.0.0';
+
+  // Runs Backbone.js in *noConflict* mode, returning the `Backbone` variable
+  // to its previous owner. Returns a reference to this Backbone object.
+  Backbone.noConflict = function() {
+    root.Backbone = previousBackbone;
+    root.Exoskeleton = previousExoskeleton;
+    return this;
+  };
+
+  // Helpers
+  // -------
+
+  // Helper function to correctly set up the prototype chain, for subclasses.
+  // Similar to `goog.inherits`, but uses a hash of prototype properties and
+  // class properties to be extended.
+  Backbone.extend = function(protoProps, staticProps) {
+    var parent = this;
+    var child;
+
+    // The constructor function for the new subclass is either defined by you
+    // (the "constructor" property in your `extend` definition), or defaulted
+    // by us to simply call the parent's constructor.
+    if (protoProps && _.has(protoProps, 'constructor')) {
+      child = protoProps.constructor;
+    } else {
+      child = function(){ return parent.apply(this, arguments); };
+    }
+
+    // Add static properties to the constructor function, if supplied.
+    _.extend(child, parent, staticProps);
+
+    // Set the prototype chain to inherit from `parent`, without calling
+    // `parent`'s constructor function.
+    var Surrogate = function(){ this.constructor = child; };
+    Surrogate.prototype = parent.prototype;
+    child.prototype = new Surrogate;
+
+    // Add prototype properties (instance properties) to the subclass,
+    // if supplied.
+    if (protoProps) _.extend(child.prototype, protoProps);
+
+    // Set a convenience property in case the parent's prototype is needed
+    // later.
+    child.__super__ = parent.prototype;
+
+    return child;
+  };
+
+  // Throw an error when a URL is needed, and none is supplied.
+  var urlError = function() {
+    throw new Error('A "url" property or function must be specified');
+  };
+
+  // Wrap an optional error callback with a fallback error event.
+  var wrapError = function(model, options) {
+    var error = options.error;
+    options.error = function(resp) {
+      if (error) error(model, resp, options);
+      model.trigger('error', model, resp, options);
+    };
+  };
+
+  // Checker for utility methods. Useful for custom builds.
+  var utilExists = function(method) {
+    return typeof _[method] === 'function';
+  };
+utils.result = function result(object, property) {
+  var value = object ? object[property] : undefined;
+  return typeof value === 'function' ? object[property]() : value;
+};
+
+utils.defaults = function defaults(obj) {
+  slice.call(arguments, 1).forEach(function(item) {
+    for (var key in item) if (obj[key] === undefined)
+      obj[key] = item[key];
+  });
+  return obj;
+};
+
+utils.extend = function extend(obj) {
+  slice.call(arguments, 1).forEach(function(item) {
+    for (var key in item) obj[key] = item[key];
+  });
+  return obj;
+};
+
+var htmlEscapes = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#39;'
+};
+
+utils.escape = function escape(string) {
+  return string == null ? '' : String(string).replace(/[&<>"']/g, function(match) {
+    return htmlEscapes[match];
+  });
+};
+
+utils.sortBy = function(obj, value, context) {
+  var iterator = typeof value === 'function' ? value : function(obj){ return obj[value]; };
+  return obj
+    .map(function(value, index, list) {
+      return {
+        value: value,
+        index: index,
+        criteria: iterator.call(context, value, index, list)
+      };
+    })
+    .sort(function(left, right) {
+      var a = left.criteria;
+      var b = right.criteria;
+      if (a !== b) {
+        if (a > b || a === void 0) return 1;
+        if (a < b || b === void 0) return -1;
+      }
+      return left.index - right.index;
+    })
+    .map(function(item) {
+      return item.value;
+    });
+};
+
+/** Used to generate unique IDs */
+var idCounter = 0;
+
+utils.uniqueId = function uniqueId(prefix) {
+  var id = ++idCounter + '';
+  return prefix ? prefix + id : id;
+};
+
+utils.has = function(obj, key) {
+  return Object.hasOwnProperty.call(obj, key);
+};
+
+var eq = function(a, b, aStack, bStack) {
+  // Identical objects are equal. `0 === -0`, but they aren't identical.
+  // See the [Harmony `egal` proposal](http://wiki.ecmascript.org/doku.php?id=harmony:egal).
+  if (a === b) return a !== 0 || 1 / a == 1 / b;
+  // A strict comparison is necessary because `null == undefined`.
+  if (a == null || b == null) return a === b;
+  // Unwrap any wrapped objects.
+  //if (a instanceof _) a = a._wrapped;
+  //if (b instanceof _) b = b._wrapped;
+  // Compare `[[Class]]` names.
+  var className = toString.call(a);
+  if (className != toString.call(b)) return false;
+  switch (className) {
+    // Strings, numbers, dates, and booleans are compared by value.
+    case '[object String]':
+      // Primitives and their corresponding object wrappers are equivalent; thus, `"5"` is
+      // equivalent to `new String("5")`.
+      return a == String(b);
+    case '[object Number]':
+      // `NaN`s are equivalent, but non-reflexive. An `egal` comparison is performed for
+      // other numeric values.
+      return a !== +a ? b !== +b : (a === 0 ? 1 / a === 1 / b : a === +b);
+    case '[object Date]':
+    case '[object Boolean]':
+      // Coerce dates and booleans to numeric primitive values. Dates are compared by their
+      // millisecond representations. Note that invalid dates with millisecond representations
+      // of `NaN` are not equivalent.
+      return +a == +b;
+    // RegExps are compared by their source patterns and flags.
+    case '[object RegExp]':
+      return a.source == b.source &&
+             a.global == b.global &&
+             a.multiline == b.multiline &&
+             a.ignoreCase == b.ignoreCase;
+  }
+  if (typeof a != 'object' || typeof b != 'object') return false;
+  // Assume equality for cyclic structures. The algorithm for detecting cyclic
+  // structures is adapted from ES 5.1 section 15.12.3, abstract operation `JO`.
+  var length = aStack.length;
+  while (length--) {
+    // Linear search. Performance is inversely proportional to the number of
+    // unique nested structures.
+    if (aStack[length] == a) return bStack[length] == b;
+  }
+  // Objects with different constructors are not equivalent, but `Object`s
+  // from different frames are.
+  var aCtor = a.constructor, bCtor = b.constructor;
+  if (aCtor !== bCtor && !(typeof aCtor === 'function' && (aCtor instanceof aCtor) &&
+                           typeof bCtor === 'function' && (bCtor instanceof bCtor))) {
+    return false;
+  }
+  // Add the first object to the stack of traversed objects.
+  aStack.push(a);
+  bStack.push(b);
+  var size = 0, result = true;
+  // Recursively compare objects and arrays.
+  if (className === '[object Array]') {
+    // Compare array lengths to determine if a deep comparison is necessary.
+    size = a.length;
+    result = size === b.length;
+    if (result) {
+      // Deep compare the contents, ignoring non-numeric properties.
+      while (size--) {
+        if (!(result = eq(a[size], b[size], aStack, bStack))) break;
+      }
+    }
+  } else {
+    // Deep compare objects.
+    for (var key in a) {
+      if (_.has(a, key)) {
+        // Count the expected number of properties.
+        size++;
+        // Deep compare each member.
+        if (!(result = _.has(b, key) && eq(a[key], b[key], aStack, bStack))) break;
+      }
+    }
+    // Ensure that both objects contain the same number of properties.
+    if (result) {
+      for (key in b) {
+        if (_.has(b, key) && !(size--)) break;
+      }
+      result = !size;
+    }
+  }
+  // Remove the first object from the stack of traversed objects.
+  aStack.pop();
+  bStack.pop();
+  return result;
+};
+
+// Perform a deep comparison to check if two objects are equal.
+utils.isEqual = function(a, b) {
+  return eq(a, b, [], []);
+};
+// Backbone.Events
+// ---------------
+
+// A module that can be mixed in to *any object* in order to provide it with
+// custom events. You may bind with `on` or remove with `off` callback
+// functions to an event; `trigger`-ing an event fires all callbacks in
+// succession.
+//
+//     var object = {};
+//     _.extend(object, Backbone.Events);
+//     object.on('expand', function(){ alert('expanded'); });
+//     object.trigger('expand');
+//
+var Events = Backbone.Events = {
+
+  // Bind an event to a `callback` function. Passing `"all"` will bind
+  // the callback to all events fired.
+  on: function(name, callback, context) {
+    if (!eventsApi(this, 'on', name, [callback, context]) || !callback) return this;
+    this._events || (this._events = {});
+    var events = this._events[name] || (this._events[name] = []);
+    events.push({callback: callback, context: context, ctx: context || this});
+    return this;
+  },
+
+  // Bind an event to only be triggered a single time. After the first time
+  // the callback is invoked, it will be removed.
+  once: function(name, callback, context) {
+    if (!eventsApi(this, 'once', name, [callback, context]) || !callback) return this;
+    var self = this;
+    var ran;
+    var once = function() {
+      if (ran) return;
+      ran = true;
+      self.off(name, once);
+      callback.apply(this, arguments);
+    };
+    once._callback = callback;
+    return this.on(name, once, context);
+  },
+
+  // Remove one or many callbacks. If `context` is null, removes all
+  // callbacks with that function. If `callback` is null, removes all
+  // callbacks for the event. If `name` is null, removes all bound
+  // callbacks for all events.
+  off: function(name, callback, context) {
+    var retain, ev, events, names, i, l, j, k;
+    if (!this._events || !eventsApi(this, 'off', name, [callback, context])) return this;
+    if (!name && !callback && !context) {
+      this._events = void 0;
+      return this;
+    }
+    names = name ? [name] : Object.keys(this._events);
+    for (i = 0, l = names.length; i < l; i++) {
+      name = names[i];
+      if (events = this._events[name]) {
+        this._events[name] = retain = [];
+        if (callback || context) {
+          for (j = 0, k = events.length; j < k; j++) {
+            ev = events[j];
+            if ((callback && callback !== ev.callback && callback !== ev.callback._callback) ||
+                (context && context !== ev.context)) {
+              retain.push(ev);
+            }
+          }
+        }
+        if (!retain.length) delete this._events[name];
+      }
+    }
+
+    return this;
+  },
+
+  // Trigger one or many events, firing all bound callbacks. Callbacks are
+  // passed the same arguments as `trigger` is, apart from the event name
+  // (unless you're listening on `"all"`, which will cause your callback to
+  // receive the true name of the event as the first argument).
+  trigger: function(name) {
+    if (!this._events) return this;
+    var args = slice.call(arguments, 1);
+    if (!eventsApi(this, 'trigger', name, args)) return this;
+    var events = this._events[name];
+    var allEvents = this._events.all;
+    if (events) triggerEvents(events, args);
+    if (allEvents) triggerEvents(allEvents, arguments);
+    return this;
+  },
+
+  // Tell this object to stop listening to either specific events ... or
+  // to every object it's currently listening to.
+  stopListening: function(obj, name, callback) {
+    var listeningTo = this._listeningTo;
+    if (!listeningTo) return this;
+    var remove = !name && !callback;
+    if (!callback && typeof name === 'object') callback = this;
+    if (obj) (listeningTo = {})[obj._listenId] = obj;
+    for (var id in listeningTo) {
+      obj = listeningTo[id];
+      obj.off(name, callback, this);
+      if (remove || !Object.keys(obj._events).length) delete this._listeningTo[id];
+    }
+    return this;
+  }
+
+};
+
+// Regular expression used to split event strings.
+var eventSplitter = /\s+/;
+
+// Implement fancy features of the Events API such as multiple event
+// names `"change blur"` and jQuery-style event maps `{change: action}`
+// in terms of the existing API.
+var eventsApi = function(obj, action, name, rest) {
+  if (!name) return true;
+
+  // Handle event maps.
+  if (typeof name === 'object') {
+    for (var key in name) {
+      obj[action].apply(obj, [key, name[key]].concat(rest));
+    }
+    return false;
+  }
+
+  // Handle space separated event names.
+  if (eventSplitter.test(name)) {
+    var names = name.split(eventSplitter);
+    for (var i = 0, l = names.length; i < l; i++) {
+      obj[action].apply(obj, [names[i]].concat(rest));
+    }
+    return false;
+  }
+
+  return true;
+};
+
+// A difficult-to-believe, but optimized internal dispatch function for
+// triggering events. Tries to keep the usual cases speedy (most internal
+// Backbone events have 3 arguments).
+var triggerEvents = function(events, args) {
+  var ev, i = -1, l = events.length, a1 = args[0], a2 = args[1], a3 = args[2];
+  switch (args.length) {
+    case 0: while (++i < l) (ev = events[i]).callback.call(ev.ctx); return;
+    case 1: while (++i < l) (ev = events[i]).callback.call(ev.ctx, a1); return;
+    case 2: while (++i < l) (ev = events[i]).callback.call(ev.ctx, a1, a2); return;
+    case 3: while (++i < l) (ev = events[i]).callback.call(ev.ctx, a1, a2, a3); return;
+    default: while (++i < l) (ev = events[i]).callback.apply(ev.ctx, args); return;
+  }
+};
+
+var listenMethods = {listenTo: 'on', listenToOnce: 'once'};
+
+// Inversion-of-control versions of `on` and `once`. Tell *this* object to
+// listen to an event in another object ... keeping track of what it's
+// listening to.
+Object.keys(listenMethods).forEach(function(method) {
+  var implementation = listenMethods[method];
+  Events[method] = function(obj, name, callback) {
+    var listeningTo = this._listeningTo || (this._listeningTo = {});
+    var id = obj._listenId || (obj._listenId = _.uniqueId('l'));
+    listeningTo[id] = obj;
+    if (!callback && typeof name === 'object') callback = this;
+    obj[implementation](name, callback, this);
+    return this;
+  };
+});
+
+// Aliases for backwards compatibility.
+Events.bind   = Events.on;
+Events.unbind = Events.off;
+
+// Allow the `Backbone` object to serve as a global event bus, for folks who
+// want global "pubsub" in a convenient place.
+_.extend(Backbone, Events);
+// Backbone.Model
+// --------------
+
+// Backbone **Models** are the basic data object in the framework --
+// frequently representing a row in a table in a database on your server.
+// A discrete chunk of data and a bunch of useful, related methods for
+// performing computations and transformations on that data.
+
+// Create a new model with the specified attributes. A client id (`cid`)
+// is automatically generated and assigned for you.
+var Model = Backbone.Model = function(attributes, options) {
+  var attrs = attributes || {};
+  options || (options = {});
+  this.cid = _.uniqueId('c');
+  this.attributes = Object.create(null);
+  if (options.collection) this.collection = options.collection;
+  if (options.parse) attrs = this.parse(attrs, options) || {};
+  attrs = _.defaults({}, attrs, _.result(this, 'defaults'));
+  this.set(attrs, options);
+  this.changed = Object.create(null);
+  this.initialize.apply(this, arguments);
+};
+
+// Attach all inheritable methods to the Model prototype.
+_.extend(Model.prototype, Events, {
+
+  // A hash of attributes whose current and previous value differ.
+  changed: null,
+
+  // The value returned during the last failed validation.
+  validationError: null,
+
+  // The default name for the JSON `id` attribute is `"id"`. MongoDB and
+  // CouchDB users may want to set this to `"_id"`.
+  idAttribute: 'id',
+
+  // Initialize is an empty function by default. Override it with your own
+  // initialization logic.
+  initialize: function(){},
+
+  // Return a copy of the model's `attributes` object.
+  toJSON: function(options) {
+    return _.extend({}, this.attributes);
+  },
+
+  // Proxy `Backbone.sync` by default -- but override this if you need
+  // custom syncing semantics for *this* particular model.
+  sync: function() {
+    return Backbone.sync.apply(this, arguments);
+  },
+
+  // Get the value of an attribute.
+  get: function(attr) {
+    return this.attributes[attr];
+  },
+
+  // Get the HTML-escaped value of an attribute.
+  escape: function(attr) {
+    return _.escape(this.get(attr));
+  },
+
+  // Returns `true` if the attribute contains a value that is not null
+  // or undefined.
+  has: function(attr) {
+    return this.get(attr) != null;
+  },
+
+  // Set a hash of model attributes on the object, firing `"change"`. This is
+  // the core primitive operation of a model, updating the data and notifying
+  // anyone who needs to know about the change in state. The heart of the beast.
+  set: function(key, val, options) {
+    var attr, attrs, unset, changes, silent, changing, prev, current;
+    if (key == null) return this;
+
+    // Handle both `"key", value` and `{key: value}` -style arguments.
+    if (typeof key === 'object') {
+      attrs = key;
+      options = val;
+    } else {
+      (attrs = {})[key] = val;
+    }
+
+    options || (options = {});
+
+    // Run validation.
+    if (!this._validate(attrs, options)) return false;
+
+    // Extract attributes and options.
+    unset           = options.unset;
+    silent          = options.silent;
+    changes         = [];
+    changing        = this._changing;
+    this._changing  = true;
+
+    if (!changing) {
+      this._previousAttributes = _.extend(Object.create(null), this.attributes);
+      this.changed = {};
+    }
+    current = this.attributes, prev = this._previousAttributes;
+
+    // Check for changes of `id`.
+    if (this.idAttribute in attrs) this.id = attrs[this.idAttribute];
+
+    // For each `set` attribute, update or delete the current value.
+    for (attr in attrs) {
+      val = attrs[attr];
+      if (!_.isEqual(current[attr], val)) changes.push(attr);
+      if (!_.isEqual(prev[attr], val)) {
+        this.changed[attr] = val;
+      } else {
+        delete this.changed[attr];
+      }
+      unset ? delete current[attr] : current[attr] = val;
+    }
+
+    // Trigger all relevant attribute changes.
+    if (!silent) {
+      if (changes.length) this._pending = options;
+      for (var i = 0, l = changes.length; i < l; i++) {
+        this.trigger('change:' + changes[i], this, current[changes[i]], options);
+      }
+    }
+
+    // You might be wondering why there's a `while` loop here. Changes can
+    // be recursively nested within `"change"` events.
+    if (changing) return this;
+    if (!silent) {
+      while (this._pending) {
+        options = this._pending;
+        this._pending = false;
+        this.trigger('change', this, options);
+      }
+    }
+    this._pending = false;
+    this._changing = false;
+    return this;
+  },
+
+  // Remove an attribute from the model, firing `"change"`. `unset` is a noop
+  // if the attribute doesn't exist.
+  unset: function(attr, options) {
+    return this.set(attr, void 0, _.extend({}, options, {unset: true}));
+  },
+
+  // Clear all attributes on the model, firing `"change"`.
+  clear: function(options) {
+    var attrs = {};
+    for (var key in this.attributes) attrs[key] = void 0;
+    return this.set(attrs, _.extend({}, options, {unset: true}));
+  },
+
+  // Determine if the model has changed since the last `"change"` event.
+  // If you specify an attribute name, determine if that attribute has changed.
+  hasChanged: function(attr) {
+    if (attr == null) return !!Object.keys(this.changed).length;
+    return _.has(this.changed, attr);
+  },
+
+  // Return an object containing all the attributes that have changed, or
+  // false if there are no changed attributes. Useful for determining what
+  // parts of a view need to be updated and/or what attributes need to be
+  // persisted to the server. Unset attributes will be set to undefined.
+  // You can also pass an attributes object to diff against the model,
+  // determining if there *would be* a change.
+  changedAttributes: function(diff) {
+    if (!diff) return this.hasChanged() ? _.extend(Object.create(null), this.changed) : false;
+    var val, changed = false;
+    var old = this._changing ? this._previousAttributes : this.attributes;
+    for (var attr in diff) {
+      if (_.isEqual(old[attr], (val = diff[attr]))) continue;
+      (changed || (changed = {}))[attr] = val;
+    }
+    return changed;
+  },
+
+  // Get the previous value of an attribute, recorded at the time the last
+  // `"change"` event was fired.
+  previous: function(attr) {
+    if (attr == null || !this._previousAttributes) return null;
+    return this._previousAttributes[attr];
+  },
+
+  // Get all of the attributes of the model at the time of the previous
+  // `"change"` event.
+  previousAttributes: function() {
+    return _.extend(Object.create(null), this._previousAttributes);
+  },
+
+  // Fetch the model from the server. If the server's representation of the
+  // model differs from its current attributes, they will be overridden,
+  // triggering a `"change"` event.
+  fetch: function(options) {
+    options = options ? _.extend({}, options) : {};
+    if (options.parse === void 0) options.parse = true;
+    var model = this;
+    var success = options.success;
+    options.success = function(resp) {
+      if (!model.set(model.parse(resp, options), options)) return false;
+      if (success) success(model, resp, options);
+      model.trigger('sync', model, resp, options);
+    };
+    wrapError(this, options);
+    return this.sync('read', this, options);
+  },
+
+  // Set a hash of model attributes, and sync the model to the server.
+  // If the server returns an attributes hash that differs, the model's
+  // state will be `set` again.
+  save: function(key, val, options) {
+    var attrs, method, xhr, attributes = this.attributes;
+
+    // Handle both `"key", value` and `{key: value}` -style arguments.
+    if (key == null || typeof key === 'object') {
+      attrs = key;
+      options = val;
+    } else {
+      (attrs = {})[key] = val;
+    }
+
+    options = _.extend({validate: true}, options);
+
+    // If we're not waiting and attributes exist, save acts as
+    // `set(attr).save(null, opts)` with validation. Otherwise, check if
+    // the model will be valid when the attributes, if any, are set.
+    if (attrs && !options.wait) {
+      if (!this.set(attrs, options)) return false;
+    } else {
+      if (!this._validate(attrs, options)) return false;
+    }
+
+    // Set temporary attributes if `{wait: true}`.
+    if (attrs && options.wait) {
+      this.attributes = _.extend(Object.create(null), attributes, attrs);
+    }
+
+    // After a successful server-side save, the client is (optionally)
+    // updated with the server-side state.
+    if (options.parse === void 0) options.parse = true;
+    var model = this;
+    var success = options.success;
+    options.success = function(resp) {
+      // Ensure attributes are restored during synchronous saves.
+      model.attributes = attributes;
+      var serverAttrs = model.parse(resp, options);
+      if (options.wait) serverAttrs = _.extend(attrs || {}, serverAttrs);
+      if (serverAttrs && typeof serverAttrs === 'object' && !model.set(serverAttrs, options)) {
+        return false;
+      }
+      if (success) success(model, resp, options);
+      model.trigger('sync', model, resp, options);
+    };
+    wrapError(this, options);
+
+    method = this.isNew() ? 'create' : (options.patch ? 'patch' : 'update');
+    if (method === 'patch') options.attrs = attrs;
+    xhr = this.sync(method, this, options);
+
+    // Restore attributes.
+    if (attrs && options.wait) this.attributes = attributes;
+
+    return xhr;
+  },
+
+  // Destroy this model on the server if it was already persisted.
+  // Optimistically removes the model from its collection, if it has one.
+  // If `wait: true` is passed, waits for the server to respond before removal.
+  destroy: function(options) {
+    options = options ? _.extend({}, options) : {};
+    var model = this;
+    var success = options.success;
+
+    var destroy = function() {
+      model.trigger('destroy', model, model.collection, options);
+    };
+
+    options.success = function(resp) {
+      if (options.wait || model.isNew()) destroy();
+      if (success) success(model, resp, options);
+      if (!model.isNew()) model.trigger('sync', model, resp, options);
+    };
+
+    if (this.isNew()) {
+      options.success();
+      return false;
+    }
+    wrapError(this, options);
+
+    var xhr = this.sync('delete', this, options);
+    if (!options.wait) destroy();
+    return xhr;
+  },
+
+  // Default URL for the model's representation on the server -- if you're
+  // using Backbone's restful methods, override this to change the endpoint
+  // that will be called.
+  url: function() {
+    var base =
+      _.result(this, 'urlRoot') ||
+      _.result(this.collection, 'url') ||
+      urlError();
+    if (this.isNew()) return base;
+    return base.replace(/([^\/])$/, '$1/') + encodeURIComponent(this.id);
+  },
+
+  // **parse** converts a response into the hash of attributes to be `set` on
+  // the model. The default implementation is just to pass the response along.
+  parse: function(resp, options) {
+    return resp;
+  },
+
+  // Create a new model with identical attributes to this one.
+  clone: function() {
+    return new this.constructor(this.attributes);
+  },
+
+  // A model is new if it has never been saved to the server, and lacks an id.
+  isNew: function() {
+    return !this.has(this.idAttribute);
+  },
+
+  // Check if the model is currently in a valid state.
+  isValid: function(options) {
+    return this._validate({}, _.extend(options || {}, { validate: true }));
+  },
+
+  // Run validation against the next complete set of model attributes,
+  // returning `true` if all is well. Otherwise, fire an `"invalid"` event.
+  _validate: function(attrs, options) {
+    if (!options.validate || !this.validate) return true;
+    attrs = _.extend(Object.create(null), this.attributes, attrs);
+    var error = this.validationError = this.validate(attrs, options) || null;
+    if (!error) return true;
+    this.trigger('invalid', this, error, _.extend(options, {validationError: error}));
+    return false;
+  }
+
+});
+
+if (_.keys) {
+  // Underscore methods that we want to implement on the Model.
+  var modelMethods = ['keys', 'values', 'pairs', 'invert', 'pick', 'omit'];
+
+  // Mix in each Underscore method as a proxy to `Model#attributes`.
+  modelMethods.filter(utilExists).forEach(function(method) {
+    Model.prototype[method] = function() {
+      var args = slice.call(arguments);
+      args.unshift(this.attributes);
+      return _[method].apply(_, args);
+    };
+  });
+}
+// Backbone.Collection
+// -------------------
+
+// If models tend to represent a single row of data, a Backbone Collection is
+// more analagous to a table full of data ... or a small slice or page of that
+// table, or a collection of rows that belong together for a particular reason
+// -- all of the messages in this particular folder, all of the documents
+// belonging to this particular author, and so on. Collections maintain
+// indexes of their models, both in order, and for lookup by `id`.
+
+// Create a new **Collection**, perhaps to contain a specific type of `model`.
+// If a `comparator` is specified, the Collection will maintain
+// its models in sort order, as they're added and removed.
+var Collection = Backbone.Collection = function(models, options) {
+  options || (options = {});
+  if (options.model) this.model = options.model;
+  if (options.comparator !== void 0) this.comparator = options.comparator;
+  this._reset();
+  this.initialize.apply(this, arguments);
+  if (models) this.reset(models, _.extend({silent: true}, options));
+};
+
+// Default options for `Collection#set`.
+var setOptions = {add: true, remove: true, merge: true};
+var addOptions = {add: true, remove: false};
+
+// Define the Collection's inheritable methods.
+_.extend(Collection.prototype, Events, {
+
+  // The default model for a collection is just a **Backbone.Model**.
+  // This should be overridden in most cases.
+  model: typeof Model === 'undefined' ? null : Model,
+
+  // Initialize is an empty function by default. Override it with your own
+  // initialization logic.
+  initialize: function(){},
+
+  // The JSON representation of a Collection is an array of the
+  // models' attributes.
+  toJSON: function(options) {
+    return this.map(function(model){ return model.toJSON(options); });
+  },
+
+  // Proxy `Backbone.sync` by default.
+  sync: function() {
+    return Backbone.sync.apply(this, arguments);
+  },
+
+  // Add a model, or list of models to the set.
+  add: function(models, options) {
+    return this.set(models, _.extend({merge: false}, options, addOptions));
+  },
+
+  // Remove a model, or a list of models from the set.
+  remove: function(models, options) {
+    var singular = !Array.isArray(models);
+    models = singular ? [models] : models.slice();
+    options || (options = {});
+    var i, l, index, model;
+    for (i = 0, l = models.length; i < l; i++) {
+      model = models[i] = this.get(models[i]);
+      if (!model) continue;
+      delete this._byId[model.id];
+      delete this._byId[model.cid];
+      index = this.indexOf(model);
+      this.models.splice(index, 1);
+      this.length--;
+      if (!options.silent) {
+        options.index = index;
+        model.trigger('remove', model, this, options);
+      }
+      this._removeReference(model, options);
+    }
+    return singular ? models[0] : models;
+  },
+
+  // Update a collection by `set`-ing a new list of models, adding new ones,
+  // removing models that are no longer present, and merging models that
+  // already exist in the collection, as necessary. Similar to **Model#set**,
+  // the core operation for updating the data contained by the collection.
+  set: function(models, options) {
+    options = _.defaults({}, options, setOptions);
+    if (options.parse) models = this.parse(models, options);
+    var singular = !Array.isArray(models);
+    models = singular ? (models ? [models] : []) : models.slice();
+    var i, l, id, model, attrs, existing, sort;
+    var at = options.at;
+    var targetModel = this.model;
+    var sortable = this.comparator && (at == null) && options.sort !== false;
+    var sortAttr = typeof this.comparator === 'string' ? this.comparator : null;
+    var toAdd = [], toRemove = [], modelMap = {};
+    var add = options.add, merge = options.merge, remove = options.remove;
+    var order = !sortable && add && remove ? [] : false;
+
+    // Turn bare objects into model references, and prevent invalid models
+    // from being added.
+    for (i = 0, l = models.length; i < l; i++) {
+      attrs = models[i] || {};
+      if (attrs instanceof Model) {
+        id = model = attrs;
+      } else {
+        id = attrs[targetModel.prototype.idAttribute || 'id'];
+      }
+
+      // If a duplicate is found, prevent it from being added and
+      // optionally merge it into the existing model.
+      if (existing = this.get(id)) {
+        if (remove) modelMap[existing.cid] = true;
+        if (merge) {
+          attrs = attrs === model ? model.attributes : attrs;
+          if (options.parse) attrs = existing.parse(attrs, options);
+          existing.set(attrs, options);
+          if (sortable && !sort && existing.hasChanged(sortAttr)) sort = true;
+        }
+        models[i] = existing;
+
+      // If this is a new, valid model, push it to the `toAdd` list.
+      } else if (add) {
+        model = models[i] = this._prepareModel(attrs, options);
+        if (!model) continue;
+        toAdd.push(model);
+        this._addReference(model, options);
+      }
+
+      // Do not add multiple models with the same `id`.
+      model = existing || model;
+      if (order && (model.isNew() || !modelMap[model.id])) order.push(model);
+      modelMap[model.id] = true;
+    }
+
+    // Remove nonexistent models if appropriate.
+    if (remove) {
+      for (i = 0, l = this.length; i < l; ++i) {
+        if (!modelMap[(model = this.models[i]).cid]) toRemove.push(model);
+      }
+      if (toRemove.length) this.remove(toRemove, options);
+    }
+
+    // See if sorting is needed, update `length` and splice in new models.
+    if (toAdd.length || (order && order.length)) {
+      if (sortable) sort = true;
+      this.length += toAdd.length;
+      if (at != null) {
+        for (i = 0, l = toAdd.length; i < l; i++) {
+          this.models.splice(at + i, 0, toAdd[i]);
+        }
+      } else {
+        if (order) this.models.length = 0;
+        var orderedModels = order || toAdd;
+        for (i = 0, l = orderedModels.length; i < l; i++) {
+          this.models.push(orderedModels[i]);
+        }
+      }
+    }
+
+    // Silently sort the collection if appropriate.
+    if (sort) this.sort({silent: true});
+
+    // Unless silenced, it's time to fire all appropriate add/sort events.
+    if (!options.silent) {
+      for (i = 0, l = toAdd.length; i < l; i++) {
+        (model = toAdd[i]).trigger('add', model, this, options);
+      }
+      if (sort || (order && order.length)) this.trigger('sort', this, options);
+    }
+
+    // Return the added (or merged) model (or models).
+    return singular ? models[0] : models;
+  },
+
+  // When you have more items than you want to add or remove individually,
+  // you can reset the entire set with a new list of models, without firing
+  // any granular `add` or `remove` events. Fires `reset` when finished.
+  // Useful for bulk operations and optimizations.
+  reset: function(models, options) {
+    options || (options = {});
+    for (var i = 0, l = this.models.length; i < l; i++) {
+      this._removeReference(this.models[i], options);
+    }
+    options.previousModels = this.models;
+    this._reset();
+    models = this.add(models, _.extend({silent: true}, options));
+    if (!options.silent) this.trigger('reset', this, options);
+    return models;
+  },
+
+  // Add a model to the end of the collection.
+  push: function(model, options) {
+    return this.add(model, _.extend({at: this.length}, options));
+  },
+
+  // Remove a model from the end of the collection.
+  pop: function(options) {
+    var model = this.at(this.length - 1);
+    this.remove(model, options);
+    return model;
+  },
+
+  // Add a model to the beginning of the collection.
+  unshift: function(model, options) {
+    return this.add(model, _.extend({at: 0}, options));
+  },
+
+  // Remove a model from the beginning of the collection.
+  shift: function(options) {
+    var model = this.at(0);
+    this.remove(model, options);
+    return model;
+  },
+
+  // Slice out a sub-array of models from the collection.
+  slice: function() {
+    return slice.apply(this.models, arguments);
+  },
+
+  // Get a model from the set by id.
+  get: function(obj) {
+    if (obj == null) return void 0;
+    return this._byId[obj] || this._byId[obj.id] || this._byId[obj.cid];
+  },
+
+  // Get the model at the given index.
+  at: function(index) {
+    return this.models[index];
+  },
+
+  // Return models with matching attributes. Useful for simple cases of
+  // `filter`.
+  where: function(attrs, first) {
+    if (!attrs || !Object.keys(attrs).length) return first ? void 0 : [];
+    return this[first ? 'find' : 'filter'](function(model) {
+      for (var key in attrs) {
+        if (attrs[key] !== model.get(key)) return false;
+      }
+      return true;
+    });
+  },
+
+  // Return the first model with matching attributes. Useful for simple cases
+  // of `find`.
+  findWhere: function(attrs) {
+    return this.where(attrs, true);
+  },
+
+  // Force the collection to re-sort itself. You don't need to call this under
+  // normal circumstances, as the set will maintain sort order as each item
+  // is added.
+  sort: function(options) {
+    if (!this.comparator) throw new Error('Cannot sort a set without a comparator');
+    options || (options = {});
+
+    // Run sort based on type of `comparator`.
+    if (typeof this.comparator === 'string' || this.comparator.length === 1) {
+      this.models = this.sortBy(this.comparator, this);
+    } else {
+      this.models.sort(this.comparator.bind(this));
+    }
+
+    if (!options.silent) this.trigger('sort', this, options);
+    return this;
+  },
+
+  // Pluck an attribute from each model in the collection.
+  pluck: function(attr) {
+    return this.models.map(function(model) {
+      return model.get(attr);
+    });
+  },
+
+  // Fetch the default set of models for this collection, resetting the
+  // collection when they arrive. If `reset: true` is passed, the response
+  // data will be passed through the `reset` method instead of `set`.
+  fetch: function(options) {
+    options = options ? _.extend({}, options) : {};
+    if (options.parse === void 0) options.parse = true;
+    var success = options.success;
+    var collection = this;
+    options.success = function(resp) {
+      var method = options.reset ? 'reset' : 'set';
+      collection[method](resp, options);
+      if (success) success(collection, resp, options);
+      collection.trigger('sync', collection, resp, options);
+    };
+    wrapError(this, options);
+    return this.sync('read', this, options);
+  },
+
+  // Create a new instance of a model in this collection. Add the model to the
+  // collection immediately, unless `wait: true` is passed, in which case we
+  // wait for the server to agree.
+  create: function(model, options) {
+    options = options ? _.extend({}, options) : {};
+    if (!(model = this._prepareModel(model, options))) return false;
+    if (!options.wait) this.add(model, options);
+    var collection = this;
+    var success = options.success;
+    options.success = function(model, resp) {
+      if (options.wait) collection.add(model, options);
+      if (success) success(model, resp, options);
+    };
+    model.save(null, options);
+    return model;
+  },
+
+  // **parse** converts a response into a list of models to be added to the
+  // collection. The default implementation is just to pass it through.
+  parse: function(resp, options) {
+    return resp;
+  },
+
+  // Create a new collection with an identical list of models as this one.
+  clone: function() {
+    return new this.constructor(this.models);
+  },
+
+  // Private method to reset all internal state. Called when the collection
+  // is first initialized or reset.
+  _reset: function() {
+    this.length = 0;
+    this.models = [];
+    this._byId  = Object.create(null);
+  },
+
+  // Prepare a hash of attributes (or other model) to be added to this
+  // collection.
+  _prepareModel: function(attrs, options) {
+    if (attrs instanceof Model) return attrs;
+    options = _.extend({}, options);
+    options.collection = this;
+    var model = new this.model(attrs, options);
+    if (!model.validationError) return model;
+    this.trigger('invalid', this, model.validationError, options);
+    return false;
+  },
+
+  // Internal method to create a model's ties to a collection.
+  _addReference: function(model, options) {
+    this._byId[model.cid] = model;
+    if (model.id != null) this._byId[model.id] = model;
+    if (!model.collection) model.collection = this;
+    model.on('all', this._onModelEvent, this);
+  },
+
+  // Internal method to sever a model's ties to a collection.
+  _removeReference: function(model, options) {
+    if (this === model.collection) delete model.collection;
+    model.off('all', this._onModelEvent, this);
+  },
+
+  // Internal method called every time a model in the set fires an event.
+  // Sets need to update their indexes when models change ids. All other
+  // events simply proxy through. "add" and "remove" events that originate
+  // in other collections are ignored.
+  _onModelEvent: function(event, model, collection, options) {
+    if ((event === 'add' || event === 'remove') && collection !== this) return;
+    if (event === 'destroy') this.remove(model, options);
+    if (model && event === 'change:' + model.idAttribute) {
+      delete this._byId[model.previous(model.idAttribute)];
+      if (model.id != null) this._byId[model.id] = model;
+    }
+    this.trigger.apply(this, arguments);
+  }
+
+});
+
+if (utilExists('each')) {
+  // Underscore methods that we want to implement on the Collection.
+  // 90% of the core usefulness of Backbone Collections is actually implemented
+  // right here:
+  var methods = ['forEach', 'each', 'map', 'collect', 'reduce', 'foldl',
+    'inject', 'reduceRight', 'foldr', 'find', 'detect', 'filter', 'select',
+    'reject', 'every', 'all', 'some', 'any', 'include', 'contains', 'invoke',
+    'max', 'min', 'toArray', 'size', 'first', 'head', 'take', 'initial', 'rest',
+    'tail', 'drop', 'last', 'without', 'difference', 'indexOf', 'shuffle',
+    'lastIndexOf', 'isEmpty', 'chain'];
+
+  // Mix in each Underscore method as a proxy to `Collection#models`.
+  methods.filter(utilExists).forEach(function(method) {
+    Collection.prototype[method] = function() {
+      var args = slice.call(arguments);
+      args.unshift(this.models);
+      return _[method].apply(_, args);
+    };
+  });
+
+  // Underscore methods that take a property name as an argument.
+  var attributeMethods = ['groupBy', 'countBy', 'sortBy'];
+
+  // Use attributes instead of properties.
+  attributeMethods.filter(utilExists).forEach(function(method) {
+    Collection.prototype[method] = function(value, context) {
+      var iterator = typeof value === 'function' ? value : function(model) {
+        return model.get(value);
+      };
+      return _[method](this.models, iterator, context);
+    };
+  });
+} else {
+  ['forEach', 'map', 'filter', 'some', 'every', 'reduce', 'reduceRight',
+    'indexOf', 'lastIndexOf'].forEach(function(method) {
+    Collection.prototype[method] = function(arg, context) {
+      return this.models[method](arg, context);
+    };
+  });
+
+  // Exoskeleton-specific:
+  Collection.prototype.find = function(iterator, context) {
+    var result;
+    this.some(function(value, index, list) {
+      if (iterator.call(context, value, index, list)) {
+        result = value;
+        return true;
+      }
+    });
+    return result;
+  };
+
+  // Underscore methods that take a property name as an argument.
+  ['sortBy'].forEach(function(method) {
+    Collection.prototype[method] = function(value, context) {
+      var iterator = typeof value === 'function' ? value : function(model) {
+        return model.get(value);
+      };
+      return _[method](this.models, iterator, context);
+    };
+  });
+}
+// Backbone.View
+// -------------
+
+// Backbone Views are almost more convention than they are actual code. A View
+// is simply a JavaScript object that represents a logical chunk of UI in the
+// DOM. This might be a single item, an entire list, a sidebar or panel, or
+// even the surrounding frame which wraps your whole app. Defining a chunk of
+// UI as a **View** allows you to define your DOM events declaratively, without
+// having to worry about render order ... and makes it easy for the view to
+// react to specific changes in the state of your models.
+
+// Creating a Backbone.View creates its initial element outside of the DOM,
+// if an existing element is not provided...
+var View = Backbone.View = function(options) {
+  this.cid = _.uniqueId('view');
+
+  if (options) Object.keys(options).forEach(function(key) {
+    if (viewOptions.indexOf(key) !== -1) this[key] = options[key];
+  }, this);
+
+  this._ensureElement();
+  this.initialize.apply(this, arguments);
+};
+
+// Cached regex to split keys for `delegate`.
+var delegateEventSplitter = /^(\S+)\s*(.*)$/;
+
+// List of view options to be merged as properties.
+var viewOptions = ['model', 'collection', 'el', 'id', 'attributes', 'className', 'tagName', 'events'];
+
+// Set up all inheritable **Backbone.View** properties and methods.
+_.extend(View.prototype, Events, {
+
+  // The default `tagName` of a View's element is `"div"`.
+  tagName: 'div',
+
+  // jQuery delegate for element lookup, scoped to DOM elements within the
+  // current view. This should be preferred to global lookups where possible.
+  $: function(selector) {
+    return this.$el.find(selector);
+  },
+
+  // Initialize is an empty function by default. Override it with your own
+  // initialization logic.
+  initialize: function(){},
+
+  // **render** is the core function that your view should override, in order
+  // to populate its element (`this.el`), with the appropriate HTML. The
+  // convention is for **render** to always return `this`.
+  render: function() {
+    return this;
+  },
+
+  // Remove this view by taking the element out of the DOM, and removing any
+  // applicable Backbone.Events listeners.
+  remove: function() {
+    this._removeElement();
+    this.stopListening();
+    return this;
+  },
+
+  // Remove this view's element from the document and all event listeners
+  // attached to it. Exposed for subclasses using an alternative DOM
+  // manipulation API.
+  _removeElement: function() {
+    this.$el.remove();
+  },
+
+  // Change the view's element (`this.el` property) and re-delegate the
+  // view's events on the new element.
+  setElement: function(element) {
+    this.undelegateEvents();
+    this._setElement(element);
+    this.delegateEvents();
+    return this;
+  },
+
+  // Creates the `this.el` and `this.$el` references for this view using the
+  // given `el` and a hash of `attributes`. `el` can be a CSS selector or an
+  // HTML string, a jQuery context or an element. Subclasses can override
+  // this to utilize an alternative DOM manipulation API and are only required
+  // to set the `this.el` property.
+  _setElement: function(el) {
+    this.$el = el instanceof Backbone.$ ? el : Backbone.$(el);
+    this.el = this.$el[0];
+  },
+
+  // Set callbacks, where `this.events` is a hash of
+  //
+  // *{"event selector": "callback"}*
+  //
+  //     {
+  //       'mousedown .title':  'edit',
+  //       'click .button':     'save',
+  //       'click .open':       function(e) { ... }
+  //     }
+  //
+  // pairs. Callbacks will be bound to the view, with `this` set properly.
+  // Uses event delegation for efficiency.
+  // Omitting the selector binds the event to `this.el`.
+  delegateEvents: function(events) {
+    if (!(events || (events = _.result(this, 'events')))) return this;
+    this.undelegateEvents();
+    for (var key in events) {
+      var method = events[key];
+      if (typeof method !== 'function') method = this[events[key]];
+      // if (!method) continue;
+      var match = key.match(delegateEventSplitter);
+      this.delegate(match[1], match[2], method.bind(this));
+    }
+    return this;
+  },
+
+  // Add a single event listener to the view's element (or a child element
+  // using `selector`). This only works for delegate-able events: not `focus`,
+  // `blur`, and not `change`, `submit`, and `reset` in Internet Explorer.
+  delegate: function(eventName, selector, listener) {
+    this.$el.on(eventName + '.delegateEvents' + this.cid, selector, listener);
+  },
+
+  // Clears all callbacks previously bound to the view by `delegateEvents`.
+  // You usually don't need to use this, but may wish to if you have multiple
+  // Backbone views attached to the same DOM element.
+  undelegateEvents: function() {
+    if (this.$el) this.$el.off('.delegateEvents' + this.cid);
+    return this;
+  },
+
+  // A finer-grained `undelegateEvents` for removing a single delegated event.
+  // `selector` and `listener` are both optional.
+  undelegate: function(eventName, selector, listener) {
+    this.$el.off(eventName + '.delegateEvents' + this.cid, selector, listener);
+  },
+
+  // Produces a DOM element to be assigned to your view. Exposed for
+  // subclasses using an alternative DOM manipulation API.
+  _createElement: function(tagName) {
+    return document.createElement(tagName);
+  },
+
+  // Ensure that the View has a DOM element to render into.
+  // If `this.el` is a string, pass it through `$()`, take the first
+  // matching element, and re-assign it to `el`. Otherwise, create
+  // an element from the `id`, `className` and `tagName` properties.
+  _ensureElement: function() {
+    if (!this.el) {
+      var attrs = _.extend({}, _.result(this, 'attributes'));
+      if (this.id) attrs.id = _.result(this, 'id');
+      if (this.className) attrs['class'] = _.result(this, 'className');
+      this.setElement(this._createElement(_.result(this, 'tagName')));
+      this._setAttributes(attrs);
+    } else {
+      this.setElement(_.result(this, 'el'));
+    }
+  },
+
+  // Set attributes from a hash on this view's element.  Exposed for
+  // subclasses using an alternative DOM manipulation API.
+  _setAttributes: function(attributes) {
+    this.$el.attr(attributes);
+  }
+
+});
+// Backbone.sync
+// -------------
+
+// Override this function to change the manner in which Backbone persists
+// models to the server. You will be passed the type of request, and the
+// model in question. By default, makes a RESTful Ajax request
+// to the model's `url()`. Some possible customizations could be:
+//
+// * Use `setTimeout` to batch rapid-fire updates into a single request.
+// * Send up the models as XML instead of JSON.
+// * Persist models via WebSockets instead of Ajax.
+Backbone.sync = function(method, model, options) {
+  options || (options = {})
+
+  var type = methodMap[method];
+
+  // Default JSON-request options.
+  var params = {type: type, dataType: 'json'};
+
+  // Ensure that we have a URL.
+  if (!options.url) {
+    params.url = _.result(model, 'url') || urlError();
+  }
+
+  // Ensure that we have the appropriate request data.
+  if (options.data == null && model && (method === 'create' || method === 'update' || method === 'patch')) {
+    params.contentType = 'application/json';
+    params.data = JSON.stringify(options.attrs || model.toJSON(options));
+  }
+
+  // Don't process data on a non-GET request.
+  if (params.type !== 'GET') {
+    params.processData = false;
+  }
+
+  // Make the request, allowing the user to override any Ajax options.
+  var xhr = options.xhr = Backbone.ajax(_.extend(params, options));
+  model.trigger('request', model, xhr, options);
+  return xhr;
+};
+
+// Map from CRUD to HTTP for our default `Backbone.sync` implementation.
+var methodMap = {
+  'create': 'POST',
+  'update': 'PUT',
+  'patch':  'PATCH',
+  'delete': 'DELETE',
+  'read':   'GET'
+};
+
+// Set the default implementation of `Backbone.ajax` to proxy through to `$`.
+// Override this if you'd like to use a different library.
+Backbone.ajax = function() {
+  return Backbone.$.ajax.apply(Backbone.$, arguments);
+};
+// Backbone.Router
+// ---------------
+
+// Routers map faux-URLs to actions, and fire events when routes are
+// matched. Creating a new one sets its `routes` hash, if not set statically.
+var Router = Backbone.Router = function(options) {
+  options || (options = {});
+  if (options.routes) this.routes = options.routes;
+  this._bindRoutes();
+  this.initialize.apply(this, arguments);
+};
+
+// Cached regular expressions for matching named param parts and splatted
+// parts of route strings.
+var optionalParam = /\((.*?)\)/g;
+var namedParam    = /(\(\?)?:\w+/g;
+var splatParam    = /\*\w+/g;
+var escapeRegExp  = /[\-{}\[\]+?.,\\\^$|#\s]/g;
+
+var isRegExp = function(value) {
+  return value ? (typeof value === 'object' && toString.call(value) === '[object RegExp]') : false;
+};
+
+// Set up all inheritable **Backbone.Router** properties and methods.
+_.extend(Router.prototype, Events, {
+
+  // Initialize is an empty function by default. Override it with your own
+  // initialization logic.
+  initialize: function(){},
+
+  // Manually bind a single named route to a callback. For example:
+  //
+  //     this.route('search/:query/p:num', 'search', function(query, num) {
+  //       ...
+  //     });
+  //
+  route: function(route, name, callback) {
+    if (!isRegExp(route)) route = this._routeToRegExp(route);
+    if (typeof name === 'function') {
+      callback = name;
+      name = '';
+    }
+    if (!callback) callback = this[name];
+    var router = this;
+    Backbone.history.route(route, function(fragment) {
+      var args = router._extractParameters(route, fragment);
+      router.execute(callback, args);
+      router.trigger.apply(router, ['route:' + name].concat(args));
+      router.trigger('route', name, args);
+      Backbone.history.trigger('route', router, name, args);
+    });
+    return this;
+  },
+
+  // Execute a route handler with the provided parameters.  This is an
+  // excellent place to do pre-route setup or post-route cleanup.
+  execute: function(callback, args) {
+    if (callback) callback.apply(this, args);
+  },
+
+  // Simple proxy to `Backbone.history` to save a fragment into the history.
+  navigate: function(fragment, options) {
+    Backbone.history.navigate(fragment, options);
+    return this;
+  },
+
+  // Bind all defined routes to `Backbone.history`. We have to reverse the
+  // order of the routes here to support behavior where the most general
+  // routes can be defined at the bottom of the route map.
+  _bindRoutes: function() {
+    if (!this.routes) return;
+    this.routes = _.result(this, 'routes');
+    var route, routes = Object.keys(this.routes);
+    while ((route = routes.pop()) != null) {
+      this.route(route, this.routes[route]);
+    }
+  },
+
+  // Convert a route string into a regular expression, suitable for matching
+  // against the current location hash.
+  _routeToRegExp: function(route) {
+    route = route.replace(escapeRegExp, '\\$&')
+                 .replace(optionalParam, '(?:$1)?')
+                 .replace(namedParam, function(match, optional) {
+                   return optional ? match : '([^/?]+)';
+                 })
+                 .replace(splatParam, '([^?]*?)');
+    return new RegExp('^' + route + '(?:\\?([\\s\\S]*))?$');
+  },
+
+  // Given a route, and a URL fragment that it matches, return the array of
+  // extracted decoded parameters. Empty or unmatched parameters will be
+  // treated as `null` to normalize cross-browser behavior.
+  _extractParameters: function(route, fragment) {
+    var params = route.exec(fragment).slice(1);
+    return params.map(function(param, i) {
+      // Don't decode the search params.
+      if (i === params.length - 1) return param || null;
+      return param ? decodeURIComponent(param) : null;
+    });
+  }
+
+});
+// Backbone.History
+// ----------------
+
+// Handles cross-browser history management, based on either
+// [pushState](http://diveintohtml5.info/history.html) and real URLs, or
+// [onhashchange](https://developer.mozilla.org/en-US/docs/DOM/window.onhashchange)
+// and URL fragments.
+var History = Backbone.History = function() {
+  this.handlers = [];
+  this.checkUrl = this.checkUrl.bind(this);
+
+  // Ensure that `History` can be used outside of the browser.
+  if (typeof window !== 'undefined') {
+    this.location = window.location;
+    this.history = window.history;
+  }
+};
+
+// Cached regex for stripping a leading hash/slash and trailing space.
+var routeStripper = /^[#\/]|\s+$/g;
+
+// Cached regex for stripping leading and trailing slashes.
+var rootStripper = /^\/+|\/+$/g;
+
+// Cached regex for removing a trailing slash.
+var trailingSlash = /\/$/;
+
+// Cached regex for stripping urls of hash and query.
+var pathStripper = /[#].*$/;
+
+// Has the history handling already been started?
+History.started = false;
+
+// Set up all inheritable **Backbone.History** properties and methods.
+_.extend(History.prototype, Events, {
+
+  // Are we at the app root?
+  atRoot: function() {
+    return this.location.pathname.replace(/[^\/]$/, '$&/') === this.root;
+  },
+
+  // Gets the true hash value. Cannot use location.hash directly due to bug
+  // in Firefox where location.hash will always be decoded.
+  getHash: function(window) {
+    var match = (window || this).location.href.match(/#(.*)$/);
+    return match ? match[1] : '';
+  },
+
+  // Get the cross-browser normalized URL fragment, either from the URL,
+  // the hash, or the override.
+  getFragment: function(fragment, forcePushState) {
+    if (fragment == null) {
+      if (this._wantsPushState || !this._wantsHashChange) {
+        fragment = decodeURI(this.location.pathname + this.location.search);
+        var root = this.root.replace(trailingSlash, '');
+        if (!fragment.indexOf(root)) fragment = fragment.slice(root.length);
+      } else {
+        fragment = this.getHash();
+      }
+    }
+    return fragment.replace(routeStripper, '');
+  },
+
+  // Start the hash change handling, returning `true` if the current URL matches
+  // an existing route, and `false` otherwise.
+  start: function(options) {
+    if (History.started) throw new Error("Backbone.history has already been started");
+    History.started = true;
+
+    // Figure out the initial configuration.
+    // Is pushState desired or should we use hashchange only?
+    this.options          = _.extend({root: '/'}, this.options, options);
+    this.root             = this.options.root;
+    this._wantsHashChange = this.options.hashChange !== false;
+    this._wantsPushState  = !!this.options.pushState;
+    var fragment          = this.getFragment();
+
+    // Normalize root to always include a leading and trailing slash.
+    this.root = ('/' + this.root + '/').replace(rootStripper, '/');
+
+    // Depending on whether we're using pushState or hashes, determine how we
+    // check the URL state.
+    if (this._wantsPushState) {
+      window.addEventListener('popstate', this.checkUrl, false);
+    } else if (this._wantsHashChange) {
+      window.addEventListener('hashchange', this.checkUrl, false);
+    }
+
+    // Determine if we need to change the base url, for a pushState link
+    // opened by a non-pushState browser.
+    this.fragment = fragment;
+    var loc = this.location;
+
+    // Transition from hashChange to pushState or vice versa if both are
+    // requested.
+    if (this._wantsHashChange && this._wantsPushState) {
+
+      // If we've started out with a hash-based route, but we're currently
+      // in a browser where it could be `pushState`-based instead...
+      if (this.atRoot() && loc.hash) {
+        this.fragment = this.getHash().replace(routeStripper, '');
+        this.history.replaceState({}, document.title, this.root + this.fragment);
+      }
+
+    }
+
+    if (!this.options.silent) return this.loadUrl();
+  },
+
+  // Disable Backbone.history, perhaps temporarily. Not useful in a real app,
+  // but possibly useful for unit testing Routers.
+  stop: function() {
+    window.removeEventListener('popstate', this.checkUrl);
+    window.removeEventListener('hashchange', this.checkUrl);
+    History.started = false;
+  },
+
+  // Add a route to be tested when the fragment changes. Routes added later
+  // may override previous routes.
+  route: function(route, callback) {
+    this.handlers.unshift({route: route, callback: callback});
+  },
+
+  // Checks the current URL to see if it has changed, and if it has,
+  // calls `loadUrl`.
+  checkUrl: function() {
+    var current = this.getFragment();
+    if (current === this.fragment) return false;
+    this.loadUrl();
+  },
+
+  // Attempt to load the current URL fragment. If a route succeeds with a
+  // match, returns `true`. If no defined routes matches the fragment,
+  // returns `false`.
+  loadUrl: function(fragment) {
+    fragment = this.fragment = this.getFragment(fragment);
+    return this.handlers.some(function(handler) {
+      if (handler.route.test(fragment)) {
+        handler.callback(fragment);
+        return true;
+      }
+    });
+  },
+
+  // Save a fragment into the hash history, or replace the URL state if the
+  // 'replace' option is passed. You are responsible for properly URL-encoding
+  // the fragment in advance.
+  //
+  // The options object can contain `trigger: true` if you wish to have the
+  // route callback be fired (not usually desirable), or `replace: true`, if
+  // you wish to modify the current URL without adding an entry to the history.
+  navigate: function(fragment, options) {
+    if (!History.started) return false;
+    if (!options || options === true) options = {trigger: !!options};
+
+    var url = this.root + (fragment = this.getFragment(fragment || ''));
+
+    // Strip the hash for matching.
+    fragment = fragment.replace(pathStripper, '');
+
+    if (this.fragment === fragment) return;
+    this.fragment = fragment;
+
+    // Don't include a trailing slash on the root.
+    if (fragment === '' && url !== '/') url = url.slice(0, -1);
+
+    // If we're using pushState we use it to set the fragment as a real URL.
+    if (this._wantsPushState) {
+      this.history[options.replace ? 'replaceState' : 'pushState']({}, document.title, url);
+
+    // If hash changes haven't been explicitly disabled, update the hash
+    // fragment to store history.
+    } else if (this._wantsHashChange) {
+      this._updateHash(this.location, fragment, options.replace);
+    // If you've told us that you explicitly don't want fallback hashchange-
+    // based history, then `navigate` becomes a page refresh.
+    } else {
+      return this.location.assign(url);
+    }
+    if (options.trigger) return this.loadUrl(fragment);
+  },
+
+  // Update the hash location, either replacing the current entry, or adding
+  // a new one to the browser history.
+  _updateHash: function(location, fragment, replace) {
+    if (replace) {
+      var href = location.href.replace(/(javascript:|#).*$/, '');
+      location.replace(href + '#' + fragment);
+    } else {
+      // Some browsers require that `hash` contains a leading #.
+      location.hash = '#' + fragment;
+    }
+  }
+
+});
+  // !!!
+  // Init.
+  ['Model', 'Collection', 'Router', 'View', 'History'].forEach(function(name) {
+    var item = Backbone[name];
+    if (item) item.extend = Backbone.extend;
+  });
+
+  // Allow the `Backbone` object to serve as a global event bus, for folks who
+  // want global "pubsub" in a convenient place.
+  _.extend(Backbone, Events);
+
+  // Create the default Backbone.history if the History module is included.
+  if (History) Backbone.history = new History();
+  return Backbone;
+});
+
+},{"jquery":false,"underscore":false}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/native-promise-only/npo.js":[function(require,module,exports){
+(function (global){
+/*! Native Promise Only
+    v0.7.6-a (c) Kyle Simpson
+    MIT License: http://getify.mit-license.org
+*/
+!function(t,n,e){n[t]=n[t]||e(),"undefined"!=typeof module&&module.exports?module.exports=n[t]:"function"==typeof define&&define.amd&&define(function(){return n[t]})}("Promise","undefined"!=typeof global?global:this,function(){"use strict";function t(t,n){l.add(t,n),h||(h=y(l.drain))}function n(t){var n,e=typeof t;return null==t||"object"!=e&&"function"!=e||(n=t.then),"function"==typeof n?n:!1}function e(){for(var t=0;t<this.chain.length;t++)o(this,1===this.state?this.chain[t].success:this.chain[t].failure,this.chain[t]);this.chain.length=0}function o(t,e,o){var r,i;try{e===!1?o.reject(t.msg):(r=e===!0?t.msg:e.call(void 0,t.msg),r===o.promise?o.reject(TypeError("Promise-chain cycle")):(i=n(r))?i.call(r,o.resolve,o.reject):o.resolve(r))}catch(c){o.reject(c)}}function r(o){var c,u,a=this;if(!a.triggered){a.triggered=!0,a.def&&(a=a.def);try{(c=n(o))?(u=new f(a),c.call(o,function(){r.apply(u,arguments)},function(){i.apply(u,arguments)})):(a.msg=o,a.state=1,a.chain.length>0&&t(e,a))}catch(s){i.call(u||new f(a),s)}}}function i(n){var o=this;o.triggered||(o.triggered=!0,o.def&&(o=o.def),o.msg=n,o.state=2,o.chain.length>0&&t(e,o))}function c(t,n,e,o){for(var r=0;r<n.length;r++)!function(r){t.resolve(n[r]).then(function(t){e(r,t)},o)}(r)}function f(t){this.def=t,this.triggered=!1}function u(t){this.promise=t,this.state=0,this.triggered=!1,this.chain=[],this.msg=void 0}function a(n){if("function"!=typeof n)throw TypeError("Not a function");if(0!==this.__NPO__)throw TypeError("Not a promise");this.__NPO__=1;var o=new u(this);this.then=function(n,r){var i={success:"function"==typeof n?n:!0,failure:"function"==typeof r?r:!1};return i.promise=new this.constructor(function(t,n){if("function"!=typeof t||"function"!=typeof n)throw TypeError("Not a function");i.resolve=t,i.reject=n}),o.chain.push(i),0!==o.state&&t(e,o),i.promise},this["catch"]=function(t){return this.then(void 0,t)};try{n.call(void 0,function(t){r.call(o,t)},function(t){i.call(o,t)})}catch(c){i.call(o,c)}}var s,h,l,p=Object.prototype.toString,y="undefined"!=typeof setImmediate?function(t){return setImmediate(t)}:setTimeout;try{Object.defineProperty({},"x",{}),s=function(t,n,e,o){return Object.defineProperty(t,n,{value:e,writable:!0,configurable:o!==!1})}}catch(d){s=function(t,n,e){return t[n]=e,t}}l=function(){function t(t,n){this.fn=t,this.self=n,this.next=void 0}var n,e,o;return{add:function(r,i){o=new t(r,i),e?e.next=o:n=o,e=o,o=void 0},drain:function(){var t=n;for(n=e=h=void 0;t;)t.fn.call(t.self),t=t.next}}}();var g=s({},"constructor",a,!1);return s(a,"prototype",g,!1),s(g,"__NPO__",0,!1),s(a,"resolve",function(t){var n=this;return t&&"object"==typeof t&&1===t.__NPO__?t:new n(function(n,e){if("function"!=typeof n||"function"!=typeof e)throw TypeError("Not a function");n(t)})}),s(a,"reject",function(t){return new this(function(n,e){if("function"!=typeof n||"function"!=typeof e)throw TypeError("Not a function");e(t)})}),s(a,"all",function(t){var n=this;return"[object Array]"!=p.call(t)?n.reject(TypeError("Not an array")):0===t.length?n.resolve([]):new n(function(e,o){if("function"!=typeof e||"function"!=typeof o)throw TypeError("Not a function");var r=t.length,i=Array(r),f=0;c(n,t,function(t,n){i[t]=n,++f===r&&e(i)},o)})}),s(a,"race",function(t){var n=this;return"[object Array]"!=p.call(t)?n.reject(TypeError("Not an array")):new n(function(e,o){if("function"!=typeof e||"function"!=typeof o)throw TypeError("Not a function");c(n,t,function(t,n){e(n)},o)})}),a});
+
+}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 },{}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Accordion.js":[function(require,module,exports){
 /** @jsx React.DOM */
 
@@ -25308,491 +29645,43 @@ module.exports = warning;
 },{"./emptyFunction":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/emptyFunction.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js":[function(require,module,exports){
 module.exports = require('./lib/React');
 
-},{"./lib/React":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/React.js"}],"browser-request":[function(require,module,exports){
-// Browser Request
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+},{"./lib/React":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/React.js"}],"cerebellum":[function(require,module,exports){
+var server = require("./lib/server");
+var client = require("./lib/client");
+var exoskeleton = require("./lib/wrapper/exoskeleton");
 
-var XHR = XMLHttpRequest
-if (!XHR) throw new Error('missing XMLHttpRequest')
-request.log = {
-  'trace': noop, 'debug': noop, 'info': noop, 'warn': noop, 'error': noop
-}
-
-var DEFAULT_TIMEOUT = 3 * 60 * 1000 // 3 minutes
-
-//
-// request
-//
-
-function request(options, callback) {
-  // The entry-point to the API: prep the options object and pass the real work to run_xhr.
-  if(typeof callback !== 'function')
-    throw new Error('Bad callback given: ' + callback)
-
-  if(!options)
-    throw new Error('No options given')
-
-  var options_onResponse = options.onResponse; // Save this for later.
-
-  if(typeof options === 'string')
-    options = {'uri':options};
-  else
-    options = JSON.parse(JSON.stringify(options)); // Use a duplicate for mutating.
-
-  options.onResponse = options_onResponse // And put it back.
-
-  if (options.verbose) request.log = getLogger();
-
-  if(options.url) {
-    options.uri = options.url;
-    delete options.url;
+function validateOptions(options) {
+  if (!options.storeId || typeof options.storeId !== "string") {
+    throw new Error("You must define storeId option, it's used for collections cache, e.g. 'store'");
   }
 
-  if(!options.uri && options.uri !== "")
-    throw new Error("options.uri is a required argument");
-
-  if(typeof options.uri != "string")
-    throw new Error("options.uri must be a string");
-
-  var unsupported_options = ['proxy', '_redirectsFollowed', 'maxRedirects', 'followRedirect']
-  for (var i = 0; i < unsupported_options.length; i++)
-    if(options[ unsupported_options[i] ])
-      throw new Error("options." + unsupported_options[i] + " is not supported")
-
-  options.callback = callback
-  options.method = options.method || 'GET';
-  options.headers = options.headers || {};
-  options.body    = options.body || null
-  options.timeout = options.timeout || request.DEFAULT_TIMEOUT
-
-  if(options.headers.host)
-    throw new Error("Options.headers.host is not supported");
-
-  if(options.json) {
-    options.headers.accept = options.headers.accept || 'application/json'
-    if(options.method !== 'GET')
-      options.headers['content-type'] = 'application/json'
-
-    if(typeof options.json !== 'boolean')
-      options.body = JSON.stringify(options.json)
-    else if(typeof options.body !== 'string')
-      options.body = JSON.stringify(options.body)
-  }
-  
-  //BEGIN QS Hack
-  var serialize = function(obj) {
-    var str = [];
-    for(var p in obj)
-      if (obj.hasOwnProperty(p)) {
-        str.push(encodeURIComponent(p) + "=" + encodeURIComponent(obj[p]));
-      }
-    return str.join("&");
-  }
-  
-  if(options.qs){
-    var qs = (typeof options.qs == 'string')? options.qs : serialize(options.qs);
-    if(options.uri.indexOf('?') !== -1){ //no get params
-        options.uri = options.uri+'&'+qs;
-    }else{ //existing get params
-        options.uri = options.uri+'?'+qs;
-    }
-  }
-  //END QS Hack
-  
-  //BEGIN FORM Hack
-  var multipart = function(obj) {
-    //todo: support file type (useful?)
-    var result = {};
-    result.boundry = '-------------------------------'+Math.floor(Math.random()*1000000000);
-    var lines = [];
-    for(var p in obj){
-        if (obj.hasOwnProperty(p)) {
-            lines.push(
-                '--'+result.boundry+"\n"+
-                'Content-Disposition: form-data; name="'+p+'"'+"\n"+
-                "\n"+
-                obj[p]+"\n"
-            );
-        }
-    }
-    lines.push( '--'+result.boundry+'--' );
-    result.body = lines.join('');
-    result.length = result.body.length;
-    result.type = 'multipart/form-data; boundary='+result.boundry;
-    return result;
-  }
-  
-  if(options.form){
-    if(typeof options.form == 'string') throw('form name unsupported');
-    if(options.method === 'POST'){
-        var encoding = (options.encoding || 'application/x-www-form-urlencoded').toLowerCase();
-        options.headers['content-type'] = encoding;
-        switch(encoding){
-            case 'application/x-www-form-urlencoded':
-                options.body = serialize(options.form).replace(/%20/g, "+");
-                break;
-            case 'multipart/form-data':
-                var multi = multipart(options.form);
-                //options.headers['content-length'] = multi.length;
-                options.body = multi.body;
-                options.headers['content-type'] = multi.type;
-                break;
-            default : throw new Error('unsupported encoding:'+encoding);
-        }
-    }
-  }
-  //END FORM Hack
-
-  // If onResponse is boolean true, call back immediately when the response is known,
-  // not when the full request is complete.
-  options.onResponse = options.onResponse || noop
-  if(options.onResponse === true) {
-    options.onResponse = callback
-    options.callback = noop
+  if (!options.render || typeof options.render !== "function") {
+    throw new Error("You must define render option, it will be called when route handler finishes.");
   }
 
-  // XXX Browsers do not like this.
-  //if(options.body)
-  //  options.headers['content-length'] = options.body.length;
-
-  // HTTP basic authentication
-  if(!options.headers.authorization && options.auth)
-    options.headers.authorization = 'Basic ' + b64_enc(options.auth.username + ':' + options.auth.password);
-
-  return run_xhr(options)
-}
-
-var req_seq = 0
-function run_xhr(options) {
-  var xhr = new XHR
-    , timed_out = false
-    , is_cors = is_crossDomain(options.uri)
-    , supports_cors = ('withCredentials' in xhr)
-
-  req_seq += 1
-  xhr.seq_id = req_seq
-  xhr.id = req_seq + ': ' + options.method + ' ' + options.uri
-  xhr._id = xhr.id // I know I will type "_id" from habit all the time.
-
-  if(is_cors && !supports_cors) {
-    var cors_err = new Error('Browser does not support cross-origin request: ' + options.uri)
-    cors_err.cors = 'unsupported'
-    return options.callback(cors_err, xhr)
+  if (!options.routes || typeof options.routes !== "object") {
+    throw new Error("You must define routes option or your app won't respond to anything");
   }
 
-  xhr.timeoutTimer = setTimeout(too_late, options.timeout)
-  function too_late() {
-    timed_out = true
-    var er = new Error('ETIMEDOUT')
-    er.code = 'ETIMEDOUT'
-    er.duration = options.timeout
-
-    request.log.error('Timeout', { 'id':xhr._id, 'milliseconds':options.timeout })
-    return options.callback(er, xhr)
-  }
-
-  // Some states can be skipped over, so remember what is still incomplete.
-  var did = {'response':false, 'loading':false, 'end':false}
-
-  xhr.onreadystatechange = on_state_change
-  xhr.open(options.method, options.uri, true) // asynchronous
-  if(is_cors)
-    xhr.withCredentials = !! options.withCredentials
-  xhr.send(options.body)
-  return xhr
-
-  function on_state_change(event) {
-    if(timed_out)
-      return request.log.debug('Ignoring timed out state change', {'state':xhr.readyState, 'id':xhr.id})
-
-    request.log.debug('State change', {'state':xhr.readyState, 'id':xhr.id, 'timed_out':timed_out})
-
-    if(xhr.readyState === XHR.OPENED) {
-      request.log.debug('Request started', {'id':xhr.id})
-      for (var key in options.headers)
-        xhr.setRequestHeader(key, options.headers[key])
-    }
-
-    else if(xhr.readyState === XHR.HEADERS_RECEIVED)
-      on_response()
-
-    else if(xhr.readyState === XHR.LOADING) {
-      on_response()
-      on_loading()
-    }
-
-    else if(xhr.readyState === XHR.DONE) {
-      on_response()
-      on_loading()
-      on_end()
-    }
-  }
-
-  function on_response() {
-    if(did.response)
-      return
-
-    did.response = true
-    request.log.debug('Got response', {'id':xhr.id, 'status':xhr.status})
-    clearTimeout(xhr.timeoutTimer)
-    xhr.statusCode = xhr.status // Node request compatibility
-
-    // Detect failed CORS requests.
-    if(is_cors && xhr.statusCode == 0) {
-      var cors_err = new Error('CORS request rejected: ' + options.uri)
-      cors_err.cors = 'rejected'
-
-      // Do not process this request further.
-      did.loading = true
-      did.end = true
-
-      return options.callback(cors_err, xhr)
-    }
-
-    options.onResponse(null, xhr)
-  }
-
-  function on_loading() {
-    if(did.loading)
-      return
-
-    did.loading = true
-    request.log.debug('Response body loading', {'id':xhr.id})
-    // TODO: Maybe simulate "data" events by watching xhr.responseText
-  }
-
-  function on_end() {
-    if(did.end)
-      return
-
-    did.end = true
-    request.log.debug('Request done', {'id':xhr.id})
-
-    xhr.body = xhr.responseText
-    if(options.json) {
-      try        { xhr.body = JSON.parse(xhr.responseText) }
-      catch (er) { return options.callback(er, xhr)        }
-    }
-
-    options.callback(null, xhr, xhr.body)
-  }
-
-} // request
-
-request.withCredentials = false;
-request.DEFAULT_TIMEOUT = DEFAULT_TIMEOUT;
-
-//
-// defaults
-//
-
-request.defaults = function(options, requester) {
-  var def = function (method) {
-    var d = function (params, callback) {
-      if(typeof params === 'string')
-        params = {'uri': params};
-      else {
-        params = JSON.parse(JSON.stringify(params));
-      }
-      for (var i in options) {
-        if (params[i] === undefined) params[i] = options[i]
-      }
-      return method(params, callback)
-    }
-    return d
-  }
-  var de = def(request)
-  de.get = def(request.get)
-  de.post = def(request.post)
-  de.put = def(request.put)
-  de.head = def(request.head)
-  return de
-}
-
-//
-// HTTP method shortcuts
-//
-
-var shortcuts = [ 'get', 'put', 'post', 'head' ];
-shortcuts.forEach(function(shortcut) {
-  var method = shortcut.toUpperCase();
-  var func   = shortcut.toLowerCase();
-
-  request[func] = function(opts) {
-    if(typeof opts === 'string')
-      opts = {'method':method, 'uri':opts};
-    else {
-      opts = JSON.parse(JSON.stringify(opts));
-      opts.method = method;
-    }
-
-    var args = [opts].concat(Array.prototype.slice.apply(arguments, [1]));
-    return request.apply(this, args);
-  }
-})
-
-//
-// CouchDB shortcut
-//
-
-request.couch = function(options, callback) {
-  if(typeof options === 'string')
-    options = {'uri':options}
-
-  // Just use the request API to do JSON.
-  options.json = true
-  if(options.body)
-    options.json = options.body
-  delete options.body
-
-  callback = callback || noop
-
-  var xhr = request(options, couch_handler)
-  return xhr
-
-  function couch_handler(er, resp, body) {
-    if(er)
-      return callback(er, resp, body)
-
-    if((resp.statusCode < 200 || resp.statusCode > 299) && body.error) {
-      // The body is a Couch JSON object indicating the error.
-      er = new Error('CouchDB error: ' + (body.error.reason || body.error.error))
-      for (var key in body)
-        er[key] = body[key]
-      return callback(er, resp, body);
-    }
-
-    return callback(er, resp, body);
+  if (!options.stores || typeof options.stores !== "object") {
+    console.warn("You won't be able to use this.store in router without defining any stores");
   }
 }
 
-//
-// Utility
-//
+var cerebellum = {
+  server: function(options) {
+    validateOptions(options);
+    return server(options);
+  },
+  client: function(options) {
+    validateOptions(options);
+    return client(options);
+  },
+  exoskeleton: exoskeleton
+};
 
-function noop() {}
-
-function getLogger() {
-  var logger = {}
-    , levels = ['trace', 'debug', 'info', 'warn', 'error']
-    , level, i
-
-  for(i = 0; i < levels.length; i++) {
-    level = levels[i]
-
-    logger[level] = noop
-    if(typeof console !== 'undefined' && console && console[level])
-      logger[level] = formatted(console, level)
-  }
-
-  return logger
-}
-
-function formatted(obj, method) {
-  return formatted_logger
-
-  function formatted_logger(str, context) {
-    if(typeof context === 'object')
-      str += ' ' + JSON.stringify(context)
-
-    return obj[method].call(obj, str)
-  }
-}
-
-// Return whether a URL is a cross-domain request.
-function is_crossDomain(url) {
-  var rurl = /^([\w\+\.\-]+:)(?:\/\/([^\/?#:]*)(?::(\d+))?)?/
-
-  // jQuery #8138, IE may throw an exception when accessing
-  // a field from window.location if document.domain has been set
-  var ajaxLocation
-  try { ajaxLocation = location.href }
-  catch (e) {
-    // Use the href attribute of an A element since IE will modify it given document.location
-    ajaxLocation = document.createElement( "a" );
-    ajaxLocation.href = "";
-    ajaxLocation = ajaxLocation.href;
-  }
-
-  var ajaxLocParts = rurl.exec(ajaxLocation.toLowerCase()) || []
-    , parts = rurl.exec(url.toLowerCase() )
-
-  var result = !!(
-    parts &&
-    (  parts[1] != ajaxLocParts[1]
-    || parts[2] != ajaxLocParts[2]
-    || (parts[3] || (parts[1] === "http:" ? 80 : 443)) != (ajaxLocParts[3] || (ajaxLocParts[1] === "http:" ? 80 : 443))
-    )
-  )
-
-  //console.debug('is_crossDomain('+url+') -> ' + result)
-  return result
-}
-
-// MIT License from http://phpjs.org/functions/base64_encode:358
-function b64_enc (data) {
-    // Encodes string using MIME base64 algorithm
-    var b64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
-    var o1, o2, o3, h1, h2, h3, h4, bits, i = 0, ac = 0, enc="", tmp_arr = [];
-
-    if (!data) {
-        return data;
-    }
-
-    // assume utf8 data
-    // data = this.utf8_encode(data+'');
-
-    do { // pack three octets into four hexets
-        o1 = data.charCodeAt(i++);
-        o2 = data.charCodeAt(i++);
-        o3 = data.charCodeAt(i++);
-
-        bits = o1<<16 | o2<<8 | o3;
-
-        h1 = bits>>18 & 0x3f;
-        h2 = bits>>12 & 0x3f;
-        h3 = bits>>6 & 0x3f;
-        h4 = bits & 0x3f;
-
-        // use hexets to index into b64, and append result to encoded string
-        tmp_arr[ac++] = b64.charAt(h1) + b64.charAt(h2) + b64.charAt(h3) + b64.charAt(h4);
-    } while (i < data.length);
-
-    enc = tmp_arr.join('');
-
-    switch (data.length % 3) {
-        case 1:
-            enc = enc.slice(0, -2) + '==';
-        break;
-        case 2:
-            enc = enc.slice(0, -1) + '=';
-        break;
-    }
-
-    return enc;
-}
-module.exports = request;
-
-},{}],"director":[function(require,module,exports){
-
-
-//
-// Generated on Fri Dec 27 2013 12:02:11 GMT-0500 (EST) by Nodejitsu, Inc (Using Codesurgeon).
-// Version 1.2.2
-//
-(function(a){function k(a,b,c,d){var e=0,f=0,g=0,c=(c||"(").toString(),d=(d||")").toString(),h;for(h=0;h<a.length;h++){var i=a[h];if(i.indexOf(c,e)>i.indexOf(d,e)||~i.indexOf(c,e)&&!~i.indexOf(d,e)||!~i.indexOf(c,e)&&~i.indexOf(d,e)){f=i.indexOf(c,e),g=i.indexOf(d,e);if(~f&&!~g||!~f&&~g){var j=a.slice(0,(h||1)+1).join(b);a=[j].concat(a.slice((h||1)+1))}e=(g>f?g:f)+1,h=0}else e=0}return a}function j(a,b){var c,d=0,e="";while(c=a.substr(d).match(/[^\w\d\- %@&]*\*[^\w\d\- %@&]*/))d=c.index+c[0].length,c[0]=c[0].replace(/^\*/,"([_.()!\\ %@&a-zA-Z0-9-]+)"),e+=a.substr(0,c.index)+c[0];a=e+=a.substr(d);var f=a.match(/:([^\/]+)/ig),g,h;if(f){h=f.length;for(var j=0;j<h;j++)g=f[j],g.slice(0,2)==="::"?a=g.slice(1):a=a.replace(g,i(g,b))}return a}function i(a,b,c){c=a;for(var d in b)if(b.hasOwnProperty(d)){c=b[d](a);if(c!==a)break}return c===a?"([._a-zA-Z0-9-]+)":c}function h(a,b,c){if(!a.length)return c();var d=0;(function e(){b(a[d],function(b){b||b===!1?(c(b),c=function(){}):(d+=1,d===a.length?c():e())})})()}function g(a){var b=[];for(var c=0,d=a.length;c<d;c++)b=b.concat(a[c]);return b}function f(a,b){for(var c=0;c<a.length;c+=1)if(b(a[c],c,a)===!1)return}function c(){return b.hash===""||b.hash==="#"}Array.prototype.filter||(Array.prototype.filter=function(a,b){var c=[],d;for(var e=0,f=this.length;e<f;e++)e in this&&a.call(b,d=this[e],e,this)&&c.push(d);return c}),Array.isArray||(Array.isArray=function(a){return Object.prototype.toString.call(a)==="[object Array]"});var b=document.location,d={mode:"modern",hash:b.hash,history:!1,check:function(){var a=b.hash;a!=this.hash&&(this.hash=a,this.onHashChanged())},fire:function(){this.mode==="modern"?this.history===!0?window.onpopstate():window.onhashchange():this.onHashChanged()},init:function(a,b){function d(a){for(var b=0,c=e.listeners.length;b<c;b++)e.listeners[b](a)}var c=this;this.history=b,e.listeners||(e.listeners=[]);if("onhashchange"in window&&(document.documentMode===undefined||document.documentMode>7))this.history===!0?setTimeout(function(){window.onpopstate=d},500):window.onhashchange=d,this.mode="modern";else{var f=document.createElement("iframe");f.id="state-frame",f.style.display="none",document.body.appendChild(f),this.writeFrame(""),"onpropertychange"in document&&"attachEvent"in document&&document.attachEvent("onpropertychange",function(){event.propertyName==="location"&&c.check()}),window.setInterval(function(){c.check()},50),this.onHashChanged=d,this.mode="legacy"}e.listeners.push(a);return this.mode},destroy:function(a){if(!!e&&!!e.listeners){var b=e.listeners;for(var c=b.length-1;c>=0;c--)b[c]===a&&b.splice(c,1)}},setHash:function(a){this.mode==="legacy"&&this.writeFrame(a),this.history===!0?(window.history.pushState({},document.title,a),this.fire()):b.hash=a[0]==="/"?a:"/"+a;return this},writeFrame:function(a){var b=document.getElementById("state-frame"),c=b.contentDocument||b.contentWindow.document;c.open(),c.write("<script>_hash = '"+a+"'; onload = parent.listener.syncHash;<script>"),c.close()},syncHash:function(){var a=this._hash;a!=b.hash&&(b.hash=a);return this},onHashChanged:function(){}},e=a.Router=function(a){if(this instanceof e)this.params={},this.routes={},this.methods=["on","once","after","before"],this.scope=[],this._methods={},this._insert=this.insert,this.insert=this.insertEx,this.historySupport=(window.history!=null?window.history.pushState:null)!=null,this.configure(),this.mount(a||{});else return new e(a)};e.prototype.init=function(a){var e=this;this.handler=function(a){var b=a&&a.newURL||window.location.hash,c=e.history===!0?e.getPath():b.replace(/.*#/,"");e.dispatch("on",c.charAt(0)==="/"?c:"/"+c)},d.init(this.handler,this.history);if(this.history===!1)c()&&a?b.hash=a:c()||e.dispatch("on","/"+b.hash.replace(/^(#\/|#|\/)/,""));else{var f=c()&&a?a:c()?null:b.hash.replace(/^#/,"");f&&window.history.replaceState({},document.title,f),(f||this.run_in_init===!0)&&this.handler()}return this},e.prototype.explode=function(){var a=this.history===!0?this.getPath():b.hash;a.charAt(1)==="/"&&(a=a.slice(1));return a.slice(1,a.length).split("/")},e.prototype.setRoute=function(a,b,c){var e=this.explode();typeof a=="number"&&typeof b=="string"?e[a]=b:typeof c=="string"?e.splice(a,b,s):e=[a],d.setHash(e.join("/"));return e},e.prototype.insertEx=function(a,b,c,d){a==="once"&&(a="on",c=function(a){var b=!1;return function(){if(!b){b=!0;return a.apply(this,arguments)}}}(c));return this._insert(a,b,c,d)},e.prototype.getRoute=function(a){var b=a;if(typeof a=="number")b=this.explode()[a];else if(typeof a=="string"){var c=this.explode();b=c.indexOf(a)}else b=this.explode();return b},e.prototype.destroy=function(){d.destroy(this.handler);return this},e.prototype.getPath=function(){var a=window.location.pathname;a.substr(0,1)!=="/"&&(a="/"+a);return a},e.prototype.configure=function(a){a=a||{};for(var b=0;b<this.methods.length;b++)this._methods[this.methods[b]]=!0;this.recurse=a.recurse||this.recurse||!1,this.async=a.async||!1,this.delimiter=a.delimiter||"/",this.strict=typeof a.strict=="undefined"?!0:a.strict,this.notfound=a.notfound,this.resource=a.resource,this.history=a.html5history&&this.historySupport||!1,this.run_in_init=this.history===!0&&a.run_handler_in_init!==!1,this.every={after:a.after||null,before:a.before||null,on:a.on||null};return this},e.prototype.param=function(a,b){a[0]!==":"&&(a=":"+a);var c=new RegExp(a,"g");this.params[a]=function(a){return a.replace(c,b.source||b)}},e.prototype.on=e.prototype.route=function(a,b,c){var d=this;!c&&typeof b=="function"&&(c=b,b=a,a="on");if(Array.isArray(b))return b.forEach(function(b){d.on(a,b,c)});b.source&&(b=b.source.replace(/\\\//ig,"/"));if(Array.isArray(a))return a.forEach(function(a){d.on(a.toLowerCase(),b,c)});b=b.split(new RegExp(this.delimiter)),b=k(b,this.delimiter),this.insert(a,this.scope.concat(b),c)},e.prototype.dispatch=function(a,b,c){function h(){d.last=e.after,d.invoke(d.runlist(e),d,c)}var d=this,e=this.traverse(a,b,this.routes,""),f=this._invoked,g;this._invoked=!0;if(!e||e.length===0){this.last=[],typeof this.notfound=="function"&&this.invoke([this.notfound],{method:a,path:b},c);return!1}this.recurse==="forward"&&(e=e.reverse()),g=this.every&&this.every.after?[this.every.after].concat(this.last):[this.last];if(g&&g.length>0&&f){this.async?this.invoke(g,this,h):(this.invoke(g,this),h());return!0}h();return!0},e.prototype.invoke=function(a,b,c){var d=this,e;this.async?(e=function(c,d){if(Array.isArray(c))return h(c,e,d);typeof c=="function"&&c.apply(b,a.captures.concat(d))},h(a,e,function(){c&&c.apply(b,arguments)})):(e=function(c){if(Array.isArray(c))return f(c,e);if(typeof c=="function")return c.apply(b,a.captures||[]);typeof c=="string"&&d.resource&&d.resource[c].apply(b,a.captures||[])},f(a,e))},e.prototype.traverse=function(a,b,c,d,e){function l(a){function c(a){for(var b=a.length-1;b>=0;b--)Array.isArray(a[b])?(c(a[b]),a[b].length===0&&a.splice(b,1)):e(a[b])||a.splice(b,1)}function b(a){var c=[];for(var d=0;d<a.length;d++)c[d]=Array.isArray(a[d])?b(a[d]):a[d];return c}if(!e)return a;var d=b(a);d.matched=a.matched,d.captures=a.captures,d.after=a.after.filter(e),c(d);return d}var f=[],g,h,i,j,k;if(b===this.delimiter&&c[a]){j=[[c.before,c[a]].filter(Boolean)],j.after=[c.after].filter(Boolean),j.matched=!0,j.captures=[];return l(j)}for(var m in c)if(c.hasOwnProperty(m)&&(!this._methods[m]||this._methods[m]&&typeof c[m]=="object"&&!Array.isArray(c[m]))){g=h=d+this.delimiter+m,this.strict||(h+="["+this.delimiter+"]?"),i=b.match(new RegExp("^"+h));if(!i)continue;if(i[0]&&i[0]==b&&c[m][a]){j=[[c[m].before,c[m][a]].filter(Boolean)],j.after=[c[m].after].filter(Boolean),j.matched=!0,j.captures=i.slice(1),this.recurse&&c===this.routes&&(j.push([c.before,c.on].filter(Boolean)),j.after=j.after.concat([c.after].filter(Boolean)));return l(j)}j=this.traverse(a,b,c[m],g);if(j.matched){j.length>0&&(f=f.concat(j)),this.recurse&&(f.push([c[m].before,c[m].on].filter(Boolean)),j.after=j.after.concat([c[m].after].filter(Boolean)),c===this.routes&&(f.push([c.before,c.on].filter(Boolean)),j.after=j.after.concat([c.after].filter(Boolean)))),f.matched=!0,f.captures=j.captures,f.after=j.after;return l(f)}}return!1},e.prototype.insert=function(a,b,c,d){var e,f,g,h,i;b=b.filter(function(a){return a&&a.length>0}),d=d||this.routes,i=b.shift(),/\:|\*/.test(i)&&!/\\d|\\w/.test(i)&&(i=j(i,this.params));if(b.length>0){d[i]=d[i]||{};return this.insert(a,b,c,d[i])}{if(!!i||!!b.length||d!==this.routes){f=typeof d[i],g=Array.isArray(d[i]);if(d[i]&&!g&&f=="object"){e=typeof d[i][a];switch(e){case"function":d[i][a]=[d[i][a],c];return;case"object":d[i][a].push(c);return;case"undefined":d[i][a]=c;return}}else if(f=="undefined"){h={},h[a]=c,d[i]=h;return}throw new Error("Invalid route context: "+f)}e=typeof d[a];switch(e){case"function":d[a]=[d[a],c];return;case"object":d[a].push(c);return;case"undefined":d[a]=c;return}}},e.prototype.extend=function(a){function e(a){b._methods[a]=!0,b[a]=function(){var c=arguments.length===1?[a,""]:[a];b.on.apply(b,c.concat(Array.prototype.slice.call(arguments)))}}var b=this,c=a.length,d;for(d=0;d<c;d++)e(a[d])},e.prototype.runlist=function(a){var b=this.every&&this.every.before?[this.every.before].concat(g(a)):g(a);this.every&&this.every.on&&b.push(this.every.on),b.captures=a.captures,b.source=a.source;return b},e.prototype.mount=function(a,b){function d(b,d){var e=b,f=b.split(c.delimiter),g=typeof a[b],h=f[0]===""||!c._methods[f[0]],i=h?"on":e;h&&(e=e.slice((e.match(new RegExp("^"+c.delimiter))||[""])[0].length),f.shift());h&&g==="object"&&!Array.isArray(a[b])?(d=d.concat(f),c.mount(a[b],d)):(h&&(d=d.concat(e.split(c.delimiter)),d=k(d,c.delimiter)),c.insert(i,d,a[b]))}if(!!a&&typeof a=="object"&&!Array.isArray(a)){var c=this;b=b||[],Array.isArray(b)||(b=b.split(c.delimiter));for(var e in a)a.hasOwnProperty(e)&&d(e,b.slice(0))}}})(typeof exports=="object"?exports:window)
-},{}],"lodash":[function(require,module,exports){
+module.exports = cerebellum;
+},{"./lib/client":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/client.js","./lib/server":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/browser-resolve/empty.js","./lib/wrapper/exoskeleton":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/wrapper/exoskeleton.js"}],"lodash":[function(require,module,exports){
 (function (global){
 /**
  * @license
