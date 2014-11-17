@@ -38773,8 +38773,7 @@ module.exports = cerebellum;
  */
 
 (function (definition) {
-    // Turn off strict mode for this function so we can assign to global.Q
-    /* jshint strict: false */
+    "use strict";
 
     // This file will function properly as a <script> tag, or a module
     // using CommonJS and NodeJS or RequireJS module formats.  In
@@ -38786,7 +38785,7 @@ module.exports = cerebellum;
         bootstrap("promise", definition);
 
     // CommonJS
-    } else if (typeof exports === "object") {
+    } else if (typeof exports === "object" && typeof module === "object") {
         module.exports = definition();
 
     // RequireJS
@@ -38802,8 +38801,11 @@ module.exports = cerebellum;
         }
 
     // <script>
+    } else if (typeof self !== "undefined") {
+        self.Q = definition();
+
     } else {
-        Q = definition();
+        throw new Error("This environment was not anticiapted by Q. Please file a bug.");
     }
 
 })(function () {
@@ -39196,7 +39198,7 @@ function Q(value) {
     // If the object is already a Promise, return it directly.  This enables
     // the resolve function to both be used to created references from objects,
     // but to tolerably coerce non-promises to promises.
-    if (isPromise(value)) {
+    if (value instanceof Promise) {
         return value;
     }
 
@@ -39219,6 +39221,11 @@ Q.nextTick = nextTick;
  * Controls whether or not long stack traces will be on
  */
 Q.longStackSupport = false;
+
+// enable long stacks if Q_DEBUG is set
+if (typeof process === "object" && process && process.env && process.env.Q_DEBUG) {
+    Q.longStackSupport = true;
+}
 
 /**
  * Constructs a {promise, resolve, reject} object.
@@ -39251,7 +39258,7 @@ function defer() {
                 progressListeners.push(operands[1]);
             }
         } else {
-            nextTick(function () {
+            Q.nextTick(function () {
                 resolvedPromise.promiseDispatch.apply(resolvedPromise, args);
             });
         }
@@ -39299,7 +39306,7 @@ function defer() {
         promise.source = newPromise;
 
         array_reduce(messages, function (undefined, message) {
-            nextTick(function () {
+            Q.nextTick(function () {
                 newPromise.promiseDispatch.apply(newPromise, message);
             });
         }, void 0);
@@ -39337,7 +39344,7 @@ function defer() {
         }
 
         array_reduce(progressListeners, function (undefined, progressListener) {
-            nextTick(function () {
+            Q.nextTick(function () {
                 progressListener(progress);
             });
         }, void 0);
@@ -39430,9 +39437,9 @@ Promise.prototype.join = function (that) {
 };
 
 /**
- * Returns a promise for the first of an array of promises to become fulfilled.
+ * Returns a promise for the first of an array of promises to become settled.
  * @param answers {Array[Any*]} promises to race
- * @returns {Any*} the first promise to be fulfilled
+ * @returns {Any*} the first promise to be settled
  */
 Q.race = race;
 function race(answerPs) {
@@ -39552,7 +39559,7 @@ Promise.prototype.then = function (fulfilled, rejected, progressed) {
         return typeof progressed === "function" ? progressed(value) : value;
     }
 
-    nextTick(function () {
+    Q.nextTick(function () {
         self.promiseDispatch(function (value) {
             if (done) {
                 return;
@@ -39591,6 +39598,30 @@ Promise.prototype.then = function (fulfilled, rejected, progressed) {
     }]);
 
     return deferred.promise;
+};
+
+Q.tap = function (promise, callback) {
+    return Q(promise).tap(callback);
+};
+
+/**
+ * Works almost like "finally", but not called for rejections.
+ * Original resolution value is passed through callback unaffected.
+ * Callback may return a promise that will be awaited for.
+ * @param {Function} callback
+ * @returns {Q.Promise}
+ * @example
+ * doSomething()
+ *   .then(...)
+ *   .tap(console.log)
+ *   .then(...);
+ */
+Promise.prototype.tap = function (callback) {
+    callback = Q(callback);
+
+    return this.then(function (value) {
+        return callback.fcall(value).thenResolve(value);
+    });
 };
 
 /**
@@ -39658,9 +39689,7 @@ function nearer(value) {
  */
 Q.isPromise = isPromise;
 function isPromise(object) {
-    return isObject(object) &&
-        typeof object.promiseDispatch === "function" &&
-        typeof object.inspect === "function";
+    return object instanceof Promise;
 }
 
 Q.isPromiseAlike = isPromiseAlike;
@@ -39838,7 +39867,7 @@ function fulfill(value) {
  */
 function coerce(promise) {
     var deferred = defer();
-    nextTick(function () {
+    Q.nextTick(function () {
         try {
             promise.then(deferred.resolve, deferred.reject, deferred.notify);
         } catch (exception) {
@@ -39939,7 +39968,7 @@ function async(makeGenerator) {
                     return reject(exception);
                 }
                 if (result.done) {
-                    return result.value;
+                    return Q(result.value);
                 } else {
                     return when(result.value, callback, errback);
                 }
@@ -39950,7 +39979,7 @@ function async(makeGenerator) {
                     result = generator[verb](arg);
                 } catch (exception) {
                     if (isStopIteration(exception)) {
-                        return exception.value;
+                        return Q(exception.value);
                     } else {
                         return reject(exception);
                     }
@@ -40046,7 +40075,7 @@ function dispatch(object, op, args) {
 Promise.prototype.dispatch = function (op, args) {
     var self = this;
     var deferred = defer();
-    nextTick(function () {
+    Q.nextTick(function () {
         self.promiseDispatch(deferred.resolve, op, args);
     });
     return deferred.promise;
@@ -40389,7 +40418,7 @@ Promise.prototype.done = function (fulfilled, rejected, progress) {
     var onUnhandledError = function (error) {
         // forward to a future turn so that ``when``
         // does not catch it and turn it into a rejection.
-        nextTick(function () {
+        Q.nextTick(function () {
             makeStackTraceLong(error, promise);
             if (Q.onerror) {
                 Q.onerror(error);
@@ -40416,18 +40445,22 @@ Promise.prototype.done = function (fulfilled, rejected, progress) {
  * some milliseconds time out.
  * @param {Any*} promise
  * @param {Number} milliseconds timeout
- * @param {String} custom error message (optional)
+ * @param {Any*} custom error message or Error object (optional)
  * @returns a promise for the resolution of the given promise if it is
  * fulfilled before the timeout, otherwise rejected.
  */
-Q.timeout = function (object, ms, message) {
-    return Q(object).timeout(ms, message);
+Q.timeout = function (object, ms, error) {
+    return Q(object).timeout(ms, error);
 };
 
-Promise.prototype.timeout = function (ms, message) {
+Promise.prototype.timeout = function (ms, error) {
     var deferred = defer();
     var timeoutId = setTimeout(function () {
-        deferred.reject(new Error(message || "Timed out after " + ms + " ms"));
+        if (!error || "string" === typeof error) {
+            error = new Error(error || "Timed out after " + ms + " ms");
+            error.code = "ETIMEDOUT";
+        }
+        deferred.reject(error);
     }, ms);
 
     this.then(function (value) {
@@ -40629,11 +40662,11 @@ function nodeify(object, nodeback) {
 Promise.prototype.nodeify = function (nodeback) {
     if (nodeback) {
         this.then(function (value) {
-            nextTick(function () {
+            Q.nextTick(function () {
                 nodeback(null, value);
             });
         }, function (error) {
-            nextTick(function () {
+            Q.nextTick(function () {
                 nodeback(error);
             });
         });
