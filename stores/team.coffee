@@ -1,4 +1,4 @@
-Model = require('cerebellum').exoskeleton.Model
+Model = require('cerebellum').Model
 apiConfig = require '../config/api'
 
 Team = Model.extend
@@ -6,6 +6,6 @@ Team = Model.extend
     "teams/#{@storeOptions.id}"
 
   url: ->
-    "#{apiConfig.url}/json/teams/#{@storeOptions.id}.json"
+    "#{apiConfig.url}/teams/#{@storeOptions.id}.json"
 
 module.exports = Team

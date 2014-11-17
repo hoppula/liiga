@@ -37,8 +37,9 @@
     "watchify": "~1.0.2"
   },
   "dependencies": {
+    "cerebellum": "git+https://git@bitbucket.org/SC5/cerebellum.git",
     "compression": "~1.1.0",
-    "cerebellum": "git+https://git@bitbucket.org/SC5/cerebellum.git"
+    "fastclick": "^1.0.3"
   },
   "browser": {
     "./config/api.coffee": "./config/api-browser.coffee"

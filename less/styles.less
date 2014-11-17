@@ -23,94 +23,100 @@ a, input, button {
 }
 
 body {
-  padding-top: 90px;
+  padding-top: 50px;
 }
 
-.teams_view {
+.dropdown-menu {
+  height: auto;
+  max-height: 330px;
+  overflow-x: hidden;
+}
+
+.teams-view {
   padding: 1em;
   -webkit-user-select: none;
   -moz-user-select: none;
   -ms-user-select: none;
   user-select: none;
+}
 
-  .team {
-    font-weight: 700;
-    font-size: 2rem;
-    padding: 1em 1em;
-    background-size: auto 80%;
-    background-position: 20px center;
-    background-repeat: no-repeat;
-    color: #ecf0f1;
-    cursor: pointer;
-    display: block;
+.team-logo {
+  padding: 1em 1em;
+  width: 50px;
+  height: 50px;
+  background-position: center center;
+  background-repeat: no-repeat;
+  background-size: 80% 80%;
+  color: #ecf0f1;
+  cursor: pointer;
+  display: inline-block;
 
-    &:hover {
-      background-color: #ecf0f1;
-      background-size: auto 70%;
-      color: #2c3e50;
-    }
-
-  } // .team
-
-  .assat {
-    background-image: url("../svg/assat.svg");
+  @media (min-width: 992px) {
+    width: 67px;
+    height: 67px;
+  }
+  @media (min-width: 1200px) {
+    width: 80px;
+    height: 80px;
   }
 
-  .blues {
-    background-image: url("../svg/blues.svg");
-  }
+} // .team
 
-  .hifk {
-    background-image: url("../svg/hifk.svg");
-  }
+.assat {
+  background-image: url("../svg/assat.svg");
+}
 
-  .hpk {
-    background-image: url("../svg/hpk.svg");
-  }
+.blues {
+  background-image: url("../svg/blues.svg");
+}
 
-  .ilves {
-    background-image: url("../svg/ilves.svg");
-  }
+.hifk {
+  background-image: url("../svg/hifk.svg");
+}
 
-  .sport {
-    background-image: url("../svg/sport.svg");
-  }
+.hpk {
+  background-image: url("../svg/hpk.svg");
+}
 
-  .jyp {
-    background-image: url("../svg/jyp.svg");
-    background-position-x: 24px;
-  }
+.ilves {
+  background-image: url("../svg/ilves.svg");
+}
 
-  .kalpa {
-    background-image: url("../svg/kalpa.svg");
-  }
+.sport {
+  background-image: url("../svg/sport.svg");
+}
 
-  .karpat {
-    background-image: url("../svg/karpat.svg");
-  }
+.jyp {
+  background-image: url("../svg/jyp.svg");
+}
 
-  .lukko {
-    background-image: url("../svg/lukko.svg");
-  }
+.kalpa {
+  background-image: url("../svg/kalpa.svg");
+}
 
-  .pelicans {
-    background-image: url("../svg/pelicans.svg");
-  }
+.karpat {
+  background-image: url("../svg/karpat.svg");
+}
 
-  .saipa {
-    background-image: url("../svg/saipa.svg");
-  }
+.lukko {
+  background-image: url("../svg/lukko.svg");
+}
 
-  .tappara {
-    background-image: url("../svg/tappara.svg");
-    background-position-x: 31px;
-  }
+.pelicans {
+  background-image: url("../svg/pelicans.svg");
+}
 
-  .tps {
-    background-image: url("../svg/tps.svg");
-  }
+.saipa {
+  background-image: url("../svg/saipa.svg");
+}
 
-} // .teams_view
+.tappara {
+  background-image: url("../svg/tappara.svg");
+}
+
+.tps {
+  background-image: url("../svg/tps.svg");
+}
 
 .team {
   h1 {
@@ -136,4 +142,8 @@ body {
   ul {
     list-style: none;
   }
+}
+
+.sortable-thead {
+  cursor: pointer;
 }

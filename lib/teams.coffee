@@ -16,6 +16,16 @@ Teams =
     "TPS": "tps"
 
   logo: (name) ->
-    "../svg/#{@namesAndIds[name]}.svg"
+    "/svg/#{@namesAndIds[name]}.svg"
+
+  idToName: (id) ->
+    ids = Object.keys(@namesAndIds).reduce (obj, name) =>
+      obj[@namesAndIds[name]] = name
+      obj
+    , {}
+    ids[id]
+
+  nameToId: (name) ->
+    @namesAndIds[name]
 
 module.exports = Teams

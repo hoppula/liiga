@@ -567,73 +567,83 @@ button {
   padding: 0;
 }
 body {
-  padding-top: 90px;
+  padding-top: 50px;
 }
-.teams_view {
+.dropdown-menu {
+  height: auto;
+  max-height: 330px;
+  overflow-x: hidden;
+}
+.teams-view {
   padding: 1em;
   -webkit-user-select: none;
   -moz-user-select: none;
   -ms-user-select: none;
   user-select: none;
 }
-.teams_view .team {
-  font-weight: 700;
-  font-size: 2rem;
+.team-logo {
   padding: 1em 1em;
-  background-size: auto 80%;
-  background-position: 20px center;
+  width: 50px;
+  height: 50px;
+  background-position: center center;
   background-repeat: no-repeat;
+  background-size: 80% 80%;
   color: #ecf0f1;
   cursor: pointer;
-  display: block;
+  display: inline-block;
 }
-.teams_view .team:hover {
-  background-color: #ecf0f1;
-  background-size: auto 70%;
-  color: #2c3e50;
+@media (min-width: 992px) {
+  .team-logo {
+    width: 67px;
+    height: 67px;
+  }
 }
-.teams_view .assat {
+@media (min-width: 1200px) {
+  .team-logo {
+    width: 80px;
+    height: 80px;
+  }
+}
+.assat {
   background-image: url("../svg/assat.svg");
 }
-.teams_view .blues {
+.blues {
   background-image: url("../svg/blues.svg");
 }
-.teams_view .hifk {
+.hifk {
   background-image: url("../svg/hifk.svg");
 }
-.teams_view .hpk {
+.hpk {
   background-image: url("../svg/hpk.svg");
 }
-.teams_view .ilves {
+.ilves {
   background-image: url("../svg/ilves.svg");
 }
-.teams_view .sport {
+.sport {
   background-image: url("../svg/sport.svg");
 }
-.teams_view .jyp {
+.jyp {
   background-image: url("../svg/jyp.svg");
-  background-position-x: 24px;
 }
-.teams_view .kalpa {
+.kalpa {
   background-image: url("../svg/kalpa.svg");
 }
-.teams_view .karpat {
+.karpat {
   background-image: url("../svg/karpat.svg");
 }
-.teams_view .lukko {
+.lukko {
   background-image: url("../svg/lukko.svg");
 }
-.teams_view .pelicans {
+.pelicans {
   background-image: url("../svg/pelicans.svg");
 }
-.teams_view .saipa {
+.saipa {
   background-image: url("../svg/saipa.svg");
 }
-.teams_view .tappara {
+.tappara {
   background-image: url("../svg/tappara.svg");
-  background-position-x: 31px;
 }
-.teams_view .tps {
+.tps {
   background-image: url("../svg/tps.svg");
 }
 .team h1 img {
@@ -647,4 +657,7 @@ body {
 }
 .team-container ul {
   list-style: none;
+}
+.sortable-thead {
+  cursor: pointer;
 }

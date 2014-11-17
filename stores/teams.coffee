@@ -1,10 +1,10 @@
-Collection = require('cerebellum').exoskeleton.Collection
+Collection = require('cerebellum').Collection
 apiConfig = require '../config/api'
 
 Teams = Collection.extend
   cacheKey: ->
     "teams"
 
-  url: "#{apiConfig.url}/json/teams.json"
+  url: "#{apiConfig.url}/teams.json"
 
 module.exports = Teams

@@ -1,26 +1,29 @@
 React = require 'react/addons'
 PlayerStats = require './player_stats'
 TeamSchedule = require './team_schedule'
+TeamStats = require './team_stats'
 TeamRoster = require './team_roster'
 Navigation = require './navigation'
 Teams = require '../lib/teams'
 
-{TabbedArea, TabPane, Jumbotron, ButtonToolbar, Button, Col, Row} = require "react-bootstrap"
+{TabPane, Jumbotron, ButtonToolbar, Button, Col, Row, Nav, NavItem} = require "react-bootstrap"
 
 Team = React.createClass
+
+  componentDidMount: ->
+    window.scrollTo(0,0)
 
   logo: ->
     <img src={Teams.logo(@props.team.info.name)} alt={@props.team.info.name} />
 
   render: ->
-    teams =
-      title: "Joukkueet",
-      items: @props.teams.map (team) ->
-        title: team.name
-        url: team.url
+    activeKey = switch @props.active
+      when "pelaajat" then "players"
+      when "tilastot" then "stats"
+      else "schedule"
 
     <div>
-      <Navigation dropdown={teams} />
+      <Navigation />
 
       <div className="team">
         <Jumbotron>
@@ -45,16 +48,28 @@ Team = React.createClass
           </Row>
         </Jumbotron>
 
-        <TabbedArea defaultActiveKey={1} animation={false}>
-          <TabPane key={1} tab="Ottelut">
-            <h1>Ottelut</h1>
-            <TeamSchedule team={@props.team} />
-          </TabPane>
-          <TabPane key={2} tab="Pelaajat">
-            <h1>Pelaajat</h1>
-            <TeamRoster teamId={@props.id} roster={@props.team.roster} />
-          </TabPane>
-        </TabbedArea>
+        <div>
+          <Nav bsStyle="tabs" activeKey={activeKey} ref="tabs">
+            <NavItem href="/joukkueet/#{@props.id}" key="schedule">Ottelut</NavItem>
+            <NavItem href="/joukkueet/#{@props.id}/tilastot" key="stats">Tilastot</NavItem>
+            <NavItem href="/joukkueet/#{@props.id}/pelaajat" key="players">Pelaajat</NavItem>
+          </Nav>
+          <div className="tab-content" ref="panes">
+            <TabPane key="schedule" active={activeKey is "schedule"}>
+              <h1>Ottelut</h1>
+              <TeamSchedule team={@props.team} />
+            </TabPane>
+            <TabPane key="stats" active={activeKey is "stats"}>
+              <h1>Tilastot</h1>
+              <TeamStats teamId={@props.id} stats={@props.team.stats} />
+            </TabPane>
+            <TabPane key="players" active={activeKey is "players"}>
+              <h1>Pelaajat</h1>
+              <TeamRoster teamId={@props.id} roster={@props.team.roster} />
+            </TabPane>
+          </div>
+        </div>
+
       </div>
     </div>
 

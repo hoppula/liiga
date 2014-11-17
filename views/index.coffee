@@ -1,6 +1,7 @@
 React = require 'react/addons'
 Navigation = require './navigation'
 TeamsListView = require './teams_list'
+TopScorersView = require './top_scorers'
 
 Index = React.createClass
 
@@ -10,10 +11,13 @@ Index = React.createClass
 
       <div className="jumbotron">
         <h1>Liiga.pw</h1>
-        <p>Kaikki Liigasta nopeasti ja vaivattomasti</p>
+        <p>Liigan tilastot nopeasti ja vaivattomasti</p>
       </div>
 
-      <TeamsListView teams={@props.teams} stats={@props.stats} />
+      <TeamsListView teams={@props.teams} />
+
+      <TopScorersView stats={@props.stats} />
+
     </div>
 
 module.exports = Index

@@ -2,6 +2,7 @@ React = require 'react/addons'
 moment = require 'moment'
 _ = require 'lodash'
 
+Navigation = require './navigation'
 Teams = require '../lib/teams'
 
 moment.locale('fi'
@@ -12,30 +13,24 @@ moment.locale('fi'
 )
 moment.locale('fi')
 
-TeamSchedule = React.createClass
+Schedule = React.createClass
+
+  componentDidMount: ->
+    window.scrollTo(0,0)
 
   matchLink: (match) ->
     if moment(match.date) < moment()
-      <a href="/ottelut/#{match.id}">{@titleStyle(match.home)} - {@titleStyle(match.away)}</a>
+      <a href="/ottelut/#{match.id}">{match.home} - {match.away}</a>
     else
-      <span>{@titleStyle(match.home)} - {@titleStyle(match.away)}</span>
-
-  titleStyle: (name) ->
-    if @props.team.info.name is name
-      <strong>{name}</strong>
-    else
-      name
-
-  logo: (name) ->
-    <img src={Teams.logo(name)} alt={name} />
+      <span>{match.home} - {match.away}</span>
 
   groupedSchedule: ->
-    _.chain(@props.team.schedule).groupBy (match) ->
+    _.chain(@props.schedule).groupBy (match) ->
       moment(match.date).format("YYYY-MM")
 
   render: ->
     monthlyMatches = @groupedSchedule().map (matches, month) =>
-      <tbody key={month}>
+      <tbody>
         <tr>
           <th colSpan=4>{moment(month, "YYYY-MM").format("MMMM")}</th>
         </tr>
@@ -49,18 +44,16 @@ TeamSchedule = React.createClass
         }
       </tbody>
 
-    <div className="table-responsive">
-      <table className="table table-striped team-schedule">
-        <thead>
-          <tr>
-            <th>Päivämäärä</th>
-            <th>Joukkueet</th>
-            <th>Tulos</th>
-            <th>Yleisömäärä</th>
-          </tr>
-        </thead>
-        {monthlyMatches}
-      </table>
+    <div>
+      <Navigation />
+
+      <h1>Otteluohjelma</h1>
+
+      <div className="table-responsive">
+        <table className="table table-striped team-schedule">
+          {monthlyMatches}
+        </table>
+      </div>
     </div>
 
-module.exports = TeamSchedule
+module.exports = Schedule

@@ -66,12 +66,63 @@ process.chdir = function (dir) {
 };
 
 },{}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/client.js":[function(require,module,exports){
-var director = require('director');
+var page = require('page');
 var Store = require('./store');
-var Gator = require('./vendor/gator.shim');
+var DOMReady = require('./domready');
+
+function Client(options) {
+  var stores = options.stores;
+  var routes = options.routes;
+  var storeId = options.storeId;
+  var initializeCallback = options.initialize;
+  var render = options.render;
+  var store = new Store(stores);
+
+  DOMReady.then(function() {
+    var storeState = document.getElementById(storeId);
+    store.import( storeState.innerHTML );
+    storeState.innerHTML = "";
+
+    var route;
+    var action;
+    for (route in routes) {
+      action = routes[route];
+      (function(route, action) {
+        page(route, function(ctx) {
+          var params = Object.keys(ctx.params).map(function(key) {
+            return ctx.params[key];
+          });
+          var routeThis = {
+            store: store
+          };
+          return action.apply(routeThis, params).then(function(options) {
+            return render(options);
+          }).catch(function(error) {
+            console.error("Render error while processing route "+ route +":", error);
+          });
+        });
+      })(route, action);
+    }
+
+    // init routes
+    page();
+
+    if (initializeCallback && typeof initializeCallback === "function") {
+      initializeCallback.call(null, {
+        router: page,
+        store: store
+      });
+    }
+
+  });
+};
+
+module.exports = Client;
+
+},{"./domready":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/domready.js","./store":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/store.js","page":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/page/index.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/domready.js":[function(require,module,exports){
 require('native-promise-only');
 
-var DOMReady = new Promise(function(resolve, reject) {
+module.exports = new Promise(function(resolve, reject) {
   if (document.readyState === 'complete') {
     resolve();
   } else {
@@ -82,78 +133,7 @@ var DOMReady = new Promise(function(resolve, reject) {
     document.addEventListener('DOMContentLoaded', onReady, true);
   }
 });
-
-function Client(options) {
-  var stores = options.stores;
-  var routes = options.routes;
-  var storeId = options.storeId;
-  var initializeCallback = options.initialize;
-  var render = options.render;
-  var passthrough = options.passthrough || [];
-
-  var store = new Store(stores);
-
-  DOMReady.then(function() {
-    store.import( document.getElementById(storeId).innerHTML );
-
-    var router = director.Router().configure({
-      html5history: true,
-      notfound: function() {
-        console.warn("Route handler for "+ this.path +" was not found.");
-      }
-    });
-
-    var route;
-    var action;
-    for (route in routes) {
-      action = routes[route];
-      (function(route, action) {
-        router.on(route, function() {
-          var routeThis = {
-            store: store
-          };
-          return action.apply(routeThis, arguments).then(function(options) {
-            return render(options);
-          }).catch(function(error) {
-            console.error("Render error while processing route "+ route +":", error);
-          });
-        });
-      })(route, action);
-    }
-
-    router.init();
-
-    Gator(document).on('click', 'a', function(event) {
-      var target = this;
-      var href = target.href;
-      var protocol = target.protocol +"//";
-      var local = document.location.host === target.host;
-      var relativeUrl = href != null ? href.slice(protocol.length + target.host.length) : void 0;
-      var properLocal = local && relativeUrl.match(/^\//) && !relativeUrl.match(/#$/);
-
-      var passThrough = passthrough.filter(function(url) {
-        return (href && href.indexOf(url) > -1);
-      }).length > 0;
-
-      if (!passThrough && properLocal && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
-        event.preventDefault();
-        router.setRoute(target.href);
-      }
-    });
-
-    if (initializeCallback && typeof initializeCallback === "function") {
-      initializeCallback.call(null, {
-        router: router,
-        store: store
-      });
-    }
-
-  });
-};
-
-module.exports = Client;
-
-},{"./store":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/store.js","./vendor/gator.shim":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/vendor/gator.shim.js","director":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/director/build/director.js","native-promise-only":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/native-promise-only/npo.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/store.js":[function(require,module,exports){
+},{"native-promise-only":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/native-promise-only/npo.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/store.js":[function(require,module,exports){
 var exoskeleton = require("./wrapper/exoskeleton");
 require('native-promise-only');
 
@@ -181,10 +161,41 @@ var Store = (function() {
       this.stores[id] = new store();
       this.cached[id] = {};
     }
+
+    // allows Store to be used as event bus
+    exoskeleton.utils.extend(this, exoskeleton.Events);
+
+    // callbacks expect: storeId, params
+    this.on({
+      "create": this.onCreate,
+      "patch": this.onPatch,
+      "delete": this.onDelete
+    });
   }
 
-  // allows Store to be used as event bus
-  exoskeleton.utils.extend(Store.prototype, exoskeleton.Events);
+  Store.prototype.onCreate = function onCreate(storeId, options) {
+    this.get(storeId).create(options, {success: function() {
+      // TODO: set & call save if model
+      // if collection, call create
+      // properly update cache, use cachePath
+      // when all done, trigger event
+    }});
+  };
+
+  Store.prototype.onPatch = function onPatch(storeId, options) {
+    // TODO: set attrs & save with {patch: true} if model
+    // if collection, find, set attrs & save with {patch: true}
+    //  model.save(attrs, {patch: true})
+    // properly update cache, use cachePath
+    // when all done, trigger event
+  };
+
+  Store.prototype.onDelete = function onDelete(storeId, options) {
+    // TODO: call destroy if model
+    // if collection, call find & destroy
+    // properly delete from cache, use cachePath
+    // when all done, trigger event
+  };
 
   Store.prototype.clearCookie = function() {
     this.cookie = null;
@@ -227,9 +238,10 @@ var Store = (function() {
     return JSON.stringify(cachedStores);
   };
 
-  // returns empty store instance, clone from result of this
+  // returns cloned empty store instance
   Store.prototype.get = function(storeId) {
-    return this.stores[storeId];
+    var store = this.stores[storeId];
+    return (store ? store.clone() : null);
   };
 
   // get store from cache or fetch from server
@@ -248,8 +260,6 @@ var Store = (function() {
         reject(new Error("Store " + storeId + " not registered."));
       }
 
-      // don't modify the original store instance
-      store = store.clone();
       store.storeOptions = {};
       for (key in options) {
         if (options.hasOwnProperty(key)) {
@@ -284,378 +294,7 @@ var Store = (function() {
 
 module.exports = Store;
 
-},{"./wrapper/exoskeleton":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/wrapper/exoskeleton.js","native-promise-only":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/native-promise-only/npo.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/vendor/gator.js":[function(require,module,exports){
-(function (global){
-/**
- * Copyright 2014 Craig Campbell
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *
- * GATOR.JS
- * Simple Event Delegation
- *
- * @version 1.2.3
- *
- * Compatible with IE 9+, FF 3.6+, Safari 5+, Chrome
- *
- * Include legacy.js for compatibility with older browsers
- *
- *             .-._   _ _ _ _ _ _ _ _
- *  .-''-.__.-'00  '-' ' ' ' ' ' ' ' '-.
- * '.___ '    .   .--_'-' '-' '-' _'-' '._
- *  V: V 'vv-'   '_   '.       .'  _..' '.'.
- *    '=.____.=_.--'   :_.__.__:_   '.   : :
- *            (((____.-'        '-.  /   : :
- *                              (((-'\ .' /
- *                            _____..'  .'
- *                           '-._____.-'
- */
-(function(window) {
-    var _matcher,
-        _level = 0,
-        _id = 0,
-        _handlers = {},
-        _gatorInstances = {};
-
-    function _addEvent(gator, type, callback) {
-
-        // blur and focus do not bubble up but if you use event capturing
-        // then you will get them
-        var useCapture = type == 'blur' || type == 'focus';
-        gator.element.addEventListener(type, callback, useCapture);
-    }
-
-    function _cancel(e) {
-        e.preventDefault();
-        e.stopPropagation();
-    }
-
-    /**
-     * returns function to use for determining if an element
-     * matches a query selector
-     *
-     * @returns {Function}
-     */
-    function _getMatcher(element) {
-        if (_matcher) {
-            return _matcher;
-        }
-
-        if (element.matches) {
-            _matcher = element.matches;
-            return _matcher;
-        }
-
-        if (element.webkitMatchesSelector) {
-            _matcher = element.webkitMatchesSelector;
-            return _matcher;
-        }
-
-        if (element.mozMatchesSelector) {
-            _matcher = element.mozMatchesSelector;
-            return _matcher;
-        }
-
-        if (element.msMatchesSelector) {
-            _matcher = element.msMatchesSelector;
-            return _matcher;
-        }
-
-        if (element.oMatchesSelector) {
-            _matcher = element.oMatchesSelector;
-            return _matcher;
-        }
-
-        // if it doesn't match a native browser method
-        // fall back to the gator function
-        _matcher = Gator.matchesSelector;
-        return _matcher;
-    }
-
-    /**
-     * determines if the specified element matches a given selector
-     *
-     * @param {Node} element - the element to compare against the selector
-     * @param {string} selector
-     * @param {Node} boundElement - the element the listener was attached to
-     * @returns {void|Node}
-     */
-    function _matchesSelector(element, selector, boundElement) {
-
-        // no selector means this event was bound directly to this element
-        if (selector == '_root') {
-            return boundElement;
-        }
-
-        // if we have moved up to the element you bound the event to
-        // then we have come too far
-        if (element === boundElement) {
-            return;
-        }
-
-        // if this is a match then we are done!
-        if (_getMatcher(element).call(element, selector)) {
-            return element;
-        }
-
-        // if this element did not match but has a parent we should try
-        // going up the tree to see if any of the parent elements match
-        // for example if you are looking for a click on an <a> tag but there
-        // is a <span> inside of the a tag that it is the target,
-        // it should still work
-        if (element.parentNode) {
-            _level++;
-            return _matchesSelector(element.parentNode, selector, boundElement);
-        }
-    }
-
-    function _addHandler(gator, event, selector, callback) {
-        if (!_handlers[gator.id]) {
-            _handlers[gator.id] = {};
-        }
-
-        if (!_handlers[gator.id][event]) {
-            _handlers[gator.id][event] = {};
-        }
-
-        if (!_handlers[gator.id][event][selector]) {
-            _handlers[gator.id][event][selector] = [];
-        }
-
-        _handlers[gator.id][event][selector].push(callback);
-    }
-
-    function _removeHandler(gator, event, selector, callback) {
-
-        // if there are no events tied to this element at all
-        // then don't do anything
-        if (!_handlers[gator.id]) {
-            return;
-        }
-
-        // if there is no event type specified then remove all events
-        // example: Gator(element).off()
-        if (!event) {
-            for (var type in _handlers[gator.id]) {
-                if (_handlers[gator.id].hasOwnProperty(type)) {
-                    _handlers[gator.id][type] = {};
-                }
-            }
-            return;
-        }
-
-        // if no callback or selector is specified remove all events of this type
-        // example: Gator(element).off('click')
-        if (!callback && !selector) {
-            _handlers[gator.id][event] = {};
-            return;
-        }
-
-        // if a selector is specified but no callback remove all events
-        // for this selector
-        // example: Gator(element).off('click', '.sub-element')
-        if (!callback) {
-            delete _handlers[gator.id][event][selector];
-            return;
-        }
-
-        // if we have specified an event type, selector, and callback then we
-        // need to make sure there are callbacks tied to this selector to
-        // begin with.  if there aren't then we can stop here
-        if (!_handlers[gator.id][event][selector]) {
-            return;
-        }
-
-        // if there are then loop through all the callbacks and if we find
-        // one that matches remove it from the array
-        for (var i = 0; i < _handlers[gator.id][event][selector].length; i++) {
-            if (_handlers[gator.id][event][selector][i] === callback) {
-                _handlers[gator.id][event][selector].splice(i, 1);
-                break;
-            }
-        }
-    }
-
-    function _handleEvent(id, e, type) {
-        if (!_handlers[id][type]) {
-            return;
-        }
-
-        var target = e.target || e.srcElement,
-            selector,
-            match,
-            matches = {},
-            i = 0,
-            j = 0;
-
-        // find all events that match
-        _level = 0;
-        for (selector in _handlers[id][type]) {
-            if (_handlers[id][type].hasOwnProperty(selector)) {
-                match = _matchesSelector(target, selector, _gatorInstances[id].element);
-
-                if (match && Gator.matchesEvent(type, _gatorInstances[id].element, match, selector == '_root', e)) {
-                    _level++;
-                    _handlers[id][type][selector].match = match;
-                    matches[_level] = _handlers[id][type][selector];
-                }
-            }
-        }
-
-        // stopPropagation() fails to set cancelBubble to true in Webkit
-        // @see http://code.google.com/p/chromium/issues/detail?id=162270
-        e.stopPropagation = function() {
-            e.cancelBubble = true;
-        };
-
-        for (i = 0; i <= _level; i++) {
-            if (matches[i]) {
-                for (j = 0; j < matches[i].length; j++) {
-                    if (matches[i][j].call(matches[i].match, e) === false) {
-                        Gator.cancel(e);
-                        return;
-                    }
-
-                    if (e.cancelBubble) {
-                        return;
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * binds the specified events to the element
-     *
-     * @param {string|Array} events
-     * @param {string} selector
-     * @param {Function} callback
-     * @param {boolean=} remove
-     * @returns {Object}
-     */
-    function _bind(events, selector, callback, remove) {
-
-        // fail silently if you pass null or undefined as an alement
-        // in the Gator constructor
-        if (!this.element) {
-            return;
-        }
-
-        if (!(events instanceof Array)) {
-            events = [events];
-        }
-
-        if (!callback && typeof(selector) == 'function') {
-            callback = selector;
-            selector = '_root';
-        }
-
-        var id = this.id,
-            i;
-
-        function _getGlobalCallback(type) {
-            return function(e) {
-                _handleEvent(id, e, type);
-            };
-        }
-
-        for (i = 0; i < events.length; i++) {
-            if (remove) {
-                _removeHandler(this, events[i], selector, callback);
-                continue;
-            }
-
-            if (!_handlers[id] || !_handlers[id][events[i]]) {
-                Gator.addEvent(this, events[i], _getGlobalCallback(events[i]));
-            }
-
-            _addHandler(this, events[i], selector, callback);
-        }
-
-        return this;
-    }
-
-    /**
-     * Gator object constructor
-     *
-     * @param {Node} element
-     */
-    function Gator(element, id) {
-
-        // called as function
-        if (!(this instanceof Gator)) {
-            // only keep one Gator instance per node to make sure that
-            // we don't create a ton of new objects if you want to delegate
-            // multiple events from the same node
-            //
-            // for example: Gator(document).on(...
-            for (var key in _gatorInstances) {
-                if (_gatorInstances[key].element === element) {
-                    return _gatorInstances[key];
-                }
-            }
-
-            _id++;
-            _gatorInstances[_id] = new Gator(element, _id);
-
-            return _gatorInstances[_id];
-        }
-
-        this.element = element;
-        this.id = id;
-    }
-
-    /**
-     * adds an event
-     *
-     * @param {string|Array} events
-     * @param {string} selector
-     * @param {Function} callback
-     * @returns {Object}
-     */
-    Gator.prototype.on = function(events, selector, callback) {
-        return _bind.call(this, events, selector, callback);
-    };
-
-    /**
-     * removes an event
-     *
-     * @param {string|Array} events
-     * @param {string} selector
-     * @param {Function} callback
-     * @returns {Object}
-     */
-    Gator.prototype.off = function(events, selector, callback) {
-        return _bind.call(this, events, selector, callback, true);
-    };
-
-    Gator.matchesSelector = function() {};
-    Gator.cancel = _cancel;
-    Gator.addEvent = _addEvent;
-    Gator.matchesEvent = function() {
-        return true;
-    };
-
-    window.Gator = Gator;
-}) (global || window);
-
-}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/vendor/gator.shim.js":[function(require,module,exports){
-(function (global){
-require('./gator');
-module.exports = global.Gator;
-}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./gator":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/vendor/gator.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/wrapper/exoskeleton.js":[function(require,module,exports){
+},{"./wrapper/exoskeleton":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/wrapper/exoskeleton.js","native-promise-only":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/native-promise-only/npo.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/wrapper/exoskeleton.js":[function(require,module,exports){
 var exoskeleton = require('exoskeleton');
 exoskeleton.$ = require("./sync");
 module.exports = exoskeleton;
@@ -1908,726 +1547,6 @@ exports.objectOrFunction = objectOrFunction;
 exports.isFunction = isFunction;
 exports.isArray = isArray;
 exports.now = now;
-},{}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/director/build/director.js":[function(require,module,exports){
-
-
-//
-// Generated on Fri Dec 27 2013 12:02:11 GMT-0500 (EST) by Nodejitsu, Inc (Using Codesurgeon).
-// Version 1.2.2
-//
-
-(function (exports) {
-
-/*
- * browser.js: Browser specific functionality for director.
- *
- * (C) 2011, Nodejitsu Inc.
- * MIT LICENSE
- *
- */
-
-if (!Array.prototype.filter) {
-  Array.prototype.filter = function(filter, that) {
-    var other = [], v;
-    for (var i = 0, n = this.length; i < n; i++) {
-      if (i in this && filter.call(that, v = this[i], i, this)) {
-        other.push(v);
-      }
-    }
-    return other;
-  };
-}
-
-if (!Array.isArray){
-  Array.isArray = function(obj) {
-    return Object.prototype.toString.call(obj) === '[object Array]';
-  };
-}
-
-var dloc = document.location;
-
-function dlocHashEmpty() {
-  // Non-IE browsers return '' when the address bar shows '#'; Director's logic
-  // assumes both mean empty.
-  return dloc.hash === '' || dloc.hash === '#';
-}
-
-var listener = {
-  mode: 'modern',
-  hash: dloc.hash,
-  history: false,
-
-  check: function () {
-    var h = dloc.hash;
-    if (h != this.hash) {
-      this.hash = h;
-      this.onHashChanged();
-    }
-  },
-
-  fire: function () {
-    if (this.mode === 'modern') {
-      this.history === true ? window.onpopstate() : window.onhashchange();
-    }
-    else {
-      this.onHashChanged();
-    }
-  },
-
-  init: function (fn, history) {
-    var self = this;
-    this.history = history;
-
-    if (!Router.listeners) {
-      Router.listeners = [];
-    }
-
-    function onchange(onChangeEvent) {
-      for (var i = 0, l = Router.listeners.length; i < l; i++) {
-        Router.listeners[i](onChangeEvent);
-      }
-    }
-
-    //note IE8 is being counted as 'modern' because it has the hashchange event
-    if ('onhashchange' in window && (document.documentMode === undefined
-      || document.documentMode > 7)) {
-      // At least for now HTML5 history is available for 'modern' browsers only
-      if (this.history === true) {
-        // There is an old bug in Chrome that causes onpopstate to fire even
-        // upon initial page load. Since the handler is run manually in init(),
-        // this would cause Chrome to run it twise. Currently the only
-        // workaround seems to be to set the handler after the initial page load
-        // http://code.google.com/p/chromium/issues/detail?id=63040
-        setTimeout(function() {
-          window.onpopstate = onchange;
-        }, 500);
-      }
-      else {
-        window.onhashchange = onchange;
-      }
-      this.mode = 'modern';
-    }
-    else {
-      //
-      // IE support, based on a concept by Erik Arvidson ...
-      //
-      var frame = document.createElement('iframe');
-      frame.id = 'state-frame';
-      frame.style.display = 'none';
-      document.body.appendChild(frame);
-      this.writeFrame('');
-
-      if ('onpropertychange' in document && 'attachEvent' in document) {
-        document.attachEvent('onpropertychange', function () {
-          if (event.propertyName === 'location') {
-            self.check();
-          }
-        });
-      }
-
-      window.setInterval(function () { self.check(); }, 50);
-
-      this.onHashChanged = onchange;
-      this.mode = 'legacy';
-    }
-
-    Router.listeners.push(fn);
-
-    return this.mode;
-  },
-
-  destroy: function (fn) {
-    if (!Router || !Router.listeners) {
-      return;
-    }
-
-    var listeners = Router.listeners;
-
-    for (var i = listeners.length - 1; i >= 0; i--) {
-      if (listeners[i] === fn) {
-        listeners.splice(i, 1);
-      }
-    }
-  },
-
-  setHash: function (s) {
-    // Mozilla always adds an entry to the history
-    if (this.mode === 'legacy') {
-      this.writeFrame(s);
-    }
-
-    if (this.history === true) {
-      window.history.pushState({}, document.title, s);
-      // Fire an onpopstate event manually since pushing does not obviously
-      // trigger the pop event.
-      this.fire();
-    } else {
-      dloc.hash = (s[0] === '/') ? s : '/' + s;
-    }
-    return this;
-  },
-
-  writeFrame: function (s) {
-    // IE support...
-    var f = document.getElementById('state-frame');
-    var d = f.contentDocument || f.contentWindow.document;
-    d.open();
-    d.write("<script>_hash = '" + s + "'; onload = parent.listener.syncHash;<script>");
-    d.close();
-  },
-
-  syncHash: function () {
-    // IE support...
-    var s = this._hash;
-    if (s != dloc.hash) {
-      dloc.hash = s;
-    }
-    return this;
-  },
-
-  onHashChanged: function () {}
-};
-
-var Router = exports.Router = function (routes) {
-  if (!(this instanceof Router)) return new Router(routes);
-
-  this.params   = {};
-  this.routes   = {};
-  this.methods  = ['on', 'once', 'after', 'before'];
-  this.scope    = [];
-  this._methods = {};
-
-  this._insert = this.insert;
-  this.insert = this.insertEx;
-
-  this.historySupport = (window.history != null ? window.history.pushState : null) != null
-
-  this.configure();
-  this.mount(routes || {});
-};
-
-Router.prototype.init = function (r) {
-  var self = this;
-  this.handler = function(onChangeEvent) {
-    var newURL = onChangeEvent && onChangeEvent.newURL || window.location.hash;
-    var url = self.history === true ? self.getPath() : newURL.replace(/.*#/, '');
-    self.dispatch('on', url.charAt(0) === '/' ? url : '/' + url);
-  };
-
-  listener.init(this.handler, this.history);
-
-  if (this.history === false) {
-    if (dlocHashEmpty() && r) {
-      dloc.hash = r;
-    } else if (!dlocHashEmpty()) {
-      self.dispatch('on', '/' + dloc.hash.replace(/^(#\/|#|\/)/, ''));
-    }
-  }
-  else {
-    var routeTo = dlocHashEmpty() && r ? r : !dlocHashEmpty() ? dloc.hash.replace(/^#/, '') : null;
-    if (routeTo) {
-      window.history.replaceState({}, document.title, routeTo);
-    }
-
-    // Router has been initialized, but due to the chrome bug it will not
-    // yet actually route HTML5 history state changes. Thus, decide if should route.
-    if (routeTo || this.run_in_init === true) {
-      this.handler();
-    }
-  }
-
-  return this;
-};
-
-Router.prototype.explode = function () {
-  var v = this.history === true ? this.getPath() : dloc.hash;
-  if (v.charAt(1) === '/') { v=v.slice(1) }
-  return v.slice(1, v.length).split("/");
-};
-
-Router.prototype.setRoute = function (i, v, val) {
-  var url = this.explode();
-
-  if (typeof i === 'number' && typeof v === 'string') {
-    url[i] = v;
-  }
-  else if (typeof val === 'string') {
-    url.splice(i, v, s);
-  }
-  else {
-    url = [i];
-  }
-
-  listener.setHash(url.join('/'));
-  return url;
-};
-
-//
-// ### function insertEx(method, path, route, parent)
-// #### @method {string} Method to insert the specific `route`.
-// #### @path {Array} Parsed path to insert the `route` at.
-// #### @route {Array|function} Route handlers to insert.
-// #### @parent {Object} **Optional** Parent "routes" to insert into.
-// insert a callback that will only occur once per the matched route.
-//
-Router.prototype.insertEx = function(method, path, route, parent) {
-  if (method === "once") {
-    method = "on";
-    route = function(route) {
-      var once = false;
-      return function() {
-        if (once) return;
-        once = true;
-        return route.apply(this, arguments);
-      };
-    }(route);
-  }
-  return this._insert(method, path, route, parent);
-};
-
-Router.prototype.getRoute = function (v) {
-  var ret = v;
-
-  if (typeof v === "number") {
-    ret = this.explode()[v];
-  }
-  else if (typeof v === "string"){
-    var h = this.explode();
-    ret = h.indexOf(v);
-  }
-  else {
-    ret = this.explode();
-  }
-
-  return ret;
-};
-
-Router.prototype.destroy = function () {
-  listener.destroy(this.handler);
-  return this;
-};
-
-Router.prototype.getPath = function () {
-  var path = window.location.pathname;
-  if (path.substr(0, 1) !== '/') {
-    path = '/' + path;
-  }
-  return path;
-};
-function _every(arr, iterator) {
-  for (var i = 0; i < arr.length; i += 1) {
-    if (iterator(arr[i], i, arr) === false) {
-      return;
-    }
-  }
-}
-
-function _flatten(arr) {
-  var flat = [];
-  for (var i = 0, n = arr.length; i < n; i++) {
-    flat = flat.concat(arr[i]);
-  }
-  return flat;
-}
-
-function _asyncEverySeries(arr, iterator, callback) {
-  if (!arr.length) {
-    return callback();
-  }
-  var completed = 0;
-  (function iterate() {
-    iterator(arr[completed], function(err) {
-      if (err || err === false) {
-        callback(err);
-        callback = function() {};
-      } else {
-        completed += 1;
-        if (completed === arr.length) {
-          callback();
-        } else {
-          iterate();
-        }
-      }
-    });
-  })();
-}
-
-function paramifyString(str, params, mod) {
-  mod = str;
-  for (var param in params) {
-    if (params.hasOwnProperty(param)) {
-      mod = params[param](str);
-      if (mod !== str) {
-        break;
-      }
-    }
-  }
-  return mod === str ? "([._a-zA-Z0-9-]+)" : mod;
-}
-
-function regifyString(str, params) {
-  var matches, last = 0, out = "";
-  while (matches = str.substr(last).match(/[^\w\d\- %@&]*\*[^\w\d\- %@&]*/)) {
-    last = matches.index + matches[0].length;
-    matches[0] = matches[0].replace(/^\*/, "([_.()!\\ %@&a-zA-Z0-9-]+)");
-    out += str.substr(0, matches.index) + matches[0];
-  }
-  str = out += str.substr(last);
-  var captures = str.match(/:([^\/]+)/ig), capture, length;
-  if (captures) {
-    length = captures.length;
-    for (var i = 0; i < length; i++) {
-      capture = captures[i];
-      if (capture.slice(0, 2) === "::") {
-        str = capture.slice(1);
-      } else {
-        str = str.replace(capture, paramifyString(capture, params));
-      }
-    }
-  }
-  return str;
-}
-
-function terminator(routes, delimiter, start, stop) {
-  var last = 0, left = 0, right = 0, start = (start || "(").toString(), stop = (stop || ")").toString(), i;
-  for (i = 0; i < routes.length; i++) {
-    var chunk = routes[i];
-    if (chunk.indexOf(start, last) > chunk.indexOf(stop, last) || ~chunk.indexOf(start, last) && !~chunk.indexOf(stop, last) || !~chunk.indexOf(start, last) && ~chunk.indexOf(stop, last)) {
-      left = chunk.indexOf(start, last);
-      right = chunk.indexOf(stop, last);
-      if (~left && !~right || !~left && ~right) {
-        var tmp = routes.slice(0, (i || 1) + 1).join(delimiter);
-        routes = [ tmp ].concat(routes.slice((i || 1) + 1));
-      }
-      last = (right > left ? right : left) + 1;
-      i = 0;
-    } else {
-      last = 0;
-    }
-  }
-  return routes;
-}
-
-Router.prototype.configure = function(options) {
-  options = options || {};
-  for (var i = 0; i < this.methods.length; i++) {
-    this._methods[this.methods[i]] = true;
-  }
-  this.recurse = options.recurse || this.recurse || false;
-  this.async = options.async || false;
-  this.delimiter = options.delimiter || "/";
-  this.strict = typeof options.strict === "undefined" ? true : options.strict;
-  this.notfound = options.notfound;
-  this.resource = options.resource;
-  this.history = options.html5history && this.historySupport || false;
-  this.run_in_init = this.history === true && options.run_handler_in_init !== false;
-  this.every = {
-    after: options.after || null,
-    before: options.before || null,
-    on: options.on || null
-  };
-  return this;
-};
-
-Router.prototype.param = function(token, matcher) {
-  if (token[0] !== ":") {
-    token = ":" + token;
-  }
-  var compiled = new RegExp(token, "g");
-  this.params[token] = function(str) {
-    return str.replace(compiled, matcher.source || matcher);
-  };
-};
-
-Router.prototype.on = Router.prototype.route = function(method, path, route) {
-  var self = this;
-  if (!route && typeof path == "function") {
-    route = path;
-    path = method;
-    method = "on";
-  }
-  if (Array.isArray(path)) {
-    return path.forEach(function(p) {
-      self.on(method, p, route);
-    });
-  }
-  if (path.source) {
-    path = path.source.replace(/\\\//ig, "/");
-  }
-  if (Array.isArray(method)) {
-    return method.forEach(function(m) {
-      self.on(m.toLowerCase(), path, route);
-    });
-  }
-  path = path.split(new RegExp(this.delimiter));
-  path = terminator(path, this.delimiter);
-  this.insert(method, this.scope.concat(path), route);
-};
-
-Router.prototype.dispatch = function(method, path, callback) {
-  var self = this, fns = this.traverse(method, path, this.routes, ""), invoked = this._invoked, after;
-  this._invoked = true;
-  if (!fns || fns.length === 0) {
-    this.last = [];
-    if (typeof this.notfound === "function") {
-      this.invoke([ this.notfound ], {
-        method: method,
-        path: path
-      }, callback);
-    }
-    return false;
-  }
-  if (this.recurse === "forward") {
-    fns = fns.reverse();
-  }
-  function updateAndInvoke() {
-    self.last = fns.after;
-    self.invoke(self.runlist(fns), self, callback);
-  }
-  after = this.every && this.every.after ? [ this.every.after ].concat(this.last) : [ this.last ];
-  if (after && after.length > 0 && invoked) {
-    if (this.async) {
-      this.invoke(after, this, updateAndInvoke);
-    } else {
-      this.invoke(after, this);
-      updateAndInvoke();
-    }
-    return true;
-  }
-  updateAndInvoke();
-  return true;
-};
-
-Router.prototype.invoke = function(fns, thisArg, callback) {
-  var self = this;
-  var apply;
-  if (this.async) {
-    apply = function(fn, next) {
-      if (Array.isArray(fn)) {
-        return _asyncEverySeries(fn, apply, next);
-      } else if (typeof fn == "function") {
-        fn.apply(thisArg, fns.captures.concat(next));
-      }
-    };
-    _asyncEverySeries(fns, apply, function() {
-      if (callback) {
-        callback.apply(thisArg, arguments);
-      }
-    });
-  } else {
-    apply = function(fn) {
-      if (Array.isArray(fn)) {
-        return _every(fn, apply);
-      } else if (typeof fn === "function") {
-        return fn.apply(thisArg, fns.captures || []);
-      } else if (typeof fn === "string" && self.resource) {
-        self.resource[fn].apply(thisArg, fns.captures || []);
-      }
-    };
-    _every(fns, apply);
-  }
-};
-
-Router.prototype.traverse = function(method, path, routes, regexp, filter) {
-  var fns = [], current, exact, match, next, that;
-  function filterRoutes(routes) {
-    if (!filter) {
-      return routes;
-    }
-    function deepCopy(source) {
-      var result = [];
-      for (var i = 0; i < source.length; i++) {
-        result[i] = Array.isArray(source[i]) ? deepCopy(source[i]) : source[i];
-      }
-      return result;
-    }
-    function applyFilter(fns) {
-      for (var i = fns.length - 1; i >= 0; i--) {
-        if (Array.isArray(fns[i])) {
-          applyFilter(fns[i]);
-          if (fns[i].length === 0) {
-            fns.splice(i, 1);
-          }
-        } else {
-          if (!filter(fns[i])) {
-            fns.splice(i, 1);
-          }
-        }
-      }
-    }
-    var newRoutes = deepCopy(routes);
-    newRoutes.matched = routes.matched;
-    newRoutes.captures = routes.captures;
-    newRoutes.after = routes.after.filter(filter);
-    applyFilter(newRoutes);
-    return newRoutes;
-  }
-  if (path === this.delimiter && routes[method]) {
-    next = [ [ routes.before, routes[method] ].filter(Boolean) ];
-    next.after = [ routes.after ].filter(Boolean);
-    next.matched = true;
-    next.captures = [];
-    return filterRoutes(next);
-  }
-  for (var r in routes) {
-    if (routes.hasOwnProperty(r) && (!this._methods[r] || this._methods[r] && typeof routes[r] === "object" && !Array.isArray(routes[r]))) {
-      current = exact = regexp + this.delimiter + r;
-      if (!this.strict) {
-        exact += "[" + this.delimiter + "]?";
-      }
-      match = path.match(new RegExp("^" + exact));
-      if (!match) {
-        continue;
-      }
-      if (match[0] && match[0] == path && routes[r][method]) {
-        next = [ [ routes[r].before, routes[r][method] ].filter(Boolean) ];
-        next.after = [ routes[r].after ].filter(Boolean);
-        next.matched = true;
-        next.captures = match.slice(1);
-        if (this.recurse && routes === this.routes) {
-          next.push([ routes.before, routes.on ].filter(Boolean));
-          next.after = next.after.concat([ routes.after ].filter(Boolean));
-        }
-        return filterRoutes(next);
-      }
-      next = this.traverse(method, path, routes[r], current);
-      if (next.matched) {
-        if (next.length > 0) {
-          fns = fns.concat(next);
-        }
-        if (this.recurse) {
-          fns.push([ routes[r].before, routes[r].on ].filter(Boolean));
-          next.after = next.after.concat([ routes[r].after ].filter(Boolean));
-          if (routes === this.routes) {
-            fns.push([ routes["before"], routes["on"] ].filter(Boolean));
-            next.after = next.after.concat([ routes["after"] ].filter(Boolean));
-          }
-        }
-        fns.matched = true;
-        fns.captures = next.captures;
-        fns.after = next.after;
-        return filterRoutes(fns);
-      }
-    }
-  }
-  return false;
-};
-
-Router.prototype.insert = function(method, path, route, parent) {
-  var methodType, parentType, isArray, nested, part;
-  path = path.filter(function(p) {
-    return p && p.length > 0;
-  });
-  parent = parent || this.routes;
-  part = path.shift();
-  if (/\:|\*/.test(part) && !/\\d|\\w/.test(part)) {
-    part = regifyString(part, this.params);
-  }
-  if (path.length > 0) {
-    parent[part] = parent[part] || {};
-    return this.insert(method, path, route, parent[part]);
-  }
-  if (!part && !path.length && parent === this.routes) {
-    methodType = typeof parent[method];
-    switch (methodType) {
-     case "function":
-      parent[method] = [ parent[method], route ];
-      return;
-     case "object":
-      parent[method].push(route);
-      return;
-     case "undefined":
-      parent[method] = route;
-      return;
-    }
-    return;
-  }
-  parentType = typeof parent[part];
-  isArray = Array.isArray(parent[part]);
-  if (parent[part] && !isArray && parentType == "object") {
-    methodType = typeof parent[part][method];
-    switch (methodType) {
-     case "function":
-      parent[part][method] = [ parent[part][method], route ];
-      return;
-     case "object":
-      parent[part][method].push(route);
-      return;
-     case "undefined":
-      parent[part][method] = route;
-      return;
-    }
-  } else if (parentType == "undefined") {
-    nested = {};
-    nested[method] = route;
-    parent[part] = nested;
-    return;
-  }
-  throw new Error("Invalid route context: " + parentType);
-};
-
-
-
-Router.prototype.extend = function(methods) {
-  var self = this, len = methods.length, i;
-  function extend(method) {
-    self._methods[method] = true;
-    self[method] = function() {
-      var extra = arguments.length === 1 ? [ method, "" ] : [ method ];
-      self.on.apply(self, extra.concat(Array.prototype.slice.call(arguments)));
-    };
-  }
-  for (i = 0; i < len; i++) {
-    extend(methods[i]);
-  }
-};
-
-Router.prototype.runlist = function(fns) {
-  var runlist = this.every && this.every.before ? [ this.every.before ].concat(_flatten(fns)) : _flatten(fns);
-  if (this.every && this.every.on) {
-    runlist.push(this.every.on);
-  }
-  runlist.captures = fns.captures;
-  runlist.source = fns.source;
-  return runlist;
-};
-
-Router.prototype.mount = function(routes, path) {
-  if (!routes || typeof routes !== "object" || Array.isArray(routes)) {
-    return;
-  }
-  var self = this;
-  path = path || [];
-  if (!Array.isArray(path)) {
-    path = path.split(self.delimiter);
-  }
-  function insertOrMount(route, local) {
-    var rename = route, parts = route.split(self.delimiter), routeType = typeof routes[route], isRoute = parts[0] === "" || !self._methods[parts[0]], event = isRoute ? "on" : rename;
-    if (isRoute) {
-      rename = rename.slice((rename.match(new RegExp("^" + self.delimiter)) || [ "" ])[0].length);
-      parts.shift();
-    }
-    if (isRoute && routeType === "object" && !Array.isArray(routes[route])) {
-      local = local.concat(parts);
-      self.mount(routes[route], local);
-      return;
-    }
-    if (isRoute) {
-      local = local.concat(rename.split(self.delimiter));
-      local = terminator(local, self.delimiter);
-    }
-    self.insert(event, local, routes[route]);
-  }
-  for (var route in routes) {
-    if (routes.hasOwnProperty(route)) {
-      insertOrMount(route, path.slice(0));
-    }
-  }
-};
-
-
-
-}(typeof exports === "object" ? exports : window));
 },{}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/exoskeleton/exoskeleton.js":[function(require,module,exports){
 /*!
  * Exoskeleton.js 0.7.0
@@ -4400,6 +3319,452 @@ _.extend(History.prototype, Events, {
 !function(t,n,e){n[t]=n[t]||e(),"undefined"!=typeof module&&module.exports?module.exports=n[t]:"function"==typeof define&&define.amd&&define(function(){return n[t]})}("Promise","undefined"!=typeof global?global:this,function(){"use strict";function t(t,n){l.add(t,n),h||(h=y(l.drain))}function n(t){var n,e=typeof t;return null==t||"object"!=e&&"function"!=e||(n=t.then),"function"==typeof n?n:!1}function e(){for(var t=0;t<this.chain.length;t++)o(this,1===this.state?this.chain[t].success:this.chain[t].failure,this.chain[t]);this.chain.length=0}function o(t,e,o){var r,i;try{e===!1?o.reject(t.msg):(r=e===!0?t.msg:e.call(void 0,t.msg),r===o.promise?o.reject(TypeError("Promise-chain cycle")):(i=n(r))?i.call(r,o.resolve,o.reject):o.resolve(r))}catch(c){o.reject(c)}}function r(o){var c,u,a=this;if(!a.triggered){a.triggered=!0,a.def&&(a=a.def);try{(c=n(o))?(u=new f(a),c.call(o,function(){r.apply(u,arguments)},function(){i.apply(u,arguments)})):(a.msg=o,a.state=1,a.chain.length>0&&t(e,a))}catch(s){i.call(u||new f(a),s)}}}function i(n){var o=this;o.triggered||(o.triggered=!0,o.def&&(o=o.def),o.msg=n,o.state=2,o.chain.length>0&&t(e,o))}function c(t,n,e,o){for(var r=0;r<n.length;r++)!function(r){t.resolve(n[r]).then(function(t){e(r,t)},o)}(r)}function f(t){this.def=t,this.triggered=!1}function u(t){this.promise=t,this.state=0,this.triggered=!1,this.chain=[],this.msg=void 0}function a(n){if("function"!=typeof n)throw TypeError("Not a function");if(0!==this.__NPO__)throw TypeError("Not a promise");this.__NPO__=1;var o=new u(this);this.then=function(n,r){var i={success:"function"==typeof n?n:!0,failure:"function"==typeof r?r:!1};return i.promise=new this.constructor(function(t,n){if("function"!=typeof t||"function"!=typeof n)throw TypeError("Not a function");i.resolve=t,i.reject=n}),o.chain.push(i),0!==o.state&&t(e,o),i.promise},this["catch"]=function(t){return this.then(void 0,t)};try{n.call(void 0,function(t){r.call(o,t)},function(t){i.call(o,t)})}catch(c){i.call(o,c)}}var s,h,l,p=Object.prototype.toString,y="undefined"!=typeof setImmediate?function(t){return setImmediate(t)}:setTimeout;try{Object.defineProperty({},"x",{}),s=function(t,n,e,o){return Object.defineProperty(t,n,{value:e,writable:!0,configurable:o!==!1})}}catch(d){s=function(t,n,e){return t[n]=e,t}}l=function(){function t(t,n){this.fn=t,this.self=n,this.next=void 0}var n,e,o;return{add:function(r,i){o=new t(r,i),e?e.next=o:n=o,e=o,o=void 0},drain:function(){var t=n;for(n=e=h=void 0;t;)t.fn.call(t.self),t=t.next}}}();var g=s({},"constructor",a,!1);return s(a,"prototype",g,!1),s(g,"__NPO__",0,!1),s(a,"resolve",function(t){var n=this;return t&&"object"==typeof t&&1===t.__NPO__?t:new n(function(n,e){if("function"!=typeof n||"function"!=typeof e)throw TypeError("Not a function");n(t)})}),s(a,"reject",function(t){return new this(function(n,e){if("function"!=typeof n||"function"!=typeof e)throw TypeError("Not a function");e(t)})}),s(a,"all",function(t){var n=this;return"[object Array]"!=p.call(t)?n.reject(TypeError("Not an array")):0===t.length?n.resolve([]):new n(function(e,o){if("function"!=typeof e||"function"!=typeof o)throw TypeError("Not a function");var r=t.length,i=Array(r),f=0;c(n,t,function(t,n){i[t]=n,++f===r&&e(i)},o)})}),s(a,"race",function(t){var n=this;return"[object Array]"!=p.call(t)?n.reject(TypeError("Not an array")):new n(function(e,o){if("function"!=typeof e||"function"!=typeof o)throw TypeError("Not a function");c(n,t,function(t,n){e(n)},o)})}),a});
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/page/index.js":[function(require,module,exports){
+
+;(function(){
+
+  /**
+   * Perform initial dispatch.
+   */
+
+  var dispatch = true;
+
+  /**
+   * Base path.
+   */
+
+  var base = '';
+
+  /**
+   * Running flag.
+   */
+
+  var running;
+
+  /**
+   * Register `path` with callback `fn()`,
+   * or route `path`, or `page.start()`.
+   *
+   *   page(fn);
+   *   page('*', fn);
+   *   page('/user/:id', load, user);
+   *   page('/user/' + user.id, { some: 'thing' });
+   *   page('/user/' + user.id);
+   *   page();
+   *
+   * @param {String|Function} path
+   * @param {Function} fn...
+   * @api public
+   */
+
+  function page(path, fn) {
+    // <callback>
+    if ('function' == typeof path) {
+      return page('*', path);
+    }
+
+    // route <path> to <callback ...>
+    if ('function' == typeof fn) {
+      var route = new Route(path);
+      for (var i = 1; i < arguments.length; ++i) {
+        page.callbacks.push(route.middleware(arguments[i]));
+      }
+    // show <path> with [state]
+    } else if ('string' == typeof path) {
+      page.show(path, fn);
+    // start [options]
+    } else {
+      page.start(path);
+    }
+  }
+
+  /**
+   * Callback functions.
+   */
+
+  page.callbacks = [];
+
+  /**
+   * Get or set basepath to `path`.
+   *
+   * @param {String} path
+   * @api public
+   */
+
+  page.base = function(path){
+    if (0 == arguments.length) return base;
+    base = path;
+  };
+
+  /**
+   * Bind with the given `options`.
+   *
+   * Options:
+   *
+   *    - `click` bind to click events [true]
+   *    - `popstate` bind to popstate [true]
+   *    - `dispatch` perform initial dispatch [true]
+   *
+   * @param {Object} options
+   * @api public
+   */
+
+  page.start = function(options){
+    options = options || {};
+    if (running) return;
+    running = true;
+    if (false === options.dispatch) dispatch = false;
+    if (false !== options.popstate) window.addEventListener('popstate', onpopstate, false);
+    if (false !== options.click) window.addEventListener('click', onclick, false);
+    if (!dispatch) return;
+    var url = location.pathname + location.search + location.hash;
+    page.replace(url, null, true, dispatch);
+  };
+
+  /**
+   * Unbind click and popstate event handlers.
+   *
+   * @api public
+   */
+
+  page.stop = function(){
+    running = false;
+    removeEventListener('click', onclick, false);
+    removeEventListener('popstate', onpopstate, false);
+  };
+
+  /**
+   * Show `path` with optional `state` object.
+   *
+   * @param {String} path
+   * @param {Object} state
+   * @param {Boolean} dispatch
+   * @return {Context}
+   * @api public
+   */
+
+  page.show = function(path, state, dispatch){
+    var ctx = new Context(path, state);
+    if (false !== dispatch) page.dispatch(ctx);
+    if (!ctx.unhandled) ctx.pushState();
+    return ctx;
+  };
+
+  /**
+   * Replace `path` with optional `state` object.
+   *
+   * @param {String} path
+   * @param {Object} state
+   * @return {Context}
+   * @api public
+   */
+
+  page.replace = function(path, state, init, dispatch){
+    var ctx = new Context(path, state);
+    ctx.init = init;
+    if (null == dispatch) dispatch = true;
+    if (dispatch) page.dispatch(ctx);
+    ctx.save();
+    return ctx;
+  };
+
+  /**
+   * Dispatch the given `ctx`.
+   *
+   * @param {Object} ctx
+   * @api private
+   */
+
+  page.dispatch = function(ctx){
+    var i = 0;
+
+    function next() {
+      var fn = page.callbacks[i++];
+      if (!fn) return unhandled(ctx);
+      fn(ctx, next);
+    }
+
+    next();
+  };
+
+  /**
+   * Unhandled `ctx`. When it's not the initial
+   * popstate then redirect. If you wish to handle
+   * 404s on your own use `page('*', callback)`.
+   *
+   * @param {Context} ctx
+   * @api private
+   */
+
+  function unhandled(ctx) {
+    var current = window.location.pathname + window.location.search;
+    if (current == ctx.canonicalPath) return;
+    page.stop();
+    ctx.unhandled = true;
+    window.location = ctx.canonicalPath;
+  }
+
+  /**
+   * Initialize a new "request" `Context`
+   * with the given `path` and optional initial `state`.
+   *
+   * @param {String} path
+   * @param {Object} state
+   * @api public
+   */
+
+  function Context(path, state) {
+    if ('/' == path[0] && 0 != path.indexOf(base)) path = base + path;
+    var i = path.indexOf('?');
+
+    this.canonicalPath = path;
+    this.path = path.replace(base, '') || '/';
+
+    this.title = document.title;
+    this.state = state || {};
+    this.state.path = path;
+    this.querystring = ~i ? path.slice(i + 1) : '';
+    this.pathname = ~i ? path.slice(0, i) : path;
+    this.params = [];
+
+    // fragment
+    this.hash = '';
+    if (!~this.path.indexOf('#')) return;
+    var parts = this.path.split('#');
+    this.path = parts[0];
+    this.hash = parts[1] || '';
+    this.querystring = this.querystring.split('#')[0];
+  }
+
+  /**
+   * Expose `Context`.
+   */
+
+  page.Context = Context;
+
+  /**
+   * Push state.
+   *
+   * @api private
+   */
+
+  Context.prototype.pushState = function(){
+    history.pushState(this.state, this.title, this.canonicalPath);
+  };
+
+  /**
+   * Save the context state.
+   *
+   * @api public
+   */
+
+  Context.prototype.save = function(){
+    history.replaceState(this.state, this.title, this.canonicalPath);
+  };
+
+  /**
+   * Initialize `Route` with the given HTTP `path`,
+   * and an array of `callbacks` and `options`.
+   *
+   * Options:
+   *
+   *   - `sensitive`    enable case-sensitive routes
+   *   - `strict`       enable strict matching for trailing slashes
+   *
+   * @param {String} path
+   * @param {Object} options.
+   * @api private
+   */
+
+  function Route(path, options) {
+    options = options || {};
+    this.path = path;
+    this.method = 'GET';
+    this.regexp = pathtoRegexp(path
+      , this.keys = []
+      , options.sensitive
+      , options.strict);
+  }
+
+  /**
+   * Expose `Route`.
+   */
+
+  page.Route = Route;
+
+  /**
+   * Return route middleware with
+   * the given callback `fn()`.
+   *
+   * @param {Function} fn
+   * @return {Function}
+   * @api public
+   */
+
+  Route.prototype.middleware = function(fn){
+    var self = this;
+    return function(ctx, next){
+      if (self.match(ctx.path, ctx.params)) return fn(ctx, next);
+      next();
+    };
+  };
+
+  /**
+   * Check if this route matches `path`, if so
+   * populate `params`.
+   *
+   * @param {String} path
+   * @param {Array} params
+   * @return {Boolean}
+   * @api private
+   */
+
+  Route.prototype.match = function(path, params){
+    var keys = this.keys
+      , qsIndex = path.indexOf('?')
+      , pathname = ~qsIndex ? path.slice(0, qsIndex) : path
+      , m = this.regexp.exec(pathname);
+
+    if (!m) return false;
+
+    for (var i = 1, len = m.length; i < len; ++i) {
+      var key = keys[i - 1];
+
+      var val = 'string' == typeof m[i]
+        ? decodeURIComponent(m[i])
+        : m[i];
+
+      if (key) {
+        params[key.name] = undefined !== params[key.name]
+          ? params[key.name]
+          : val;
+      } else {
+        params.push(val);
+      }
+    }
+
+    return true;
+  };
+
+  /**
+   * Normalize the given path string,
+   * returning a regular expression.
+   *
+   * An empty array should be passed,
+   * which will contain the placeholder
+   * key names. For example "/user/:id" will
+   * then contain ["id"].
+   *
+   * @param  {String|RegExp|Array} path
+   * @param  {Array} keys
+   * @param  {Boolean} sensitive
+   * @param  {Boolean} strict
+   * @return {RegExp}
+   * @api private
+   */
+
+  function pathtoRegexp(path, keys, sensitive, strict) {
+    if (path instanceof RegExp) return path;
+    if (path instanceof Array) path = '(' + path.join('|') + ')';
+    path = path
+      .concat(strict ? '' : '/?')
+      .replace(/\/\(/g, '(?:/')
+      .replace(/(\/)?(\.)?:(\w+)(?:(\(.*?\)))?(\?)?/g, function(_, slash, format, key, capture, optional){
+        keys.push({ name: key, optional: !! optional });
+        slash = slash || '';
+        return ''
+          + (optional ? '' : slash)
+          + '(?:'
+          + (optional ? slash : '')
+          + (format || '') + (capture || (format && '([^/.]+?)' || '([^/]+?)')) + ')'
+          + (optional || '');
+      })
+      .replace(/([\/.])/g, '\\$1')
+      .replace(/\*/g, '(.*)');
+    return new RegExp('^' + path + '$', sensitive ? '' : 'i');
+  }
+
+  /**
+   * Handle "populate" events.
+   */
+
+  function onpopstate(e) {
+    if (e.state) {
+      var path = e.state.path;
+      page.replace(path, e.state);
+    }
+  }
+
+  /**
+   * Handle "click" events.
+   */
+
+  function onclick(e) {
+    if (1 != which(e)) return;
+    if (e.metaKey || e.ctrlKey || e.shiftKey) return;
+    if (e.defaultPrevented) return;
+
+    // ensure link
+    var el = e.target;
+    while (el && 'A' != el.nodeName) el = el.parentNode;
+    if (!el || 'A' != el.nodeName) return;
+
+    // ensure non-hash for the same path
+    var link = el.getAttribute('href');
+    if (el.pathname == location.pathname && (el.hash || '#' == link)) return;
+
+    // check target
+    if (el.target) return;
+
+    // x-origin
+    if (!sameOrigin(el.href)) return;
+
+    // rebuild path
+    var path = el.pathname + el.search + (el.hash || '');
+
+    // same page
+    var orig = path + el.hash;
+
+    path = path.replace(base, '');
+    if (base && orig == path) return;
+
+    e.preventDefault();
+    page.show(orig);
+  }
+
+  /**
+   * Event button.
+   */
+
+  function which(e) {
+    e = e || window.event;
+    return null == e.which
+      ? e.button
+      : e.which;
+  }
+
+  /**
+   * Check if `href` is the same origin.
+   */
+
+  function sameOrigin(href) {
+    var origin = location.protocol + '//' + location.hostname;
+    if (location.port) origin += ':' + location.port;
+    return 0 == href.indexOf(origin);
+  }
+
+  /**
+   * Expose `page`.
+   */
+
+  if ('undefined' == typeof module) {
+    window.page = page;
+  } else {
+    module.exports = page;
+  }
+
+})();
+
 },{}],"/Users/hoppula/repos/liiga_frontend/node_modules/react-bootstrap/Accordion.js":[function(require,module,exports){
 /** @jsx React.DOM */
 
@@ -29677,7 +29042,8 @@ var cerebellum = {
     validateOptions(options);
     return client(options);
   },
-  exoskeleton: exoskeleton
+  Collection: exoskeleton.Collection,
+  Model: exoskeleton.Model
 };
 
 module.exports = cerebellum;

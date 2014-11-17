@@ -1,4 +1,5 @@
 React = require 'react/addons'
+moment = require 'moment'
 _ = require 'lodash'
 
 TeamRoster = React.createClass
@@ -18,9 +19,9 @@ TeamRoster = React.createClass
 
   render: ->
     groups = @groupedRoster().map (players, group) =>
-      <tbody>
+      <tbody key={group}>
         <tr>
-          <th colSpan=5>{group}</th>
+          <th colSpan=6>{group}</th>
         </tr>
         {_.chain(players).flatten().map (player) =>
           url = "/joukkueet/#{@props.teamId}/#{player.id}"
@@ -31,21 +32,25 @@ TeamRoster = React.createClass
             <td>{player.height}</td>
             <td>{player.weight}</td>
             <td>{player.shoots}</td>
+            <td>{moment().diff(player.birthday, "years")}</td>
           </tr>
         }
       </tbody>
 
-    <table className="table table-striped team-roster">
-      <thead>
-        <tr>
-          <th>Nimi</th>
-          <th>Numero</th>
-          <th>Pituus</th>
-          <th>Paino</th>
-          <th>Kätisyys</th>
-        </tr>
-      </thead>
-      {groups}
-    </table>
+    <div className="table-responsive">
+      <table className="table table-striped team-roster">
+        <thead>
+          <tr>
+            <th>Nimi</th>
+            <th>Numero</th>
+            <th>Pituus</th>
+            <th>Paino</th>
+            <th>Kätisyys</th>
+            <th>Ikä</th>
+          </tr>
+        </thead>
+        {groups}
+      </table>
+    </div>
 
 module.exports = TeamRoster

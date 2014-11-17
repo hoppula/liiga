@@ -1,10 +1,18 @@
 TeamsCollection = require './stores/teams'
+ScheduleCollection = require './stores/schedule'
+StandingsCollection = require './stores/standings'
 StatsModel = require './stores/stats'
 TeamModel = require './stores/team'
-MatchModel = require './stores/match'
+GameEventsModel = require './stores/game_events'
+GameLineupsModel = require './stores/game_lineups'
+GameStatsModel = require './stores/game_stats'
 
 module.exports =
   teams: TeamsCollection
+  schedule: ScheduleCollection
+  standings: StandingsCollection
   stats: StatsModel
   team: TeamModel
-  match: MatchModel
+  gameEvents: GameEventsModel
+  gameLineups: GameLineupsModel
+  gameStats: GameStatsModel
