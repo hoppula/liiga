@@ -1,71 +1,4 @@
-require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/browser-resolve/empty.js":[function(require,module,exports){
-
-},{}],"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js":[function(require,module,exports){
-// shim for using process in browser
-
-var process = module.exports = {};
-
-process.nextTick = (function () {
-    var canSetImmediate = typeof window !== 'undefined'
-    && window.setImmediate;
-    var canPost = typeof window !== 'undefined'
-    && window.postMessage && window.addEventListener
-    ;
-
-    if (canSetImmediate) {
-        return function (f) { return window.setImmediate(f) };
-    }
-
-    if (canPost) {
-        var queue = [];
-        window.addEventListener('message', function (ev) {
-            var source = ev.source;
-            if ((source === window || source === null) && ev.data === 'process-tick') {
-                ev.stopPropagation();
-                if (queue.length > 0) {
-                    var fn = queue.shift();
-                    fn();
-                }
-            }
-        }, true);
-
-        return function nextTick(fn) {
-            queue.push(fn);
-            window.postMessage('process-tick', '*');
-        };
-    }
-
-    return function nextTick(fn) {
-        setTimeout(fn, 0);
-    };
-})();
-
-process.title = 'browser';
-process.browser = true;
-process.env = {};
-process.argv = [];
-
-function noop() {}
-
-process.on = noop;
-process.addListener = noop;
-process.once = noop;
-process.off = noop;
-process.removeListener = noop;
-process.removeAllListeners = noop;
-process.emit = noop;
-
-process.binding = function (name) {
-    throw new Error('process.binding is not supported');
-}
-
-// TODO(shtylman)
-process.cwd = function () { return '/' };
-process.chdir = function (dir) {
-    throw new Error('process.chdir is not supported');
-};
-
-},{}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/client.js":[function(require,module,exports){
+require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/client.js":[function(require,module,exports){
 var page = require('page');
 var Store = require('./store');
 var DOMReady = require('./domready');
@@ -513,7 +446,7 @@ function createShortMethodsWithData() {
   });
 }
 }).call(this,require('_process'))
-},{"./adapters/http":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/adapters/xhr.js","./adapters/xhr":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/adapters/xhr.js","./defaults":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/defaults.js","./spread":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/spread.js","./utils":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/utils.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js","es6-promise":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/main.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/buildUrl.js":[function(require,module,exports){
+},{"./adapters/http":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/adapters/xhr.js","./adapters/xhr":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/adapters/xhr.js","./defaults":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/defaults.js","./spread":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/spread.js","./utils":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/utils.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js","es6-promise":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/main.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/lib/buildUrl.js":[function(require,module,exports){
 'use strict';
 
 var utils = require('./utils');
@@ -1101,7 +1034,7 @@ function asap(callback, arg) {
 
 exports.asap = asap;
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/promise/config.js":[function(require,module,exports){
+},{"_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/node_modules/axios/node_modules/es6-promise/dist/commonjs/promise/config.js":[function(require,module,exports){
 "use strict";
 var config = {
   instrument: false
@@ -9019,7 +8952,7 @@ var CSSCore = {
 module.exports = CSSCore;
 
 }).call(this,require('_process'))
-},{"./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/CSSProperty.js":[function(require,module,exports){
+},{"./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/CSSProperty.js":[function(require,module,exports){
 /**
  * Copyright 2013-2014 Facebook, Inc.
  *
@@ -9348,7 +9281,7 @@ PooledClass.addPoolingTo(CallbackQueue);
 module.exports = CallbackQueue;
 
 }).call(this,require('_process'))
-},{"./PooledClass":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/PooledClass.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","./mixInto":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/mixInto.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ChangeEventPlugin.js":[function(require,module,exports){
+},{"./PooledClass":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/PooledClass.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","./mixInto":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/mixInto.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ChangeEventPlugin.js":[function(require,module,exports){
 /**
  * Copyright 2013-2014 Facebook, Inc.
  *
@@ -10217,7 +10150,7 @@ var DOMChildrenOperations = {
 module.exports = DOMChildrenOperations;
 
 }).call(this,require('_process'))
-},{"./Danger":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/Danger.js","./ReactMultiChildUpdateTypes":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactMultiChildUpdateTypes.js","./getTextContentAccessor":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/getTextContentAccessor.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/DOMProperty.js":[function(require,module,exports){
+},{"./Danger":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/Danger.js","./ReactMultiChildUpdateTypes":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactMultiChildUpdateTypes.js","./getTextContentAccessor":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/getTextContentAccessor.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/DOMProperty.js":[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2014 Facebook, Inc.
@@ -10519,7 +10452,7 @@ var DOMProperty = {
 module.exports = DOMProperty;
 
 }).call(this,require('_process'))
-},{"./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/DOMPropertyOperations.js":[function(require,module,exports){
+},{"./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/DOMPropertyOperations.js":[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2014 Facebook, Inc.
@@ -10716,7 +10649,7 @@ var DOMPropertyOperations = {
 module.exports = DOMPropertyOperations;
 
 }).call(this,require('_process'))
-},{"./DOMProperty":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/DOMProperty.js","./escapeTextForBrowser":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/escapeTextForBrowser.js","./memoizeStringOnly":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/memoizeStringOnly.js","./warning":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/warning.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/Danger.js":[function(require,module,exports){
+},{"./DOMProperty":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/DOMProperty.js","./escapeTextForBrowser":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/escapeTextForBrowser.js","./memoizeStringOnly":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/memoizeStringOnly.js","./warning":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/warning.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/Danger.js":[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2014 Facebook, Inc.
@@ -10907,7 +10840,7 @@ var Danger = {
 module.exports = Danger;
 
 }).call(this,require('_process'))
-},{"./ExecutionEnvironment":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ExecutionEnvironment.js","./createNodesFromMarkup":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/createNodesFromMarkup.js","./emptyFunction":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/emptyFunction.js","./getMarkupWrap":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/getMarkupWrap.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/DefaultEventPluginOrder.js":[function(require,module,exports){
+},{"./ExecutionEnvironment":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ExecutionEnvironment.js","./createNodesFromMarkup":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/createNodesFromMarkup.js","./emptyFunction":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/emptyFunction.js","./getMarkupWrap":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/getMarkupWrap.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/DefaultEventPluginOrder.js":[function(require,module,exports){
 /**
  * Copyright 2013-2014 Facebook, Inc.
  *
@@ -11256,7 +11189,7 @@ var EventListener = {
 module.exports = EventListener;
 
 }).call(this,require('_process'))
-},{"./emptyFunction":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/emptyFunction.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/EventPluginHub.js":[function(require,module,exports){
+},{"./emptyFunction":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/emptyFunction.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/EventPluginHub.js":[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2014 Facebook, Inc.
@@ -11550,7 +11483,7 @@ var EventPluginHub = {
 module.exports = EventPluginHub;
 
 }).call(this,require('_process'))
-},{"./EventPluginRegistry":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/EventPluginRegistry.js","./EventPluginUtils":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/EventPluginUtils.js","./accumulate":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/accumulate.js","./forEachAccumulated":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/forEachAccumulated.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","./isEventSupported":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/isEventSupported.js","./monitorCodeUse":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/monitorCodeUse.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/EventPluginRegistry.js":[function(require,module,exports){
+},{"./EventPluginRegistry":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/EventPluginRegistry.js","./EventPluginUtils":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/EventPluginUtils.js","./accumulate":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/accumulate.js","./forEachAccumulated":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/forEachAccumulated.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","./isEventSupported":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/isEventSupported.js","./monitorCodeUse":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/monitorCodeUse.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/EventPluginRegistry.js":[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2014 Facebook, Inc.
@@ -11837,7 +11770,7 @@ var EventPluginRegistry = {
 module.exports = EventPluginRegistry;
 
 }).call(this,require('_process'))
-},{"./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/EventPluginUtils.js":[function(require,module,exports){
+},{"./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/EventPluginUtils.js":[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2014 Facebook, Inc.
@@ -12065,7 +11998,7 @@ var EventPluginUtils = {
 module.exports = EventPluginUtils;
 
 }).call(this,require('_process'))
-},{"./EventConstants":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/EventConstants.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/EventPropagators.js":[function(require,module,exports){
+},{"./EventConstants":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/EventConstants.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/EventPropagators.js":[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2014 Facebook, Inc.
@@ -12212,7 +12145,7 @@ var EventPropagators = {
 module.exports = EventPropagators;
 
 }).call(this,require('_process'))
-},{"./EventConstants":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/EventConstants.js","./EventPluginHub":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/EventPluginHub.js","./accumulate":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/accumulate.js","./forEachAccumulated":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/forEachAccumulated.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ExecutionEnvironment.js":[function(require,module,exports){
+},{"./EventConstants":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/EventConstants.js","./EventPluginHub":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/EventPluginHub.js","./accumulate":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/accumulate.js","./forEachAccumulated":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/forEachAccumulated.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ExecutionEnvironment.js":[function(require,module,exports){
 /**
  * Copyright 2013-2014 Facebook, Inc.
  *
@@ -12376,6 +12309,7 @@ var HTMLDOMPropertyConfig = {
     loop: MUST_USE_PROPERTY | HAS_BOOLEAN_VALUE,
     max: null,
     maxLength: MUST_USE_ATTRIBUTE,
+    media: MUST_USE_ATTRIBUTE,
     mediaGroup: null,
     method: null,
     min: null,
@@ -12383,6 +12317,7 @@ var HTMLDOMPropertyConfig = {
     muted: MUST_USE_PROPERTY | HAS_BOOLEAN_VALUE,
     name: null,
     noValidate: HAS_BOOLEAN_VALUE,
+    open: null,
     pattern: null,
     placeholder: null,
     poster: null,
@@ -12403,11 +12338,12 @@ var HTMLDOMPropertyConfig = {
     selected: MUST_USE_PROPERTY | HAS_BOOLEAN_VALUE,
     shape: null,
     size: MUST_USE_ATTRIBUTE | HAS_POSITIVE_NUMERIC_VALUE,
+    sizes: MUST_USE_ATTRIBUTE,
     span: HAS_POSITIVE_NUMERIC_VALUE,
     spellCheck: null,
     src: null,
     srcDoc: MUST_USE_PROPERTY,
-    srcSet: null,
+    srcSet: MUST_USE_ATTRIBUTE,
     start: HAS_NUMERIC_VALUE,
     step: null,
     style: null,
@@ -12663,7 +12599,7 @@ var LinkedValueUtils = {
 module.exports = LinkedValueUtils;
 
 }).call(this,require('_process'))
-},{"./ReactPropTypes":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactPropTypes.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/LocalEventTrapMixin.js":[function(require,module,exports){
+},{"./ReactPropTypes":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactPropTypes.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/LocalEventTrapMixin.js":[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2014 Facebook, Inc.
@@ -12719,7 +12655,7 @@ var LocalEventTrapMixin = {
 module.exports = LocalEventTrapMixin;
 
 }).call(this,require('_process'))
-},{"./ReactBrowserEventEmitter":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactBrowserEventEmitter.js","./accumulate":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/accumulate.js","./forEachAccumulated":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/forEachAccumulated.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/MobileSafariClickEventPlugin.js":[function(require,module,exports){
+},{"./ReactBrowserEventEmitter":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactBrowserEventEmitter.js","./accumulate":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/accumulate.js","./forEachAccumulated":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/forEachAccumulated.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/MobileSafariClickEventPlugin.js":[function(require,module,exports){
 /**
  * Copyright 2013-2014 Facebook, Inc.
  *
@@ -12907,7 +12843,7 @@ var PooledClass = {
 module.exports = PooledClass;
 
 }).call(this,require('_process'))
-},{"./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/React.js":[function(require,module,exports){
+},{"./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/React.js":[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2014 Facebook, Inc.
@@ -12949,8 +12885,20 @@ var ReactServerRendering = require("./ReactServerRendering");
 var ReactTextComponent = require("./ReactTextComponent");
 
 var onlyChild = require("./onlyChild");
+var warning = require("./warning");
 
 ReactDefaultInjection.inject();
+
+// Specifying arguments isn't necessary since we just use apply anyway, but it
+// makes it clear for those actually consuming this API.
+function createDescriptor(type, props, children) {
+  var args = Array.prototype.slice.call(arguments, 1);
+  return type.apply(null, args);
+}
+
+if ("production" !== process.env.NODE_ENV) {
+  var _warnedForDeprecation = false;
+}
 
 var React = {
   Children: {
@@ -12965,10 +12913,18 @@ var React = {
     EventPluginUtils.useTouchEvents = shouldUseTouch;
   },
   createClass: ReactCompositeComponent.createClass,
-  createDescriptor: function(type, props, children) {
-    var args = Array.prototype.slice.call(arguments, 1);
-    return type.apply(null, args);
+  createDescriptor: function() {
+    if ("production" !== process.env.NODE_ENV) {
+      ("production" !== process.env.NODE_ENV ? warning(
+        _warnedForDeprecation,
+        'React.createDescriptor is deprecated and will be removed in the ' +
+        'next version of React. Use React.createElement instead.'
+      ) : null);
+      _warnedForDeprecation = true;
+    }
+    return createDescriptor.apply(this, arguments);
   },
+  createElement: createDescriptor,
   constructAndRenderComponent: ReactMount.constructAndRenderComponent,
   constructAndRenderComponentByID: ReactMount.constructAndRenderComponentByID,
   renderComponent: ReactPerf.measure(
@@ -13037,12 +12993,12 @@ if ("production" !== process.env.NODE_ENV) {
 
 // Version exists only in the open-source version of React, not in Facebook's
 // internal version.
-React.version = '0.11.1';
+React.version = '0.11.2';
 
 module.exports = React;
 
 }).call(this,require('_process'))
-},{"./DOMPropertyOperations":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/DOMPropertyOperations.js","./EventPluginUtils":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/EventPluginUtils.js","./ExecutionEnvironment":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ExecutionEnvironment.js","./ReactChildren":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactChildren.js","./ReactComponent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactComponent.js","./ReactCompositeComponent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactCompositeComponent.js","./ReactContext":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactContext.js","./ReactCurrentOwner":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactCurrentOwner.js","./ReactDOM":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDOM.js","./ReactDOMComponent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDOMComponent.js","./ReactDefaultInjection":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDefaultInjection.js","./ReactDescriptor":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDescriptor.js","./ReactInstanceHandles":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactInstanceHandles.js","./ReactMount":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactMount.js","./ReactMultiChild":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactMultiChild.js","./ReactPerf":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactPerf.js","./ReactPropTypes":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactPropTypes.js","./ReactServerRendering":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactServerRendering.js","./ReactTextComponent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactTextComponent.js","./onlyChild":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/onlyChild.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactBrowserComponentMixin.js":[function(require,module,exports){
+},{"./DOMPropertyOperations":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/DOMPropertyOperations.js","./EventPluginUtils":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/EventPluginUtils.js","./ExecutionEnvironment":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ExecutionEnvironment.js","./ReactChildren":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactChildren.js","./ReactComponent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactComponent.js","./ReactCompositeComponent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactCompositeComponent.js","./ReactContext":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactContext.js","./ReactCurrentOwner":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactCurrentOwner.js","./ReactDOM":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDOM.js","./ReactDOMComponent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDOMComponent.js","./ReactDefaultInjection":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDefaultInjection.js","./ReactDescriptor":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDescriptor.js","./ReactInstanceHandles":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactInstanceHandles.js","./ReactMount":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactMount.js","./ReactMultiChild":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactMultiChild.js","./ReactPerf":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactPerf.js","./ReactPropTypes":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactPropTypes.js","./ReactServerRendering":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactServerRendering.js","./ReactTextComponent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactTextComponent.js","./onlyChild":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/onlyChild.js","./warning":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/warning.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactBrowserComponentMixin.js":[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2014 Facebook, Inc.
@@ -13092,7 +13048,7 @@ var ReactBrowserComponentMixin = {
 module.exports = ReactBrowserComponentMixin;
 
 }).call(this,require('_process'))
-},{"./ReactEmptyComponent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactEmptyComponent.js","./ReactMount":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactMount.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactBrowserEventEmitter.js":[function(require,module,exports){
+},{"./ReactEmptyComponent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactEmptyComponent.js","./ReactMount":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactMount.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactBrowserEventEmitter.js":[function(require,module,exports){
 /**
  * Copyright 2013-2014 Facebook, Inc.
  *
@@ -13662,7 +13618,7 @@ var ReactCSSTransitionGroupChild = React.createClass({
 module.exports = ReactCSSTransitionGroupChild;
 
 }).call(this,require('_process'))
-},{"./CSSCore":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/CSSCore.js","./React":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/React.js","./ReactTransitionEvents":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactTransitionEvents.js","./onlyChild":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/onlyChild.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactChildren.js":[function(require,module,exports){
+},{"./CSSCore":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/CSSCore.js","./React":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/React.js","./ReactTransitionEvents":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactTransitionEvents.js","./onlyChild":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/onlyChild.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactChildren.js":[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2014 Facebook, Inc.
@@ -13819,7 +13775,7 @@ var ReactChildren = {
 module.exports = ReactChildren;
 
 }).call(this,require('_process'))
-},{"./PooledClass":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/PooledClass.js","./traverseAllChildren":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/traverseAllChildren.js","./warning":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/warning.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactComponent.js":[function(require,module,exports){
+},{"./PooledClass":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/PooledClass.js","./traverseAllChildren":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/traverseAllChildren.js","./warning":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/warning.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactComponent.js":[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2014 Facebook, Inc.
@@ -14269,7 +14225,7 @@ var ReactComponent = {
 module.exports = ReactComponent;
 
 }).call(this,require('_process'))
-},{"./ReactDescriptor":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDescriptor.js","./ReactOwner":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactOwner.js","./ReactUpdates":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactUpdates.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","./keyMirror":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/keyMirror.js","./merge":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/merge.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactComponentBrowserEnvironment.js":[function(require,module,exports){
+},{"./ReactDescriptor":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDescriptor.js","./ReactOwner":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactOwner.js","./ReactUpdates":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactUpdates.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","./keyMirror":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/keyMirror.js","./merge":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/merge.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactComponentBrowserEnvironment.js":[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2014 Facebook, Inc.
@@ -14398,7 +14354,7 @@ var ReactComponentBrowserEnvironment = {
 module.exports = ReactComponentBrowserEnvironment;
 
 }).call(this,require('_process'))
-},{"./ReactDOMIDOperations":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDOMIDOperations.js","./ReactMarkupChecksum":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactMarkupChecksum.js","./ReactMount":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactMount.js","./ReactPerf":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactPerf.js","./ReactReconcileTransaction":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactReconcileTransaction.js","./getReactRootElementInContainer":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/getReactRootElementInContainer.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","./setInnerHTML":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/setInnerHTML.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactComponentWithPureRenderMixin.js":[function(require,module,exports){
+},{"./ReactDOMIDOperations":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDOMIDOperations.js","./ReactMarkupChecksum":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactMarkupChecksum.js","./ReactMount":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactMount.js","./ReactPerf":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactPerf.js","./ReactReconcileTransaction":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactReconcileTransaction.js","./getReactRootElementInContainer":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/getReactRootElementInContainer.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","./setInnerHTML":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/setInnerHTML.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactComponentWithPureRenderMixin.js":[function(require,module,exports){
 /**
  * Copyright 2013-2014 Facebook, Inc.
  *
@@ -15883,7 +15839,7 @@ var ReactCompositeComponent = {
 module.exports = ReactCompositeComponent;
 
 }).call(this,require('_process'))
-},{"./ReactComponent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactComponent.js","./ReactContext":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactContext.js","./ReactCurrentOwner":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactCurrentOwner.js","./ReactDescriptor":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDescriptor.js","./ReactDescriptorValidator":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDescriptorValidator.js","./ReactEmptyComponent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactEmptyComponent.js","./ReactErrorUtils":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactErrorUtils.js","./ReactOwner":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactOwner.js","./ReactPerf":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactPerf.js","./ReactPropTransferer":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactPropTransferer.js","./ReactPropTypeLocationNames":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactPropTypeLocationNames.js","./ReactPropTypeLocations":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactPropTypeLocations.js","./ReactUpdates":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactUpdates.js","./instantiateReactComponent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/instantiateReactComponent.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","./keyMirror":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/keyMirror.js","./mapObject":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/mapObject.js","./merge":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/merge.js","./mixInto":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/mixInto.js","./monitorCodeUse":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/monitorCodeUse.js","./shouldUpdateReactComponent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/shouldUpdateReactComponent.js","./warning":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/warning.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactContext.js":[function(require,module,exports){
+},{"./ReactComponent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactComponent.js","./ReactContext":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactContext.js","./ReactCurrentOwner":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactCurrentOwner.js","./ReactDescriptor":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDescriptor.js","./ReactDescriptorValidator":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDescriptorValidator.js","./ReactEmptyComponent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactEmptyComponent.js","./ReactErrorUtils":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactErrorUtils.js","./ReactOwner":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactOwner.js","./ReactPerf":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactPerf.js","./ReactPropTransferer":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactPropTransferer.js","./ReactPropTypeLocationNames":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactPropTypeLocationNames.js","./ReactPropTypeLocations":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactPropTypeLocations.js","./ReactUpdates":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactUpdates.js","./instantiateReactComponent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/instantiateReactComponent.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","./keyMirror":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/keyMirror.js","./mapObject":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/mapObject.js","./merge":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/merge.js","./mixInto":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/mixInto.js","./monitorCodeUse":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/monitorCodeUse.js","./shouldUpdateReactComponent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/shouldUpdateReactComponent.js","./warning":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/warning.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactContext.js":[function(require,module,exports){
 /**
  * Copyright 2013-2014 Facebook, Inc.
  *
@@ -16092,6 +16048,7 @@ var ReactDOM = mapObject({
   del: false,
   details: false,
   dfn: false,
+  dialog: false,
   div: false,
   dl: false,
   dt: false,
@@ -16139,6 +16096,7 @@ var ReactDOM = mapObject({
   output: false,
   p: false,
   param: true,
+  picture: false,
   pre: false,
   progress: false,
   q: false,
@@ -16206,7 +16164,7 @@ ReactDOM.injection = injection;
 module.exports = ReactDOM;
 
 }).call(this,require('_process'))
-},{"./ReactDOMComponent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDOMComponent.js","./ReactDescriptor":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDescriptor.js","./ReactDescriptorValidator":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDescriptorValidator.js","./mapObject":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/mapObject.js","./mergeInto":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/mergeInto.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDOMButton.js":[function(require,module,exports){
+},{"./ReactDOMComponent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDOMComponent.js","./ReactDescriptor":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDescriptor.js","./ReactDescriptorValidator":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDescriptorValidator.js","./mapObject":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/mapObject.js","./mergeInto":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/mergeInto.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDOMButton.js":[function(require,module,exports){
 /**
  * Copyright 2013-2014 Facebook, Inc.
  *
@@ -16699,7 +16657,7 @@ mixInto(ReactDOMComponent, ReactBrowserComponentMixin);
 module.exports = ReactDOMComponent;
 
 }).call(this,require('_process'))
-},{"./CSSPropertyOperations":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/CSSPropertyOperations.js","./DOMProperty":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/DOMProperty.js","./DOMPropertyOperations":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/DOMPropertyOperations.js","./ReactBrowserComponentMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactBrowserComponentMixin.js","./ReactBrowserEventEmitter":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactBrowserEventEmitter.js","./ReactComponent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactComponent.js","./ReactMount":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactMount.js","./ReactMultiChild":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactMultiChild.js","./ReactPerf":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactPerf.js","./escapeTextForBrowser":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/escapeTextForBrowser.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","./keyOf":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/keyOf.js","./merge":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/merge.js","./mixInto":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/mixInto.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDOMForm.js":[function(require,module,exports){
+},{"./CSSPropertyOperations":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/CSSPropertyOperations.js","./DOMProperty":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/DOMProperty.js","./DOMPropertyOperations":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/DOMPropertyOperations.js","./ReactBrowserComponentMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactBrowserComponentMixin.js","./ReactBrowserEventEmitter":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactBrowserEventEmitter.js","./ReactComponent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactComponent.js","./ReactMount":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactMount.js","./ReactMultiChild":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactMultiChild.js","./ReactPerf":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactPerf.js","./escapeTextForBrowser":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/escapeTextForBrowser.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","./keyOf":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/keyOf.js","./merge":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/merge.js","./mixInto":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/mixInto.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDOMForm.js":[function(require,module,exports){
 /**
  * Copyright 2013-2014 Facebook, Inc.
  *
@@ -16948,7 +16906,7 @@ var ReactDOMIDOperations = {
 module.exports = ReactDOMIDOperations;
 
 }).call(this,require('_process'))
-},{"./CSSPropertyOperations":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/CSSPropertyOperations.js","./DOMChildrenOperations":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/DOMChildrenOperations.js","./DOMPropertyOperations":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/DOMPropertyOperations.js","./ReactMount":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactMount.js","./ReactPerf":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactPerf.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","./setInnerHTML":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/setInnerHTML.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDOMImg.js":[function(require,module,exports){
+},{"./CSSPropertyOperations":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/CSSPropertyOperations.js","./DOMChildrenOperations":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/DOMChildrenOperations.js","./DOMPropertyOperations":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/DOMPropertyOperations.js","./ReactMount":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactMount.js","./ReactPerf":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactPerf.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","./setInnerHTML":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/setInnerHTML.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDOMImg.js":[function(require,module,exports){
 /**
  * Copyright 2013-2014 Facebook, Inc.
  *
@@ -17188,7 +17146,7 @@ var ReactDOMInput = ReactCompositeComponent.createClass({
 module.exports = ReactDOMInput;
 
 }).call(this,require('_process'))
-},{"./AutoFocusMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/AutoFocusMixin.js","./DOMPropertyOperations":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/DOMPropertyOperations.js","./LinkedValueUtils":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/LinkedValueUtils.js","./ReactBrowserComponentMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactBrowserComponentMixin.js","./ReactCompositeComponent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactCompositeComponent.js","./ReactDOM":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDOM.js","./ReactMount":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactMount.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","./merge":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/merge.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDOMOption.js":[function(require,module,exports){
+},{"./AutoFocusMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/AutoFocusMixin.js","./DOMPropertyOperations":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/DOMPropertyOperations.js","./LinkedValueUtils":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/LinkedValueUtils.js","./ReactBrowserComponentMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactBrowserComponentMixin.js","./ReactCompositeComponent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactCompositeComponent.js","./ReactDOM":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDOM.js","./ReactMount":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactMount.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","./merge":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/merge.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDOMOption.js":[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2014 Facebook, Inc.
@@ -17247,7 +17205,7 @@ var ReactDOMOption = ReactCompositeComponent.createClass({
 module.exports = ReactDOMOption;
 
 }).call(this,require('_process'))
-},{"./ReactBrowserComponentMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactBrowserComponentMixin.js","./ReactCompositeComponent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactCompositeComponent.js","./ReactDOM":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDOM.js","./warning":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/warning.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDOMSelect.js":[function(require,module,exports){
+},{"./ReactBrowserComponentMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactBrowserComponentMixin.js","./ReactCompositeComponent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactCompositeComponent.js","./ReactDOM":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDOM.js","./warning":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/warning.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDOMSelect.js":[function(require,module,exports){
 /**
  * Copyright 2013-2014 Facebook, Inc.
  *
@@ -17792,7 +17750,7 @@ var ReactDOMTextarea = ReactCompositeComponent.createClass({
 module.exports = ReactDOMTextarea;
 
 }).call(this,require('_process'))
-},{"./AutoFocusMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/AutoFocusMixin.js","./DOMPropertyOperations":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/DOMPropertyOperations.js","./LinkedValueUtils":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/LinkedValueUtils.js","./ReactBrowserComponentMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactBrowserComponentMixin.js","./ReactCompositeComponent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactCompositeComponent.js","./ReactDOM":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDOM.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","./merge":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/merge.js","./warning":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/warning.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDefaultBatchingStrategy.js":[function(require,module,exports){
+},{"./AutoFocusMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/AutoFocusMixin.js","./DOMPropertyOperations":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/DOMPropertyOperations.js","./LinkedValueUtils":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/LinkedValueUtils.js","./ReactBrowserComponentMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactBrowserComponentMixin.js","./ReactCompositeComponent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactCompositeComponent.js","./ReactDOM":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDOM.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","./merge":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/merge.js","./warning":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/warning.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDefaultBatchingStrategy.js":[function(require,module,exports){
 /**
  * Copyright 2013-2014 Facebook, Inc.
  *
@@ -18001,7 +17959,7 @@ module.exports = {
 };
 
 }).call(this,require('_process'))
-},{"./BeforeInputEventPlugin":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/BeforeInputEventPlugin.js","./ChangeEventPlugin":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ChangeEventPlugin.js","./ClientReactRootIndex":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ClientReactRootIndex.js","./CompositionEventPlugin":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/CompositionEventPlugin.js","./DefaultEventPluginOrder":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/DefaultEventPluginOrder.js","./EnterLeaveEventPlugin":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/EnterLeaveEventPlugin.js","./ExecutionEnvironment":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ExecutionEnvironment.js","./HTMLDOMPropertyConfig":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/HTMLDOMPropertyConfig.js","./MobileSafariClickEventPlugin":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/MobileSafariClickEventPlugin.js","./ReactBrowserComponentMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactBrowserComponentMixin.js","./ReactComponentBrowserEnvironment":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactComponentBrowserEnvironment.js","./ReactDOM":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDOM.js","./ReactDOMButton":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDOMButton.js","./ReactDOMForm":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDOMForm.js","./ReactDOMImg":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDOMImg.js","./ReactDOMInput":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDOMInput.js","./ReactDOMOption":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDOMOption.js","./ReactDOMSelect":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDOMSelect.js","./ReactDOMTextarea":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDOMTextarea.js","./ReactDefaultBatchingStrategy":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDefaultBatchingStrategy.js","./ReactDefaultPerf":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDefaultPerf.js","./ReactEventListener":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactEventListener.js","./ReactInjection":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactInjection.js","./ReactInstanceHandles":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactInstanceHandles.js","./ReactMount":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactMount.js","./SVGDOMPropertyConfig":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/SVGDOMPropertyConfig.js","./SelectEventPlugin":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/SelectEventPlugin.js","./ServerReactRootIndex":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ServerReactRootIndex.js","./SimpleEventPlugin":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/SimpleEventPlugin.js","./createFullPageComponent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/createFullPageComponent.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDefaultPerf.js":[function(require,module,exports){
+},{"./BeforeInputEventPlugin":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/BeforeInputEventPlugin.js","./ChangeEventPlugin":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ChangeEventPlugin.js","./ClientReactRootIndex":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ClientReactRootIndex.js","./CompositionEventPlugin":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/CompositionEventPlugin.js","./DefaultEventPluginOrder":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/DefaultEventPluginOrder.js","./EnterLeaveEventPlugin":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/EnterLeaveEventPlugin.js","./ExecutionEnvironment":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ExecutionEnvironment.js","./HTMLDOMPropertyConfig":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/HTMLDOMPropertyConfig.js","./MobileSafariClickEventPlugin":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/MobileSafariClickEventPlugin.js","./ReactBrowserComponentMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactBrowserComponentMixin.js","./ReactComponentBrowserEnvironment":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactComponentBrowserEnvironment.js","./ReactDOM":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDOM.js","./ReactDOMButton":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDOMButton.js","./ReactDOMForm":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDOMForm.js","./ReactDOMImg":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDOMImg.js","./ReactDOMInput":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDOMInput.js","./ReactDOMOption":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDOMOption.js","./ReactDOMSelect":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDOMSelect.js","./ReactDOMTextarea":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDOMTextarea.js","./ReactDefaultBatchingStrategy":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDefaultBatchingStrategy.js","./ReactDefaultPerf":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDefaultPerf.js","./ReactEventListener":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactEventListener.js","./ReactInjection":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactInjection.js","./ReactInstanceHandles":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactInstanceHandles.js","./ReactMount":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactMount.js","./SVGDOMPropertyConfig":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/SVGDOMPropertyConfig.js","./SelectEventPlugin":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/SelectEventPlugin.js","./ServerReactRootIndex":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ServerReactRootIndex.js","./SimpleEventPlugin":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/SimpleEventPlugin.js","./createFullPageComponent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/createFullPageComponent.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDefaultPerf.js":[function(require,module,exports){
 /**
  * Copyright 2013-2014 Facebook, Inc.
  *
@@ -18724,7 +18682,7 @@ ReactDescriptor.isValidDescriptor = function(object) {
 module.exports = ReactDescriptor;
 
 }).call(this,require('_process'))
-},{"./ReactContext":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactContext.js","./ReactCurrentOwner":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactCurrentOwner.js","./merge":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/merge.js","./warning":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/warning.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDescriptorValidator.js":[function(require,module,exports){
+},{"./ReactContext":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactContext.js","./ReactCurrentOwner":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactCurrentOwner.js","./merge":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/merge.js","./warning":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/warning.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDescriptorValidator.js":[function(require,module,exports){
 /**
  * Copyright 2014 Facebook, Inc.
  *
@@ -19091,7 +19049,7 @@ var ReactEmptyComponent = {
 module.exports = ReactEmptyComponent;
 
 }).call(this,require('_process'))
-},{"./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactErrorUtils.js":[function(require,module,exports){
+},{"./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactErrorUtils.js":[function(require,module,exports){
 /**
  * Copyright 2013-2014 Facebook, Inc.
  *
@@ -19910,7 +19868,7 @@ var ReactInstanceHandles = {
 module.exports = ReactInstanceHandles;
 
 }).call(this,require('_process'))
-},{"./ReactRootIndex":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactRootIndex.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactLink.js":[function(require,module,exports){
+},{"./ReactRootIndex":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactRootIndex.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactLink.js":[function(require,module,exports){
 /**
  * Copyright 2013-2014 Facebook, Inc.
  *
@@ -20730,7 +20688,7 @@ var ReactMount = {
 module.exports = ReactMount;
 
 }).call(this,require('_process'))
-},{"./DOMProperty":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/DOMProperty.js","./ReactBrowserEventEmitter":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactBrowserEventEmitter.js","./ReactCurrentOwner":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactCurrentOwner.js","./ReactDescriptor":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDescriptor.js","./ReactInstanceHandles":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactInstanceHandles.js","./ReactPerf":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactPerf.js","./containsNode":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/containsNode.js","./getReactRootElementInContainer":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/getReactRootElementInContainer.js","./instantiateReactComponent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/instantiateReactComponent.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","./shouldUpdateReactComponent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/shouldUpdateReactComponent.js","./warning":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/warning.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactMultiChild.js":[function(require,module,exports){
+},{"./DOMProperty":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/DOMProperty.js","./ReactBrowserEventEmitter":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactBrowserEventEmitter.js","./ReactCurrentOwner":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactCurrentOwner.js","./ReactDescriptor":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDescriptor.js","./ReactInstanceHandles":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactInstanceHandles.js","./ReactPerf":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactPerf.js","./containsNode":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/containsNode.js","./getReactRootElementInContainer":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/getReactRootElementInContainer.js","./instantiateReactComponent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/instantiateReactComponent.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","./shouldUpdateReactComponent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/shouldUpdateReactComponent.js","./warning":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/warning.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactMultiChild.js":[function(require,module,exports){
 /**
  * Copyright 2013-2014 Facebook, Inc.
  *
@@ -21365,7 +21323,7 @@ var ReactOwner = {
 module.exports = ReactOwner;
 
 }).call(this,require('_process'))
-},{"./emptyObject":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/emptyObject.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactPerf.js":[function(require,module,exports){
+},{"./emptyObject":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/emptyObject.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactPerf.js":[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2014 Facebook, Inc.
@@ -21454,7 +21412,7 @@ function _noMeasure(objName, fnName, func) {
 module.exports = ReactPerf;
 
 }).call(this,require('_process'))
-},{"_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactPropTransferer.js":[function(require,module,exports){
+},{"_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactPropTransferer.js":[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2014 Facebook, Inc.
@@ -21620,7 +21578,7 @@ var ReactPropTransferer = {
 module.exports = ReactPropTransferer;
 
 }).call(this,require('_process'))
-},{"./emptyFunction":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/emptyFunction.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","./joinClasses":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/joinClasses.js","./merge":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/merge.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactPropTypeLocationNames.js":[function(require,module,exports){
+},{"./emptyFunction":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/emptyFunction.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","./joinClasses":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/joinClasses.js","./merge":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/merge.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactPropTypeLocationNames.js":[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2014 Facebook, Inc.
@@ -21655,7 +21613,7 @@ if ("production" !== process.env.NODE_ENV) {
 module.exports = ReactPropTypeLocationNames;
 
 }).call(this,require('_process'))
-},{"_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactPropTypeLocations.js":[function(require,module,exports){
+},{"_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactPropTypeLocations.js":[function(require,module,exports){
 /**
  * Copyright 2013-2014 Facebook, Inc.
  *
@@ -22409,7 +22367,7 @@ module.exports = {
 };
 
 }).call(this,require('_process'))
-},{"./ReactDescriptor":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDescriptor.js","./ReactInstanceHandles":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactInstanceHandles.js","./ReactMarkupChecksum":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactMarkupChecksum.js","./ReactServerRenderingTransaction":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactServerRenderingTransaction.js","./instantiateReactComponent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/instantiateReactComponent.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactServerRenderingTransaction.js":[function(require,module,exports){
+},{"./ReactDescriptor":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDescriptor.js","./ReactInstanceHandles":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactInstanceHandles.js","./ReactMarkupChecksum":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactMarkupChecksum.js","./ReactServerRenderingTransaction":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactServerRenderingTransaction.js","./instantiateReactComponent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/instantiateReactComponent.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactServerRenderingTransaction.js":[function(require,module,exports){
 /**
  * Copyright 2014 Facebook, Inc.
  *
@@ -23849,7 +23807,7 @@ var ReactUpdates = {
 module.exports = ReactUpdates;
 
 }).call(this,require('_process'))
-},{"./CallbackQueue":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/CallbackQueue.js","./PooledClass":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/PooledClass.js","./ReactCurrentOwner":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactCurrentOwner.js","./ReactPerf":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactPerf.js","./Transaction":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/Transaction.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","./mixInto":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/mixInto.js","./warning":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/warning.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactWithAddons.js":[function(require,module,exports){
+},{"./CallbackQueue":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/CallbackQueue.js","./PooledClass":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/PooledClass.js","./ReactCurrentOwner":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactCurrentOwner.js","./ReactPerf":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactPerf.js","./Transaction":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/Transaction.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","./mixInto":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/mixInto.js","./warning":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/warning.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactWithAddons.js":[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2014 Facebook, Inc.
@@ -23909,7 +23867,7 @@ module.exports = React;
 
 
 }).call(this,require('_process'))
-},{"./LinkedStateMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/LinkedStateMixin.js","./React":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/React.js","./ReactCSSTransitionGroup":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactCSSTransitionGroup.js","./ReactComponentWithPureRenderMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactComponentWithPureRenderMixin.js","./ReactDefaultPerf":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDefaultPerf.js","./ReactTestUtils":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactTestUtils.js","./ReactTransitionGroup":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactTransitionGroup.js","./cloneWithProps":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/cloneWithProps.js","./cx":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/cx.js","./update":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/update.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/SVGDOMPropertyConfig.js":[function(require,module,exports){
+},{"./LinkedStateMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/LinkedStateMixin.js","./React":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/React.js","./ReactCSSTransitionGroup":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactCSSTransitionGroup.js","./ReactComponentWithPureRenderMixin":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactComponentWithPureRenderMixin.js","./ReactDefaultPerf":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDefaultPerf.js","./ReactTestUtils":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactTestUtils.js","./ReactTransitionGroup":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactTransitionGroup.js","./cloneWithProps":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/cloneWithProps.js","./cx":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/cx.js","./update":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/update.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/SVGDOMPropertyConfig.js":[function(require,module,exports){
 /**
  * Copyright 2013-2014 Facebook, Inc.
  *
@@ -24671,7 +24629,7 @@ var SimpleEventPlugin = {
 module.exports = SimpleEventPlugin;
 
 }).call(this,require('_process'))
-},{"./EventConstants":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/EventConstants.js","./EventPluginUtils":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/EventPluginUtils.js","./EventPropagators":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/EventPropagators.js","./SyntheticClipboardEvent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/SyntheticClipboardEvent.js","./SyntheticDragEvent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/SyntheticDragEvent.js","./SyntheticEvent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/SyntheticEvent.js","./SyntheticFocusEvent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/SyntheticFocusEvent.js","./SyntheticKeyboardEvent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/SyntheticKeyboardEvent.js","./SyntheticMouseEvent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/SyntheticMouseEvent.js","./SyntheticTouchEvent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/SyntheticTouchEvent.js","./SyntheticUIEvent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/SyntheticUIEvent.js","./SyntheticWheelEvent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/SyntheticWheelEvent.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","./keyOf":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/keyOf.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/SyntheticClipboardEvent.js":[function(require,module,exports){
+},{"./EventConstants":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/EventConstants.js","./EventPluginUtils":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/EventPluginUtils.js","./EventPropagators":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/EventPropagators.js","./SyntheticClipboardEvent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/SyntheticClipboardEvent.js","./SyntheticDragEvent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/SyntheticDragEvent.js","./SyntheticEvent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/SyntheticEvent.js","./SyntheticFocusEvent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/SyntheticFocusEvent.js","./SyntheticKeyboardEvent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/SyntheticKeyboardEvent.js","./SyntheticMouseEvent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/SyntheticMouseEvent.js","./SyntheticTouchEvent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/SyntheticTouchEvent.js","./SyntheticUIEvent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/SyntheticUIEvent.js","./SyntheticWheelEvent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/SyntheticWheelEvent.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","./keyOf":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/keyOf.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/SyntheticClipboardEvent.js":[function(require,module,exports){
 /**
  * Copyright 2013-2014 Facebook, Inc.
  *
@@ -25708,7 +25666,7 @@ var Transaction = {
 module.exports = Transaction;
 
 }).call(this,require('_process'))
-},{"./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ViewportMetrics.js":[function(require,module,exports){
+},{"./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ViewportMetrics.js":[function(require,module,exports){
 /**
  * Copyright 2013-2014 Facebook, Inc.
  *
@@ -25805,7 +25763,7 @@ function accumulate(current, next) {
 module.exports = accumulate;
 
 }).call(this,require('_process'))
-},{"./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/adler32.js":[function(require,module,exports){
+},{"./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/adler32.js":[function(require,module,exports){
 /**
  * Copyright 2013-2014 Facebook, Inc.
  *
@@ -25911,7 +25869,7 @@ function cloneWithProps(child, props) {
 module.exports = cloneWithProps;
 
 }).call(this,require('_process'))
-},{"./ReactPropTransferer":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactPropTransferer.js","./keyOf":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/keyOf.js","./warning":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/warning.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/containsNode.js":[function(require,module,exports){
+},{"./ReactPropTransferer":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactPropTransferer.js","./keyOf":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/keyOf.js","./warning":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/warning.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/containsNode.js":[function(require,module,exports){
 /**
  * Copyright 2013-2014 Facebook, Inc.
  *
@@ -26020,7 +25978,7 @@ function copyProperties(obj, a, b, c, d, e, f) {
 module.exports = copyProperties;
 
 }).call(this,require('_process'))
-},{"_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/createArrayFrom.js":[function(require,module,exports){
+},{"_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/createArrayFrom.js":[function(require,module,exports){
 /**
  * Copyright 2013-2014 Facebook, Inc.
  *
@@ -26180,7 +26138,7 @@ function createFullPageComponent(componentClass) {
 module.exports = createFullPageComponent;
 
 }).call(this,require('_process'))
-},{"./ReactCompositeComponent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactCompositeComponent.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/createNodesFromMarkup.js":[function(require,module,exports){
+},{"./ReactCompositeComponent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactCompositeComponent.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/createNodesFromMarkup.js":[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2014 Facebook, Inc.
@@ -26277,7 +26235,7 @@ function createNodesFromMarkup(markup, handleScript) {
 module.exports = createNodesFromMarkup;
 
 }).call(this,require('_process'))
-},{"./ExecutionEnvironment":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ExecutionEnvironment.js","./createArrayFrom":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/createArrayFrom.js","./getMarkupWrap":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/getMarkupWrap.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/cx.js":[function(require,module,exports){
+},{"./ExecutionEnvironment":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ExecutionEnvironment.js","./createArrayFrom":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/createArrayFrom.js","./getMarkupWrap":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/getMarkupWrap.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/cx.js":[function(require,module,exports){
 /**
  * Copyright 2013-2014 Facebook, Inc.
  *
@@ -26464,7 +26422,7 @@ if ("production" !== process.env.NODE_ENV) {
 module.exports = emptyObject;
 
 }).call(this,require('_process'))
-},{"_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/escapeTextForBrowser.js":[function(require,module,exports){
+},{"_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/escapeTextForBrowser.js":[function(require,module,exports){
 /**
  * Copyright 2013-2014 Facebook, Inc.
  *
@@ -26575,7 +26533,7 @@ function flattenChildren(children) {
 module.exports = flattenChildren;
 
 }).call(this,require('_process'))
-},{"./traverseAllChildren":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/traverseAllChildren.js","./warning":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/warning.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/focusNode.js":[function(require,module,exports){
+},{"./traverseAllChildren":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/traverseAllChildren.js","./warning":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/warning.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/focusNode.js":[function(require,module,exports){
 /**
  * Copyright 2014 Facebook, Inc.
  *
@@ -26803,7 +26761,7 @@ function getEventKey(nativeEvent) {
 module.exports = getEventKey;
 
 }).call(this,require('_process'))
-},{"./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/getEventModifierState.js":[function(require,module,exports){
+},{"./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/getEventModifierState.js":[function(require,module,exports){
 /**
  * Copyright 2013 Facebook, Inc.
  *
@@ -27019,7 +26977,7 @@ function getMarkupWrap(nodeName) {
 module.exports = getMarkupWrap;
 
 }).call(this,require('_process'))
-},{"./ExecutionEnvironment":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ExecutionEnvironment.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/getNodeForCharacterOffset.js":[function(require,module,exports){
+},{"./ExecutionEnvironment":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ExecutionEnvironment.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/getNodeForCharacterOffset.js":[function(require,module,exports){
 /**
  * Copyright 2013-2014 Facebook, Inc.
  *
@@ -27388,7 +27346,7 @@ function instantiateReactComponent(descriptor) {
 module.exports = instantiateReactComponent;
 
 }).call(this,require('_process'))
-},{"./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js":[function(require,module,exports){
+},{"./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js":[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2014 Facebook, Inc.
@@ -27452,7 +27410,7 @@ var invariant = function(condition, format, a, b, c, d, e, f) {
 module.exports = invariant;
 
 }).call(this,require('_process'))
-},{"_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/isEventSupported.js":[function(require,module,exports){
+},{"_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/isEventSupported.js":[function(require,module,exports){
 /**
  * Copyright 2013-2014 Facebook, Inc.
  *
@@ -27750,7 +27708,7 @@ var keyMirror = function(obj) {
 module.exports = keyMirror;
 
 }).call(this,require('_process'))
-},{"./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/keyOf.js":[function(require,module,exports){
+},{"./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/keyOf.js":[function(require,module,exports){
 /**
  * Copyright 2013-2014 Facebook, Inc.
  *
@@ -28078,7 +28036,7 @@ var mergeHelpers = {
 module.exports = mergeHelpers;
 
 }).call(this,require('_process'))
-},{"./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","./keyMirror":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/keyMirror.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/mergeInto.js":[function(require,module,exports){
+},{"./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","./keyMirror":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/keyMirror.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/mergeInto.js":[function(require,module,exports){
 /**
  * Copyright 2013-2014 Facebook, Inc.
  *
@@ -28203,7 +28161,7 @@ function monitorCodeUse(eventName, data) {
 module.exports = monitorCodeUse;
 
 }).call(this,require('_process'))
-},{"./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/onlyChild.js":[function(require,module,exports){
+},{"./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/onlyChild.js":[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2014 Facebook, Inc.
@@ -28250,7 +28208,7 @@ function onlyChild(children) {
 module.exports = onlyChild;
 
 }).call(this,require('_process'))
-},{"./ReactDescriptor":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDescriptor.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/performance.js":[function(require,module,exports){
+},{"./ReactDescriptor":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactDescriptor.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/performance.js":[function(require,module,exports){
 /**
  * Copyright 2013-2014 Facebook, Inc.
  *
@@ -28583,7 +28541,7 @@ function toArray(obj) {
 module.exports = toArray;
 
 }).call(this,require('_process'))
-},{"./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/traverseAllChildren.js":[function(require,module,exports){
+},{"./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/traverseAllChildren.js":[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2014 Facebook, Inc.
@@ -28780,7 +28738,7 @@ function traverseAllChildren(children, callback, traverseContext) {
 module.exports = traverseAllChildren;
 
 }).call(this,require('_process'))
-},{"./ReactInstanceHandles":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactInstanceHandles.js","./ReactTextComponent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactTextComponent.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/update.js":[function(require,module,exports){
+},{"./ReactInstanceHandles":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactInstanceHandles.js","./ReactTextComponent":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/ReactTextComponent.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/update.js":[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2014 Facebook, Inc.
@@ -28955,7 +28913,7 @@ function update(value, spec) {
 module.exports = update;
 
 }).call(this,require('_process'))
-},{"./copyProperties":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/copyProperties.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","./keyOf":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/keyOf.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/warning.js":[function(require,module,exports){
+},{"./copyProperties":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/copyProperties.js","./invariant":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/invariant.js","./keyOf":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/keyOf.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/warning.js":[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2014 Facebook, Inc.
@@ -29007,12 +28965,100 @@ if ("production" !== process.env.NODE_ENV) {
 module.exports = warning;
 
 }).call(this,require('_process'))
-},{"./emptyFunction":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/emptyFunction.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js":[function(require,module,exports){
+},{"./emptyFunction":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/emptyFunction.js","_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/react/react.js":[function(require,module,exports){
 module.exports = require('./lib/React');
 
-},{"./lib/React":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/React.js"}],"cerebellum":[function(require,module,exports){
-var server = require("./lib/server");
-var client = require("./lib/client");
+},{"./lib/React":"/Users/hoppula/repos/liiga_frontend/node_modules/react/lib/React.js"}],"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/browser-resolve/empty.js":[function(require,module,exports){
+
+},{}],"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js":[function(require,module,exports){
+// shim for using process in browser
+
+var process = module.exports = {};
+
+process.nextTick = (function () {
+    var canSetImmediate = typeof window !== 'undefined'
+    && window.setImmediate;
+    var canMutationObserver = typeof window !== 'undefined'
+    && window.MutationObserver;
+    var canPost = typeof window !== 'undefined'
+    && window.postMessage && window.addEventListener
+    ;
+
+    if (canSetImmediate) {
+        return function (f) { return window.setImmediate(f) };
+    }
+
+    var queue = [];
+
+    if (canMutationObserver) {
+        var hiddenDiv = document.createElement("div");
+        var observer = new MutationObserver(function () {
+            var queueList = queue.slice();
+            queue.length = 0;
+            queueList.forEach(function (fn) {
+                fn();
+            });
+        });
+
+        observer.observe(hiddenDiv, { attributes: true });
+
+        return function nextTick(fn) {
+            if (!queue.length) {
+                hiddenDiv.setAttribute('yes', 'no');
+            }
+            queue.push(fn);
+        };
+    }
+
+    if (canPost) {
+        window.addEventListener('message', function (ev) {
+            var source = ev.source;
+            if ((source === window || source === null) && ev.data === 'process-tick') {
+                ev.stopPropagation();
+                if (queue.length > 0) {
+                    var fn = queue.shift();
+                    fn();
+                }
+            }
+        }, true);
+
+        return function nextTick(fn) {
+            queue.push(fn);
+            window.postMessage('process-tick', '*');
+        };
+    }
+
+    return function nextTick(fn) {
+        setTimeout(fn, 0);
+    };
+})();
+
+process.title = 'browser';
+process.browser = true;
+process.env = {};
+process.argv = [];
+
+function noop() {}
+
+process.on = noop;
+process.addListener = noop;
+process.once = noop;
+process.off = noop;
+process.removeListener = noop;
+process.removeAllListeners = noop;
+process.emit = noop;
+
+process.binding = function (name) {
+    throw new Error('process.binding is not supported');
+};
+
+// TODO(shtylman)
+process.cwd = function () { return '/' };
+process.chdir = function (dir) {
+    throw new Error('process.chdir is not supported');
+};
+
+},{}],"cerebellum":[function(require,module,exports){
 var exoskeleton = require("./lib/wrapper/exoskeleton");
 
 function validateOptions(options) {
@@ -29036,18 +29082,18 @@ function validateOptions(options) {
 var cerebellum = {
   server: function(options) {
     validateOptions(options);
-    return server(options);
+    return require("./lib/server")(options);
   },
   client: function(options) {
     validateOptions(options);
-    return client(options);
+    return require("./lib/client")(options);
   },
   Collection: exoskeleton.Collection,
   Model: exoskeleton.Model
 };
 
 module.exports = cerebellum;
-},{"./lib/client":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/client.js","./lib/server":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/browser-resolve/empty.js","./lib/wrapper/exoskeleton":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/wrapper/exoskeleton.js"}],"lodash":[function(require,module,exports){
+},{"./lib/client":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/client.js","./lib/server":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/browser-resolve/empty.js","./lib/wrapper/exoskeleton":"/Users/hoppula/repos/liiga_frontend/node_modules/cerebellum/lib/wrapper/exoskeleton.js"}],"lodash":[function(require,module,exports){
 (function (global){
 /**
  * @license
@@ -40604,7 +40650,7 @@ return Q;
 });
 
 }).call(this,require('_process'))
-},{"_process":"/Users/hoppula/repos/liiga_frontend/node_modules/browserify/node_modules/process/browser.js"}],"react-bootstrap":[function(require,module,exports){
+},{"_process":"/Users/hoppula/repos/liiga_frontend/node_modules/watchify/node_modules/browserify/node_modules/process/browser.js"}],"react-bootstrap":[function(require,module,exports){
 module.exports = {
   Accordion: require('./Accordion'),
   Affix: require('./Affix'),

@@ -19,35 +19,28 @@
   "license": "MIT",
   "devDependencies": {
     "browserify": "~5.11.2",
-    "browserify-shim": "~3.7.0",
     "catw": "~0.2.0",
-    "coffee-reactify": "~0.5.2",
+    "coffee-reactify": "~1.0.3",
     "coffee-script": "~1.8.0",
-    "coffeeify": "~0.7.0",
+    "coffeeify": "~1.0.0",
     "envify": "~3.0.0",
     "less": "~1.7.5",
-    "lodash": "~2.4.1",
-    "moment": "~2.8.3",
-    "node-cjsx": "~0.1.2",
+    "node-cjsx": "git+https://github.com/SimonDegraeve/node-cjsx#5d6150b7b9e15fac3d75023f41ba12716881897e",
     "nodemon": "^1.2.1",
-    "q": "~1.0.1",
-    "react": "~0.11.1",
-    "react-bootstrap": "~0.12.0",
     "uglify-js": "~2.4.15",
-    "watchify": "~1.0.2"
+    "watchify": "~2.1.1"
   },
   "dependencies": {
     "cerebellum": "git+https://git@bitbucket.org/SC5/cerebellum.git#78b5dac",
     "compression": "~1.1.0",
-    "fastclick": "^1.0.3"
+    "fastclick": "^1.0.3",
+    "lodash": "~2.4.1",
+    "moment": "~2.8.3",
+    "q": "~1.0.1",
+    "react": "~0.11.1",
+    "react-bootstrap": "^0.12.0"
   },
   "browser": {
     "./config/api.coffee": "./config/api-browser.coffee"
-  },
-  "browserify-shim": {},
-  "browserify": {
-    "transform": [
-      "browserify-shim"
-    ]
   }
 }
