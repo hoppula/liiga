@@ -1,5 +1,4 @@
 React = require 'react/addons'
-PlayerStats = require './player_stats'
 TeamSchedule = require './team_schedule'
 TeamStats = require './team_stats'
 TeamRoster = require './team_roster'

@@ -2,6 +2,9 @@ React = require 'react/addons'
 {TabPane, Nav, NavItem} = require "react-bootstrap"
 Navigation = require './navigation'
 
+PlayerStats = require './player_stats'
+GoalieStats = require './goalie_stats'
+
 Stats = React.createClass
 
   componentDidMount: ->
@@ -25,11 +28,11 @@ Stats = React.createClass
         <div className="tab-content" ref="panes">
           <TabPane key="players" animation={false} active={activeKey is "players"}>
             <h2>Kenttäpelaajat</h2>
-
+            <PlayerStats stats={@props.stats.scoringStats} />
           </TabPane>
           <TabPane key="goalies" animation={false} active={activeKey is "goalies"}>
             <h2>Maalivahdit</h2>
-
+            <GoalieStats stats={@props.stats.goalieStats} />
           </TabPane>
         </div>
       </div>
