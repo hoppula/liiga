@@ -21,12 +21,12 @@
   "devDependencies": {
     "browserify": "~6.3.2",
     "catw": "~0.2.0",
-    "coffee-reactify": "~1.0.3",
+    "coffee-reactify": "~2.0.0",
     "coffee-script": "~1.8.0",
     "coffeeify": "~1.0.0",
     "envify": "~3.2.0",
     "less": "~2.0.0",
-    "node-cjsx": "git+https://github.com/SimonDegraeve/node-cjsx#5d6150b7b9e15fac3d75023f41ba12716881897e",
+    "node-cjsx": "git+https://github.com/SimonDegraeve/node-cjsx#bb587d5c5b42b189132a10944f7d05bf1fc93921",
     "nodemon": "^1.2.1",
     "uglify-js": "~2.4.15",
     "watchify": "~2.1.1"
@@ -36,10 +36,10 @@
     "compression": "~1.2.0",
     "fastclick": "^1.0.3",
     "lodash": "~2.4.1",
-    "moment": "~2.8.3",
+    "moment": "~2.8.4",
     "q": "~1.1.1",
-    "react": "~0.11.1",
-    "react-bootstrap": "^0.12.0"
+    "react": "~0.12.1",
+    "react-bootstrap": "^0.13.0"
   },
   "browser": {
     "./config/api.coffee": "./config/api-browser.coffee"

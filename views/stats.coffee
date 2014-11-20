@@ -19,8 +19,8 @@ Stats = React.createClass
 
       <div>
         <Nav bsStyle="tabs" activeKey={activeKey} ref="tabs">
-          <NavItem href="/tilastot" key="players">Kenttäpelaajat</NavItem>
-          <NavItem href="/tilastot/maalivahdit" key="goalies">Maalivahdit</NavItem>
+          <NavItem href="/tilastot" eventKey="players">Kenttäpelaajat</NavItem>
+          <NavItem href="/tilastot/maalivahdit" eventKey="goalies">Maalivahdit</NavItem>
         </Nav>
         <div className="tab-content" ref="panes">
           <TabPane key="players" animation={false} active={activeKey is "players"}>
