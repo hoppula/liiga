@@ -147,3 +147,22 @@ body {
 .sortable-thead {
   cursor: pointer;
 }
+
+.schedule {
+  .table > tbody+tbody {
+    border-top: 0;
+  }
+  .table-striped > tbody > tr > th {
+    background-color: #000;
+    border-top: 0;
+    color: #fff;
+
+    &.game-date {
+      background-color: #747474;
+    }
+
+    &.load-more {
+      cursor: pointer;
+    }
+  }
+}

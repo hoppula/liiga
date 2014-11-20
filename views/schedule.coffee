@@ -15,44 +15,100 @@ moment.locale('fi')
 
 Schedule = React.createClass
 
+  getInitialState: ->
+    firstDate: moment().startOf("month")
+    lastDate: moment().endOf("month")
+    showPrevious: false
+    showNext: false
+
   componentDidMount: ->
     window.scrollTo(0,0)
 
+  monthRanges: ->
+    [firstGame, ..., lastGame] = @props.schedule
+    [moment(firstGame.date).startOf("month"), moment(lastGame.date).endOf("month")]
+
   gameLink: (game) ->
-    if moment(game.date) < moment()
+    if moment(game.date).endOf("day") < moment()
       <a href="/ottelut/#{game.id}">{game.home} - {game.away}</a>
     else
       <span>{game.home} - {game.away}</span>
 
+  showPrevious: ->
+    [firstDate] = @monthRanges()
+    if not @state.firstDate.isSame(firstDate)
+      <table className="table table-striped">
+        <tr>
+          <th className="load-more" colSpan=4 onClick={@loadPrevious}>Näytä edelliset kuukaudet...</th>
+        </tr>
+      </table>
+    else
+      null
+
+  showNext: ->
+    [..., lastDate] = @monthRanges()
+    if not @state.lastDate.isSame(lastDate)
+      <table className="table table-striped">
+        <tr>
+          <th className="load-more" colSpan=4 onClick={@loadNext}>Näytä seuraavat kuukaudet...</th>
+        </tr>
+      </table>
+    else
+      null
+
+  loadPrevious: ->
+    [firstDate] = @monthRanges()
+    @setState(firstDate: firstDate)
+
+  loadNext: ->
+    [..., lastDate] = @monthRanges()
+    @setState(lastDate: lastDate)
+
   groupedSchedule: ->
-    _.chain(@props.schedule).groupBy (game) ->
+    _.chain(@props.schedule).filter (game) =>
+      gameDate = moment(game.date)
+      gameDate >= @state.firstDate and gameDate <= @state.lastDate
+    .groupBy (game) ->
       moment(game.date).format("YYYY-MM")
 
-  render: ->
-    monthlyGames = @groupedSchedule().map (games, month) =>
-      <tbody>
-        <tr>
-          <th colSpan=4>{moment(month, "YYYY-MM").format("MMMM")}</th>
-        </tr>
-        {games.map (game) =>
-          <tr key={game.id}>
-            <td>{moment(game.date).format("DD.MM.YYYY")} {game.time}</td>
-            <td>{@gameLink(game)}</td>
-            <td>{game.homeScore}-{game.awayScore}</td>
-            <td>{game.attendance}</td>
-          </tr>
-        }
-      </tbody>
+  monthlyGames: ->
+    @groupedSchedule().map (games, month) =>
+      datesWithGames = _.chain(games).groupBy (game) ->
+        moment(game.date).format("DD.MM.YYYY")
 
-    <div>
+      <table className="table table-striped team-schedule">
+        <tbody>
+          <tr>
+            <th colSpan=4>{moment(month, "YYYY-MM").format("MMMM")}</th>
+          </tr>
+        </tbody>
+        {datesWithGames.map (games, gameDate) =>
+          <tbody>
+            <tr>
+              <th className="game-date" colSpan=4>{gameDate}</th>
+            </tr>
+            {games.map (game) =>
+              <tr key={game.id}>
+                <td>{game.time}</td>
+                <td>{@gameLink(game)}</td>
+                <td>{game.homeScore}-{game.awayScore}</td>
+                <td>{game.attendance}</td>
+              </tr>
+            }
+          </tbody>
+        }
+      </table>
+
+  render: ->
+    <div className="schedule">
       <Navigation />
 
       <h1>Otteluohjelma</h1>
 
       <div className="table-responsive">
-        <table className="table table-striped team-schedule">
-          {monthlyGames}
-        </table>
+        {@showPrevious()}
+        {@monthlyGames()}
+        {@showNext()}
       </div>
     </div>
 

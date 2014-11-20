@@ -661,3 +661,17 @@ body {
 .sortable-thead {
   cursor: pointer;
 }
+.schedule .table > tbody + tbody {
+  border-top: 0;
+}
+.schedule .table-striped > tbody > tr > th {
+  background-color: #000;
+  border-top: 0;
+  color: #fff;
+}
+.schedule .table-striped > tbody > tr > th.game-date {
+  background-color: #747474;
+}
+.schedule .table-striped > tbody > tr > th.load-more {
+  cursor: pointer;
+}

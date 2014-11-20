@@ -5,6 +5,9 @@ TopScorersView = require './top_scorers'
 
 Index = React.createClass
 
+  componentDidMount: ->
+    window.scrollTo(0,0)
+
   render: ->
     <div>
       <Navigation />
