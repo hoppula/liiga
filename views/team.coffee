@@ -50,9 +50,9 @@ Team = React.createClass
 
         <div>
           <Nav bsStyle="tabs" activeKey={activeKey} ref="tabs">
-            <NavItem href="/joukkueet/#{@props.id}" key="schedule">Ottelut</NavItem>
-            <NavItem href="/joukkueet/#{@props.id}/tilastot" key="stats">Tilastot</NavItem>
-            <NavItem href="/joukkueet/#{@props.id}/pelaajat" key="players">Pelaajat</NavItem>
+            <NavItem href="/joukkueet/#{@props.id}" eventKey="schedule">Ottelut</NavItem>
+            <NavItem href="/joukkueet/#{@props.id}/tilastot" eventKey="stats">Tilastot</NavItem>
+            <NavItem href="/joukkueet/#{@props.id}/pelaajat" eventKey="players">Pelaajat</NavItem>
           </Nav>
           <div className="tab-content" ref="panes">
             <TabPane key="schedule" animation={false} active={activeKey is "schedule"}>

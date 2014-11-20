@@ -18,8 +18,8 @@ Schedule = React.createClass
   getInitialState: ->
     firstDate: moment().startOf("month")
     lastDate: moment().endOf("month")
-    showPrevious: false
-    showNext: false
+    previousVisible: false
+    nextVisible: false
 
   componentDidMount: ->
     window.scrollTo(0,0)
@@ -35,8 +35,7 @@ Schedule = React.createClass
       <span>{game.home} - {game.away}</span>
 
   showPrevious: ->
-    [firstDate] = @monthRanges()
-    if not @state.firstDate.isSame(firstDate)
+    if not @state.previousVisible
       <table className="table table-striped">
         <tr>
           <th className="load-more" colSpan=4 onClick={@loadPrevious}>Näytä edelliset kuukaudet...</th>
@@ -46,8 +45,7 @@ Schedule = React.createClass
       null
 
   showNext: ->
-    [..., lastDate] = @monthRanges()
-    if not @state.lastDate.isSame(lastDate)
+    if not @state.nextVisible
       <table className="table table-striped">
         <tr>
           <th className="load-more" colSpan=4 onClick={@loadNext}>Näytä seuraavat kuukaudet...</th>
@@ -58,11 +56,11 @@ Schedule = React.createClass
 
   loadPrevious: ->
     [firstDate] = @monthRanges()
-    @setState(firstDate: firstDate)
+    @setState(firstDate: firstDate, previousVisible: true)
 
   loadNext: ->
     [..., lastDate] = @monthRanges()
-    @setState(lastDate: lastDate)
+    @setState(lastDate: lastDate, nextVisible: true)
 
   groupedSchedule: ->
     _.chain(@props.schedule).filter (game) =>

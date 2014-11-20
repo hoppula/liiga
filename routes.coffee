@@ -1,4 +1,5 @@
 Q = require 'q'
+React = require 'react/addons'
 
 IndexView = require './views/index'
 TeamView = require './views/team'
@@ -16,7 +17,7 @@ module.exports =
       @store.fetch("stats")
     ], (standings, teamsList, statsList) ->
       title: "Etusivu"
-      component: IndexView
+      component: React.createElement IndexView,
         standings: standings.toJSON()
         teams: teamsList.toJSON()
         stats: statsList.toJSON()
@@ -33,7 +34,7 @@ module.exports =
         else "Otteluohjelma"
 
       title: "Joukkueet - #{team.get("info").name} - #{subTitle}"
-      component: TeamView
+      component: React.createElement TeamView,
         id: id
         standings: standings.toJSON()
         team: team.toJSON()
@@ -45,7 +46,7 @@ module.exports =
         player.id is "#{pid}/#{slug}"
       )[0]
       title: "Pelaajat - #{player.firstName} #{player.lastName}"
-      component: PlayerView
+      component: React.createElement PlayerView,
         id: pid
         player: player
         team: team.toJSON()
@@ -53,7 +54,7 @@ module.exports =
   "/ottelut": ->
     @store.fetch("schedule").then (schedule) ->
       title: "Otteluohjelma"
-      component: ScheduleView
+      component: React.createElement ScheduleView,
         schedule: schedule.toJSON()
 
   "/ottelut/:id/:active?": (id, active) ->
@@ -67,7 +68,7 @@ module.exports =
         g.id is id
 
       title: "Ottelu - #{game.get("home")} vs #{game.get("away")}"
-      component: GameView
+      component: React.createElement GameView,
         id: id
         game: game.toJSON()
         events: events.toJSON()
@@ -78,12 +79,12 @@ module.exports =
   "/sarjataulukko": ->
     @store.fetch("standings").then (standings) ->
       title: "Sarjataulukko"
-      component: StandingsView
+      component: React.createElement StandingsView,
         standings: standings.toJSON()
 
   "/tilastot/:active?": (active) ->
     @store.fetch("stats").then (stats) ->
       title: "Tilastot"
-      component: StatsView
+      component: React.createElement StatsView,
         stats: stats.toJSON()
         active: active

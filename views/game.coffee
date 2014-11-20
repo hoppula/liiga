@@ -43,9 +43,9 @@ Game = React.createClass
       </Row>
 
       <Nav bsStyle="tabs" activeKey={activeKey} ref="tabs">
-        <NavItem href="/ottelut/#{@props.id}" key="events">Tapahtumat</NavItem>
-        <NavItem href="/ottelut/#{@props.id}/tilastot" key="stats">Tilastot</NavItem>
-        <NavItem href="/ottelut/#{@props.id}/ketjut" key="lineUps">Ketjut</NavItem>
+        <NavItem href="/ottelut/#{@props.id}" eventKey="events">Tapahtumat</NavItem>
+        <NavItem href="/ottelut/#{@props.id}/tilastot" eventKey="stats">Tilastot</NavItem>
+        <NavItem href="/ottelut/#{@props.id}/ketjut" eventKey="lineUps">Ketjut</NavItem>
       </Nav>
 
       <div className="tab-content" ref="panes">
