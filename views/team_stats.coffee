@@ -36,7 +36,7 @@ TeamStats = React.createClass
 
     goalies = @props.stats.goalies.map (player) =>
       <tr key={player.id}>
-        <td>{player.firstName} {player.lastName}</td>
+        <td><a href="/joukkueet/#{@props.teamId}/#{player.id}">{player.firstName} {player.lastName}</a></td>
         <td>{player.games}</td>
         <td>{player.wins}</td>
         <td>{player.ties}</td>

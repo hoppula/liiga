@@ -3,7 +3,7 @@ Q = require 'q'
 IndexView = require './views/index'
 TeamView = require './views/team'
 PlayerView = require './views/player'
-MatchView = require './views/match'
+GameView = require './views/game'
 ScheduleView = require './views/schedule'
 StandingsView = require './views/standings'
 StatsView = require './views/stats'
@@ -63,13 +63,13 @@ module.exports =
       @store.fetch("gameLineups", id: id)
       @store.fetch("gameStats", id: id)
     ], (schedule, events, lineUps, stats) ->
-      match = schedule.find (game) ->
-        game.id is id
+      game = schedule.find (g) ->
+        g.id is id
 
-      title: "Ottelu - #{match.get("home")} vs #{match.get("away")}"
-      component: MatchView
+      title: "Ottelu - #{game.get("home")} vs #{game.get("away")}"
+      component: GameView
         id: id
-        game: match.toJSON()
+        game: game.toJSON()
         events: events.toJSON()
         lineUps: lineUps.toJSON()
         stats: stats.toJSON()

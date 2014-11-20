@@ -18,28 +18,28 @@ Schedule = React.createClass
   componentDidMount: ->
     window.scrollTo(0,0)
 
-  matchLink: (match) ->
-    if moment(match.date) < moment()
-      <a href="/ottelut/#{match.id}">{match.home} - {match.away}</a>
+  gameLink: (game) ->
+    if moment(game.date) < moment()
+      <a href="/ottelut/#{game.id}">{game.home} - {game.away}</a>
     else
-      <span>{match.home} - {match.away}</span>
+      <span>{game.home} - {game.away}</span>
 
   groupedSchedule: ->
-    _.chain(@props.schedule).groupBy (match) ->
-      moment(match.date).format("YYYY-MM")
+    _.chain(@props.schedule).groupBy (game) ->
+      moment(game.date).format("YYYY-MM")
 
   render: ->
-    monthlyMatches = @groupedSchedule().map (matches, month) =>
+    monthlyGames = @groupedSchedule().map (games, month) =>
       <tbody>
         <tr>
           <th colSpan=4>{moment(month, "YYYY-MM").format("MMMM")}</th>
         </tr>
-        {matches.map (match) =>
-          <tr key={match.id}>
-            <td>{moment(match.date).format("DD.MM.YYYY")} {match.time}</td>
-            <td>{@matchLink(match)}</td>
-            <td>{match.homeScore}-{match.awayScore}</td>
-            <td>{match.attendance}</td>
+        {games.map (game) =>
+          <tr key={game.id}>
+            <td>{moment(game.date).format("DD.MM.YYYY")} {game.time}</td>
+            <td>{@gameLink(game)}</td>
+            <td>{game.homeScore}-{game.awayScore}</td>
+            <td>{game.attendance}</td>
           </tr>
         }
       </tbody>
@@ -51,7 +51,7 @@ Schedule = React.createClass
 
       <div className="table-responsive">
         <table className="table table-striped team-schedule">
-          {monthlyMatches}
+          {monthlyGames}
         </table>
       </div>
     </div>

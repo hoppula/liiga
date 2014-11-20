@@ -55,15 +55,15 @@ Team = React.createClass
             <NavItem href="/joukkueet/#{@props.id}/pelaajat" key="players">Pelaajat</NavItem>
           </Nav>
           <div className="tab-content" ref="panes">
-            <TabPane key="schedule" active={activeKey is "schedule"}>
+            <TabPane key="schedule" animation={false} active={activeKey is "schedule"}>
               <h1>Ottelut</h1>
               <TeamSchedule team={@props.team} />
             </TabPane>
-            <TabPane key="stats" active={activeKey is "stats"}>
+            <TabPane key="stats" animation={false} active={activeKey is "stats"}>
               <h1>Tilastot</h1>
               <TeamStats teamId={@props.id} stats={@props.team.stats} />
             </TabPane>
-            <TabPane key="players" active={activeKey is "players"}>
+            <TabPane key="players" animation={false} active={activeKey is "players"}>
               <h1>Pelaajat</h1>
               <TeamRoster teamId={@props.id} roster={@props.team.roster} />
             </TabPane>

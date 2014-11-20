@@ -23,11 +23,11 @@ Stats = React.createClass
           <NavItem href="/tilastot/maalivahdit" key="goalies">Maalivahdit</NavItem>
         </Nav>
         <div className="tab-content" ref="panes">
-          <TabPane key="players" active={activeKey is "players"}>
+          <TabPane key="players" animation={false} active={activeKey is "players"}>
             <h2>Kenttäpelaajat</h2>
 
           </TabPane>
-          <TabPane key="goalies" active={activeKey is "goalies"}>
+          <TabPane key="goalies" animation={false} active={activeKey is "goalies"}>
             <h2>Maalivahdit</h2>
 
           </TabPane>

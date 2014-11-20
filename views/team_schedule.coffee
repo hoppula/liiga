@@ -14,11 +14,11 @@ moment.locale('fi')
 
 TeamSchedule = React.createClass
 
-  matchLink: (match) ->
-    if moment(match.date) < moment()
-      <a href="/ottelut/#{match.id}">{@titleStyle(match.home)} - {@titleStyle(match.away)}</a>
+  gameLink: (game) ->
+    if moment(game.date) < moment()
+      <a href="/ottelut/#{game.id}">{@titleStyle(game.home)} - {@titleStyle(game.away)}</a>
     else
-      <span>{@titleStyle(match.home)} - {@titleStyle(match.away)}</span>
+      <span>{@titleStyle(game.home)} - {@titleStyle(game.away)}</span>
 
   titleStyle: (name) ->
     if @props.team.info.name is name
@@ -30,21 +30,21 @@ TeamSchedule = React.createClass
     <img src={Teams.logo(name)} alt={name} />
 
   groupedSchedule: ->
-    _.chain(@props.team.schedule).groupBy (match) ->
-      moment(match.date).format("YYYY-MM")
+    _.chain(@props.team.schedule).groupBy (game) ->
+      moment(game.date).format("YYYY-MM")
 
   render: ->
-    monthlyMatches = @groupedSchedule().map (matches, month) =>
+    monthlyGames = @groupedSchedule().map (games, month) =>
       <tbody key={month}>
         <tr>
           <th colSpan=4>{moment(month, "YYYY-MM").format("MMMM")}</th>
         </tr>
-        {matches.map (match) =>
-          <tr key={match.id}>
-            <td>{moment(match.date).format("DD.MM.YYYY")} {match.time}</td>
-            <td>{@matchLink(match)}</td>
-            <td>{match.homeScore}-{match.awayScore}</td>
-            <td>{match.attendance}</td>
+        {games.map (game) =>
+          <tr key={game.id}>
+            <td>{moment(game.date).format("DD.MM.YYYY")} {game.time}</td>
+            <td>{@gameLink(game)}</td>
+            <td>{game.homeScore}-{game.awayScore}</td>
+            <td>{game.attendance}</td>
           </tr>
         }
       </tbody>
@@ -59,7 +59,7 @@ TeamSchedule = React.createClass
             <th>Yleisömäärä</th>
           </tr>
         </thead>
-        {monthlyMatches}
+        {monthlyGames}
       </table>
     </div>
 
