@@ -1,21 +1,21 @@
 {
   "name": "liiga_frontend",
-  "description": "liiga.pw, advanced stats for Liiga.",
-  "version": "0.1.0",
   "description": "",
+  "version": "0.1.0",
   "main": "main.js",
   "scripts": {
     "build": "npm run build_lib & npm run build_app & npm run build_less",
-    "build_min": "uglifyjs public/js/lib.js public/js/app.js -o public/js/app.min.js",
-    "build_lib": "browserify -r cerebellum -r q -r react/addons -r moment -r react-bootstrap -r lodash -u jquery -u underscore -t coffeeify --extension='.coffee' -o public/js/lib.js",
-    "build_app": "browserify -x cerebellum -x q -x react/addons -x moment -x react-bootstrap -x lodash client.coffee -t coffee-reactify --extension='.coffee' -o public/js/app.js",
+    "build_min": "NODE_ENV=production uglifyjs public/js/lib.js -o public/js/lib.js && uglifyjs public/js/app.js -o public/js/app.js",
+    "build_lib": "NODE_ENV=production browserify -r cerebellum -r q -r react/addons -r moment -r react-bootstrap -r lodash -u jquery -u underscore -t coffeeify --extension='.coffee' -o public/js/lib.js",
+    "build_app": "NODE_ENV=production browserify -x cerebellum -x q -x react/addons -x moment -x react-bootstrap -x lodash client.coffee -t coffee-reactify --extension='.coffee' -o public/js/app.js",
     "build_less": "lessc less/styles.less public/css/styles.css",
     "watch_lib": "watchify -r cerebellum -r q -r react/addons -r moment -r react-bootstrap -r lodash -u jquery -u underscore -t coffeeify --extension='.coffee' -o public/js/lib.js -v",
     "watch_app": "watchify -x cerebellum -x q -x react/addons -x moment -x react-bootstrap -x lodash client.coffee -d -t coffee-reactify --extension='.coffee' -o public/js/app.js -v",
     "watch_code": "npm run watch_app & npm run watch_lib",
     "watch_less": "catw -c 'lessc -' 'less/styles.less' -o public/css/styles.css -v",
     "watch": "npm run watch_app & npm run watch_lib & npm run watch_less",
-    "nodemon": "nodemon server.coffee"
+    "start": "nodemon server.coffee",
+    "postinstall": "npm run build_lib && npm run build_app && npm run build_min"
   },
   "author": "Lari Hoppula",
   "license": "MIT",
@@ -33,9 +33,8 @@
     "watchify": "~2.1.1"
   },
   "dependencies": {
-    "cerebellum": "git+https://git@bitbucket.org/SC5/cerebellum.git#78b5dac",
+    "cerebellum": "^0.4.1",
     "compression": "~1.2.0",
-    "fastclick": "^1.0.3",
     "lodash": "~2.4.1",
     "moment": "~2.8.4",
     "q": "~1.1.1",
