@@ -19,7 +19,15 @@
   },
   "author": "Lari Hoppula",
   "license": "MIT",
-  "devDependencies": {
+  "devDependencies": {},
+  "dependencies": {
+    "cerebellum": "^0.4.1",
+    "compression": "~1.2.0",
+    "lodash": "~2.4.1",
+    "moment": "~2.8.4",
+    "q": "~1.1.1",
+    "react": "~0.12.1",
+    "react-bootstrap": "^0.13.0",
     "browserify": "~6.3.2",
     "catw": "~0.2.0",
     "coffee-reactify": "~2.0.0",
@@ -31,15 +39,6 @@
     "nodemon": "^1.2.1",
     "uglify-js": "~2.4.15",
     "watchify": "~2.1.1"
-  },
-  "dependencies": {
-    "cerebellum": "^0.4.1",
-    "compression": "~1.2.0",
-    "lodash": "~2.4.1",
-    "moment": "~2.8.4",
-    "q": "~1.1.1",
-    "react": "~0.12.1",
-    "react-bootstrap": "^0.13.0"
   },
   "browser": {
     "./config/api.coffee": "./config/api-browser.coffee"
