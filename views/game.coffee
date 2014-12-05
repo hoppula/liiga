@@ -1,8 +1,11 @@
 React = require 'react/addons'
+moment = require 'moment'
 
 Navigation = require './navigation'
 
 {Row, Col, Nav, NavItem, TabPane} = require 'react-bootstrap'
+
+Teams = require '../lib/teams'
 
 GameEvents = require './game_events'
 GameLineups = require './game_lineups'
@@ -13,32 +16,38 @@ Game = React.createClass
   componentDidMount: ->
     window.scrollTo(0,0)
 
+  logo: (teamName) ->
+    <img src={Teams.logo(teamName)} alt={teamName} />
+
   render: ->
     activeKey = switch @props.active
       when "tilastot" then "stats"
       when "ketjut" then "lineUps"
       else "events"
 
-    # console.log "events", @props.events
-    # console.log "lineups", @props.lineUps
-    #console.log "stats", @props.stats
-    # console.log "game", @props.game
+    game = @props.game
+    [hours, minutes] = game.time.split(":")
 
-    <div>
+    <div className="game">
       <Navigation />
 
       <Row>
-        <Col xs={4} md={4}>
-          <h1>{@props.game.home}</h1>
+        <Col className="home" xs={4} md={4}>
+          <h1>{game.home}</h1>
+          {@logo(game.home)}
         </Col>
 
-        <Col xs={4} md={4}>
-          <h1>{@props.game.homeScore} - {@props.game.awayScore}</h1>
-          <div>Yleisöä: {@props.game.attendance}</div>
+        <Col className="score" xs={4} md={4}>
+          <h1>{game.homeScore} - {game.awayScore}</h1>
+          <ul>
+            <li>{moment(game.date).add(hours, 'hours').add(minutes, 'minutes').format("DD.MM.YYYY HH:mm")}</li>
+            <li>Yleisöä: {game.attendance}</li>
+          </ul>
         </Col>
 
-        <Col xs={4} md={4}>
-          <h1>{@props.game.away}</h1>
+        <Col className="away" xs={4} md={4}>
+          <h1>{game.away}</h1>
+          {@logo(game.away)}
         </Col>
       </Row>
 
@@ -54,11 +63,11 @@ Game = React.createClass
         </TabPane>
 
         <TabPane key="stats" animation={false} active={activeKey is "stats"}>
-          <GameStats stats={@props.stats} />
+          <GameStats id={@props.id} stats={@props.stats} away={@props.away} />
         </TabPane>
 
         <TabPane key="lineUps" animation={false} active={activeKey is "lineUps"}>
-          <GameLineups lineUps={@props.lineUps} />
+          <GameLineups id={@props.id} lineUps={@props.lineUps} />
         </TabPane>
       </div>
 

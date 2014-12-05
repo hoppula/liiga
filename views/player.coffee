@@ -8,6 +8,9 @@ Player = React.createClass
   render: ->
     player = @props.player
     team = @props.team
+    item =
+      title: team.info.name
+      url: team.info.url
 
     players =
       title: "Pelaajat",
@@ -15,35 +18,66 @@ Player = React.createClass
         title: "#{player.firstName} #{player.lastName}"
         url: "/joukkueet/#{team.info.id}/#{player.id}"
 
-    # TODO: check position, KH OL VL P use players, MV use goalies
-    stats = team.stats.players.filter((player) =>
+    statsType = if player.position is "MV" then "goalies" else "players"
+    stats = team.stats[statsType].filter((player) =>
       [id, slug] = player.id.split("/")
       id is @props.id
-    )[0]
+    )[0] or {}
 
-    item =
-      title: team.info.name
-      url: team.info.url
+    position = switch player.position
+      when "OL" then "Oikea laitahyökkääjä"
+      when "VL" then "Vasen laitahyökkääjä"
+      when "KH" then "Keskushyökkääjä"
+      when "VP" then "Vasen puolustaja"
+      when "OP" then "Oikea puolustaja"
+      when "MV" then "Maalivahti"
 
-    console.log "player", player
-    console.log "team", team
-    console.log "stats", stats
+    birthday = moment(player.birthday)
+    shoots = if player.shoots is "L" then "Vasemmalta" else "Oikealta"
 
-    <div className="player">
-      <Navigation dropdown={players} item={item} />
-
-      <h1>{player.firstName} {player.lastName}</h1>
-
-      <h2>#{player.number} {player.position}</h2>
-
-      <h3><a className="team-logo #{team.info.id}" href="/joukkueet/#{team.info.id}"></a> {team.info.name}</h3>
-
-      <div>{moment(player.birthday).format("DD.MM.YYYY")}</div>
-      <div>{player.height} cm</div>
-      <div>{player.weight} kg</div>
-      <div>{player.shoots}</div>
-
-      <div className="table-responsive">
+    statsTable = switch statsType
+      when "goalies"
+        <table className="table">
+          <thead>
+            <tr>
+              <th>PO</th>
+              <th>V</th>
+              <th>T</th>
+              <th>H</th>
+              <th>TO</th>
+              <th>PM</th>
+              <th>NP</th>
+              <th>KA</th>
+              <th>T%</th>
+              <th>M</th>
+              <th>S</th>
+              <th>P</th>
+              <th>R</th>
+              <th>V%</th>
+              <th>Aika</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>{stats.games}</td>
+              <td>{stats.wins}</td>
+              <td>{stats.ties}</td>
+              <td>{stats.losses}</td>
+              <td>{stats.saves}</td>
+              <td>{stats.goalsAllowed}</td>
+              <td>{stats.shutouts}</td>
+              <td>{stats.goalsAverage}</td>
+              <td>{stats.savingPercentage}</td>
+              <td>{stats.goals}</td>
+              <td>{stats.assists}</td>
+              <td>{stats.points}</td>
+              <td>{stats.penalties}</td>
+              <td>{stats.winPercentage}</td>
+              <td>{stats.minutes}</td>
+            </tr>
+          </tbody>
+        </table>
+      when "players"
         <table className="table">
           <thead>
             <tr>
@@ -86,6 +120,22 @@ Player = React.createClass
             </tr>
           </tbody>
         </table>
+
+    <div className="player">
+      <Navigation dropdown={players} item={item} />
+
+      <h1>{player.firstName} {player.lastName}</h1>
+
+      <h2><a className="team-logo #{team.info.id}" href="/joukkueet/#{team.info.id}"></a> #{player.number}</h2>
+
+      <div><strong>Pelipaikka</strong> {position}</div>
+      <div><strong>Syntynyt</strong> {birthday.format("DD.MM.YYYY")} ({moment().diff(player.birthday, "years")} vuotias)</div>
+      <div><strong>Pituus</strong> {player.height} cm</div>
+      <div><strong>Paino</strong> {player.weight} kg</div>
+      <div><strong>Laukoo</strong> {shoots}</div>
+
+      <div className="table-responsive">
+        {statsTable}
       </div>
 
     </div>

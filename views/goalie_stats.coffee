@@ -1,4 +1,5 @@
 React = require 'react/addons'
+_ = require 'lodash'
 
 TableSortMixin = require './mixins/table_sort'
 
@@ -12,9 +13,22 @@ GoalieStats = React.createClass
     sortType: "float"
 
   render: ->
-    goalies = @props.stats.sort(@sort).map (player) =>
+    maxGames = _.max(@props.stats, (player) ->
+      parseInt(player.games)
+    ).games
+    playedAtLeast = if typeof @props.playedAtLeast is "number"
+      parseInt((@props.playedAtLeast / 100) * maxGames)
+    else
+      1
+    goalies = @props.stats.sort(@sort).filter (player) ->
+      if player.games
+        player.games >= playedAtLeast
+      else
+        true
+    .map (player) =>
+      teamId = @props.teamId or player.teamId
       <tr key={player.id}>
-        <td><a href="/joukkueet/#{@props.teamId}/#{player.id}">{player.firstName} {player.lastName}</a></td>
+        <td><a href="/joukkueet/#{teamId}/#{player.id}">{player.firstName} {player.lastName}</a></td>
         <td>{player.games}</td>
         <td>{player.wins}</td>
         <td>{player.ties}</td>
@@ -35,22 +49,19 @@ GoalieStats = React.createClass
     <table className="table table-striped team-roster">
       <thead className="sortable-thead" onClick={@setSort}>
         <tr>
-          <th colSpan=17>Maalivahdit</th>
-        </tr>
-        <tr>
           <th data-sort="lastName" data-type="string">Nimi</th>
-          <th data-sort="games">PO</th>
-          <th data-sort="wins">V</th>
-          <th data-sort="ties">T</th>
-          <th data-sort="losses">H</th>
-          <th data-sort="saves">TO</th>
-          <th data-sort="goalsAllowed">PM</th>
-          <th data-sort="shutouts">NP</th>
+          <th data-sort="games" data-type="integer">PO</th>
+          <th data-sort="wins" data-type="integer">V</th>
+          <th data-sort="ties" data-type="integer">T</th>
+          <th data-sort="losses" data-type="integer">H</th>
+          <th data-sort="saves" data-type="integer">TO</th>
+          <th data-sort="goalsAllowed" data-type="integer">PM</th>
+          <th data-sort="shutouts" data-type="integer">NP</th>
           <th data-sort="goalsAverage" data-type="float">KA</th>
           <th data-sort="savingPercentage" data-type="float">T%</th>
-          <th data-sort="goals">M</th>
-          <th data-sort="assists">S</th>
-          <th data-sort="points">P</th>
+          <th data-sort="goals" data-type="integer">M</th>
+          <th data-sort="assists" data-type="integer">S</th>
+          <th data-sort="points" data-type="integer">P</th>
           <th data-sort="penalties">R</th>
           <th data-sort="winPercentage" data-type="float">V%</th>
           <th data-sort="minutes" data-type="float" colSpan=2>Aika</th>

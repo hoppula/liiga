@@ -1,7 +1,11 @@
 React = require 'react/addons'
+
 Navigation = require './navigation'
-TeamsListView = require './teams_list'
-TopScorersView = require './top_scorers'
+TeamsList = require './teams_list'
+StandingsTable = require './standings_table'
+RecentSchedule = require './recent_schedule'
+
+{Grid, Row, Col} = require 'react-bootstrap'
 
 Index = React.createClass
 
@@ -12,14 +16,27 @@ Index = React.createClass
     <div>
       <Navigation />
 
-      <div className="jumbotron">
-        <h1>Liiga.pw</h1>
-        <p>Liigan tilastot nopeasti ja vaivattomasti</p>
+      <div className="jumbotron front-jumbo">
+        <h1>LiigaOpas</h1>
+        <p>SM-Liigan tilastot nopeasti ja vaivattomasti</p>
       </div>
 
-      <TeamsListView teams={@props.teams} />
+      <TeamsList teams={@props.teams} />
 
-      <TopScorersView stats={@props.stats} />
+      <Grid>
+        <Row>
+          <Col xs={12} sm={6}>
+            <h3>Ottelut</h3>
+            <RecentSchedule schedule={@props.schedule} />
+          </Col>
+          <Col xs={12} sm={6}>
+            <h3>Sarjataulukko</h3>
+            <div className="standings standings-front table-responsive">
+              <StandingsTable standings={@props.standings} />
+            </div>
+          </Col>
+        </Row>
+      </Grid>
 
     </div>
 

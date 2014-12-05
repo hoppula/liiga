@@ -6,7 +6,7 @@ Teams = require '../lib/teams'
 Navigation = React.createClass
 
   render: ->
-    brand = <a href="/" className="navbar-brand">Liiga</a>
+    brand = <a href="/" className="navbar-brand">LiigaOpas</a>
 
     teams =
       # disable for now, react bootstrap is buggy on mobile
@@ -23,7 +23,7 @@ Navigation = React.createClass
     if @props.dropdown
       dropdown = <DropdownButton title={@props.dropdown.title}>
         {@props.dropdown.items.map (item) ->
-          <MenuItem eventKey={item.title} href={item.url}>{item.title}</MenuItem>
+          <MenuItem key={item.title} href={item.url}>{item.title}</MenuItem>
         }
       </DropdownButton>
 

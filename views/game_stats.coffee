@@ -1,30 +1,33 @@
 React = require 'react/addons'
+{Nav, NavItem, TabPane} = require 'react-bootstrap'
 
-# {Row, Col, Nav, NavItem, TabPane} = require 'react-bootstrap'
+Teams = require '../lib/teams'
+PlayerStats = require './player_stats'
+GoalieStats = require './goalie_stats'
 
 GameStats = React.createClass
 
   render: ->
-    <div className="table-responsive">
-      <table className="table table-striped">
-        {@props.stats.home.players.map (player) ->
-          <tr key={player.id}><td>{player.firstName} {player.lastName}</td></tr>
-        }
+    homeId = Teams.nameToId(@props.stats.home.team)
+    awayId = Teams.nameToId(@props.stats.away.team)
+    activeKey = if @props.away then "away" else "home"
 
-        {@props.stats.home.goalies.map (goalie) ->
-          <tr key={goalie.id}><td>{goalie.firstName} {goalie.lastName}</td></tr>
-        }
-      </table>
+    <div className="game-stats">
+      <Nav bsStyle="tabs" activeKey={activeKey} ref="tabs">
+        <NavItem href="/ottelut/#{@props.id}/tilastot" eventKey="home">{@props.stats.home.team}</NavItem>
+        <NavItem href="/ottelut/#{@props.id}/tilastot/vieras" eventKey="away">{@props.stats.away.team}</NavItem>
+      </Nav>
 
-      <table className="table table-striped">
-        {@props.stats.away.players.map (player) ->
-          <tr key={player.id}><td>{player.firstName} {player.lastName}</td></tr>
-        }
-
-        {@props.stats.away.goalies.map (goalie) ->
-          <tr key={goalie.id}><td>{goalie.firstName} {goalie.lastName}</td></tr>
-        }
-      </table>
+      <div className="tab-content" ref="panes">
+        <TabPane key="home" animation={false} active={activeKey is "home"}>
+          <PlayerStats teamId={homeId} stats={@props.stats.home.players} />
+          <GoalieStats teamId={homeId} stats={@props.stats.home.goalies} playedAtLeast={0} />
+        </TabPane>
+        <TabPane key="away" animation={false} active={activeKey is "away"}>
+          <PlayerStats teamId={awayId} stats={@props.stats.away.players} />
+          <GoalieStats teamId={awayId} stats={@props.stats.away.goalies} playedAtLeast={0} />
+        </TabPane>
+      </div>
     </div>
 
 module.exports = GameStats

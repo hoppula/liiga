@@ -37,7 +37,7 @@ TeamRoster = React.createClass
         }
       </tbody>
 
-    <div className="table-responsive">
+    <div className="team-roster table-responsive">
       <table className="table table-striped team-roster">
         <thead>
           <tr>

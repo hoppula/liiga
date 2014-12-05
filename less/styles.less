@@ -2,6 +2,7 @@
 //@import (inline) "less/_bootstrap.yeti.min.css";
 @import (inline) "less/_bootstrap.cosmo.min.css";
 //@import (inline) "less/_bootstrap.sandstone.min.css";
+@import url(http://fonts.googleapis.com/css?family=Raleway:400,700);
 
 @-ms-viewport {
   width: device-width;
@@ -24,6 +25,41 @@ a, input, button {
 
 body {
   padding-top: 50px;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Raleway','Source Sans Pro',Calibri,Candara,Arial,sans-serif;
+  font-weight: 400;
+}
+
+h1 {
+  text-transform: uppercase;
+  font-weight: 700;
+  font-size: 34px;
+}
+
+.jumbotron {
+  background: transparent;
+}
+
+.jumbotron.front-jumbo {
+  margin-bottom: 0;
+
+  @media (min-width: 650px) {
+    background: url("../svg/liiga.svg") no-repeat;
+    background-size: 100px 100px;
+    background-position: 87% center;
+  }
+  @media (min-width: 768px) {
+    background-size: 160px 160px;
+    background-position: 87% center;
+  }
+  @media (min-width: 992px) {
+    background-position: 63% center;
+  }
+  @media (min-width: 1200px) {
+    background-position: 50% center;
+  }
 }
 
 .dropdown-menu {
@@ -50,6 +86,7 @@ body {
   color: #ecf0f1;
   cursor: pointer;
   display: inline-block;
+  vertical-align: middle;
 
   @media (min-width: 992px) {
     width: 67px;
@@ -146,6 +183,8 @@ body {
 
 .sortable-thead {
   cursor: pointer;
+  background: #000;
+  color: #fff;
 }
 
 .schedule {
@@ -164,5 +203,244 @@ body {
     &.load-more {
       cursor: pointer;
     }
+  }
+}
+
+.team-schedule {
+  table.table-striped > tbody > tr.month-row > th {
+    background: #000;
+    color: #fff;
+  }
+}
+
+.team-roster {
+  table.table-striped > thead > tr > th {
+    background: #000;
+    color: #fff;
+  }
+}
+
+.standings {
+  table > tbody > tr > td {
+    border-top: 0;
+  }
+
+  table > tbody > tr.in > td {
+    border-top: 1px solid #000;
+  }
+
+  table > tbody > tr.maybe > td {
+    border-top: 1px solid #000;
+  }
+
+
+  .hide-on-mobile {
+    display: none;
+
+    @media (min-width: 1200px) {
+      display: table-cell;
+    }
+  }
+
+}
+
+.player {
+
+  table > thead {
+    background: #000;
+    color: #fff;
+
+    th {
+      border-bottom: 0;
+    }
+  }
+
+  strong {
+    min-width: 80px;
+    display: inline-block;
+  }
+
+  .table-responsive {
+    margin-top: 20px;
+  }
+}
+
+.table>thead>tr>th {
+  border-bottom: 0;
+}
+
+.sortable-thead th.active {
+  background-color: #2C3D7F;
+}
+
+.game {
+  .home, .score, .away {
+    text-align: center;
+  }
+
+  img {
+    margin-top: 20px;
+    width: auto;
+    height: 80px;
+  }
+
+  .home {
+
+    h1 {
+      display: none;
+      @media (min-width: 550px) {
+        display: block;
+      }
+    }
+
+    img {
+      display: inline;
+      @media (min-width: 550px) {
+        display: none;
+      }
+    }
+  }
+
+  .away {
+
+    h1 {
+      display: none;
+      @media (min-width: 550px) {
+        display: block;
+      }
+    }
+
+    img {
+      display: inline;
+      @media (min-width: 550px) {
+        display: none;
+      }
+    }
+  }
+
+  ul {
+    list-style: none;
+  }
+}
+
+table.table-striped.game-events > tbody > tr {
+  th {
+    background: #000;
+    color: #fff;
+    border-bottom: 0;
+  }
+}
+
+table.table-striped.other-events > tbody > tr {
+  td {
+    text-align: center;
+  }
+}
+
+.game-lineups {
+  .col-xs-2, .col-xs-3 {
+    text-align: center;
+  }
+
+  .player {
+    padding: 10px 5px;
+    background: #000;
+    color: #fff;
+    max-width: 130px;
+    font-size: 16px;
+    display: inline-block;
+    min-width: 34px;
+
+    @media (min-width: 550px) {
+      min-width: 60px;
+      //padding: 20px 10px;
+    }
+
+    @media (min-width: 768px) {
+      min-width: 100px;
+      padding: 20px 10px;
+      font-size: 20px;
+    }
+
+    @media (min-width: 1024px) {
+      min-width: 130px;
+      font-size: 24px;
+      //padding: 20px 10px;
+    }
+
+    a {
+      color: inherit;
+      display: block;
+    }
+
+    &.assat {
+      color: #fff;
+      background: #c11820;
+    }
+    &.blues {
+      color: #fff;
+      background: #000066;
+    }
+    &.hifk {
+      color: #033167;
+      background: #b30210;
+    }
+    &.hpk {
+      color: #fff;
+      background: #ed810f;
+    }
+    &.ilves {
+      color: #f4ce00;
+      background: #004022;
+    }
+    &.sport {
+      color: #000;
+      background: #dc1e2d;
+    }
+    &.jyp {
+      color: #ed1c24;
+      background: #000;
+    }
+    &.kalpa {
+      color: #b4181e;
+      background: #f0c90b;
+    }
+    &.karpat {
+      color: #ffe000;
+      background: #000;
+    }
+    &.lukko {
+      color: #e3a013;
+      background: #0055a5;
+    }
+    &.pelicans {
+      color: #fff;
+      background: #0193a6;
+    }
+    &.saipa {
+      color: #000;
+      background: #fff100;
+    }
+    &.tappara {
+      color: #ff6600;
+      background: #0c2576;
+    }
+    &.tps {
+      color: #fff;
+      background: #000;
+    }
+
+  }
+
+  .defenders {
+    margin-top: 10px;
+
+    @media (min-width: 550px) {
+      margin-top: 20px;
+    }
+  }
+
+  .goalies {
+    margin-bottom: 40px;
   }
 }

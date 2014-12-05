@@ -13,9 +13,9 @@ TableSortMixin =
     switch @state.sortType
       when "integer"
         if @state.sortDirection is "desc"
-          b[@state.sortField] - a[@state.sortField]
+          (parseInt(b[@state.sortField]) || 0) - (parseInt(a[@state.sortField]) || 0)
         else
-          a[@state.sortField] - b[@state.sortField]
+          (parseInt(a[@state.sortField]) || 0) - (parseInt(b[@state.sortField]) || 0)
       when "float"
         aValue = Number(a[@state.sortField].replace("%","").replace(/\,|\:/,".")) or 0
         bValue = Number(b[@state.sortField].replace("%","").replace(/\,|\:/,".")) or 0

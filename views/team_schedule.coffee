@@ -34,10 +34,17 @@ TeamSchedule = React.createClass
       moment(game.date).format("YYYY-MM")
 
   render: ->
+    attendanceTitle = (month) ->
+      if moment(month).startOf("month") < moment()
+        "Yleisöä"
+      else
+        null
+
     monthlyGames = @groupedSchedule().map (games, month) =>
       <tbody key={month}>
-        <tr>
-          <th colSpan=4>{moment(month, "YYYY-MM").format("MMMM")}</th>
+        <tr className="month-row">
+          <th colSpan=3>{moment(month, "YYYY-MM").format("MMMM")}</th>
+          <th>{attendanceTitle(month)}</th>
         </tr>
         {games.map (game) =>
           <tr key={game.id}>
@@ -49,16 +56,8 @@ TeamSchedule = React.createClass
         }
       </tbody>
 
-    <div className="table-responsive">
+    <div className="team-schedule table-responsive">
       <table className="table table-striped team-schedule">
-        <thead>
-          <tr>
-            <th>Päivämäärä</th>
-            <th>Joukkueet</th>
-            <th>Tulos</th>
-            <th>Yleisömäärä</th>
-          </tr>
-        </thead>
         {monthlyGames}
       </table>
     </div>

@@ -28,11 +28,15 @@ Stats = React.createClass
         <div className="tab-content" ref="panes">
           <TabPane key="players" animation={false} active={activeKey is "players"}>
             <h2>Kenttäpelaajat</h2>
-            <PlayerStats stats={@props.stats.scoringStats} />
+            <div className="table-responsive">
+              <PlayerStats stats={@props.stats.scoringStats} limit={100} />
+            </div>
           </TabPane>
           <TabPane key="goalies" animation={false} active={activeKey is "goalies"}>
-            <h2>Maalivahdit</h2>
-            <GoalieStats stats={@props.stats.goalieStats} />
+            <h2>Maalivahdit (yli 25% pelanneet)</h2>
+            <div className="table-responsive">
+              <GoalieStats stats={@props.stats.goalieStats} playedAtLeast={25} />
+            </div>
           </TabPane>
         </div>
       </div>

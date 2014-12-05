@@ -12,6 +12,7 @@
     "build_less": "lessc less/styles.less public/css/styles.css",
     "watch_lib": "watchify -r cerebellum -r q -r react/addons -r moment -r react-bootstrap -r lodash -u jquery -u underscore -t coffeeify --extension='.coffee' -o public/js/lib.js -v",
     "watch_app": "watchify -x cerebellum -x q -x react/addons -x moment -x react-bootstrap -x lodash client.coffee -d -t coffee-reactify --extension='.coffee' -o public/js/app.js -v",
+    "watch_code": "npm run watch_app & npm run watch_lib",
     "watch_less": "catw -c 'lessc -' 'less/styles.less' -o public/css/styles.css -v",
     "watch": "npm run watch_app & npm run watch_lib & npm run watch_less",
     "nodemon": "nodemon server.coffee"

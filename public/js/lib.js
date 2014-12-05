@@ -9,7 +9,14 @@ function Client(options) {
   var storeId = options.storeId;
   var initializeCallback = options.initialize;
   var render = options.render;
-  var store = new Store(stores);
+  var storeOptions = {};
+  if (options.autoClearCaches) {
+    storeOptions.autoClearCaches = true;
+  }
+  if (typeof options.autoToJSON !== "undefined") {
+    storeOptions.autoToJSON = options.autoToJSON;
+  }
+  var store = new Store(stores, storeOptions);
 
   DOMReady.then(function() {
     var storeState = document.getElementById(storeId);
@@ -70,6 +77,16 @@ module.exports = new Promise(function(resolve, reject) {
 var exoskeleton = require("./wrapper/exoskeleton");
 require('native-promise-only');
 
+function createStoreOptions(options) {
+  var storeOptions = {};
+  for (key in options) {
+    if (options.hasOwnProperty(key)) {
+      storeOptions[key] = options[key];
+    }
+  }
+  return storeOptions;
+};
+
 var Store = (function() {
   function Store(stores, options) {
     var store, id;
@@ -80,6 +97,17 @@ var Store = (function() {
     // store cookie for server side API request authentication
     if (options.cookie) {
       this.cookie = options.cookie;
+    }
+
+    // automatically clear caches after mutation operations, default off
+    if (options.autoClearCaches) {
+      this.autoClearCaches = true;
+    }
+
+    // call toJSON() for stores in fetch automatically, default on
+    this.autoToJSON = true;
+    if (typeof options.autoToJSON !== "undefined") {
+      this.autoToJSON = options.autoToJSON;
     }
 
     // this.cached is used for storing actual instances
@@ -98,36 +126,112 @@ var Store = (function() {
     // allows Store to be used as event bus
     exoskeleton.utils.extend(this, exoskeleton.Events);
 
-    // callbacks expect: storeId, params
+    // callbacks expect: storeId, storeOptions, params
     this.on({
       "create": this.onCreate,
-      "patch": this.onPatch,
+      "update": this.onUpdate,
       "delete": this.onDelete
     });
   }
 
-  Store.prototype.onCreate = function onCreate(storeId, options) {
-    this.get(storeId).create(options, {success: function() {
-      // TODO: set & call save if model
-      // if collection, call create
-      // properly update cache, use cachePath
-      // when all done, trigger event
-    }});
+  Store.prototype.onCreate = function onCreate(storeId, storeOptions, attrs) {
+    if (!attrs) {
+      attrs = storeOptions;
+      storeOptions = {};
+    }
+
+    var self = this;
+    var store = this.get(storeId);
+    store.storeOptions = createStoreOptions(storeOptions);
+
+    if (typeof store.create !== "function") {
+      self.trigger("create:"+storeId, new Error("You can call create only for collections!"));
+      return;
+    }
+
+    store.create(attrs, {
+      success: function(model, response) {
+        var cacheKey = typeof store.cacheKey === "function" ? store.cacheKey() : store.cacheKey;
+        if (self.autoClearCaches) {
+          self.clearCache(storeId, cacheKey);
+        }
+        self.trigger("create:"+storeId, null, {
+          cacheKey: cacheKey,
+          store: storeId,
+          options: storeOptions,
+          result: model
+        });
+      },
+      error: function(model, response) {
+        self.trigger("create:"+storeId, new Error(response));
+      }
+    });
   };
 
-  Store.prototype.onPatch = function onPatch(storeId, options) {
-    // TODO: set attrs & save with {patch: true} if model
-    // if collection, find, set attrs & save with {patch: true}
-    //  model.save(attrs, {patch: true})
-    // properly update cache, use cachePath
-    // when all done, trigger event
+  Store.prototype.onUpdate = function onUpdate(storeId, storeOptions, attrs) {
+    var self = this;
+    var store = this.get(storeId);
+    store.storeOptions = createStoreOptions(storeOptions);
+
+    if (typeof store.save !== "function") {
+      self.trigger("update:"+storeId, new Error("You can call update only for models!"));
+      return;
+    }
+
+    store.save(attrs, {
+      success: function(model, response) {
+        var cacheKey = typeof store.cacheKey === "function" ? store.cacheKey() : store.cacheKey;
+        if (self.autoClearCaches) {
+          self.clearCache(storeId, cacheKey);
+        }
+        self.trigger("update:"+storeId, null, {
+          cacheKey: cacheKey,
+          store: storeId,
+          options: storeOptions,
+          result: model
+        });
+      },
+      error: function(model, response) {
+        self.trigger("update:"+storeId, new Error(response));
+      }
+    });
   };
 
-  Store.prototype.onDelete = function onDelete(storeId, options) {
-    // TODO: call destroy if model
-    // if collection, call find & destroy
-    // properly delete from cache, use cachePath
-    // when all done, trigger event
+  Store.prototype.onDelete = function onDelete(storeId, storeOptions) {
+    var self = this;
+    var store = this.get(storeId);
+    store.storeOptions = createStoreOptions(storeOptions);
+    // Model#destroy needs id attribute or it considers model new and triggers success callback straight away
+    store.set("id", store.storeOptions.id);
+
+    if (typeof store.destroy !== "function") {
+      self.trigger("delete:"+storeId, new Error("You can call destroy only for models!"));
+      return;
+    }
+
+    store.destroy({
+      success: function(model, response) {
+        var cacheKey = typeof store.cacheKey === "function" ? store.cacheKey() : store.cacheKey;
+        if (self.autoClearCaches) {
+          self.clearCache(storeId, cacheKey);
+        }
+        self.trigger("delete:"+storeId, null, {
+          cacheKey: cacheKey,
+          store: storeId,
+          options: storeOptions,
+          result: model
+        });
+      },
+      error: function(model, response) {
+        self.trigger("delete:"+storeId, new Error(response));
+      }
+    });
+  };
+
+  Store.prototype.clearCache = function clearCache(storeId, cacheKey) {
+    if (this.cached[storeId] && this.cached[storeId][cacheKey]) {
+      delete this.cached[storeId][cacheKey];
+    }
   };
 
   Store.prototype.clearCookie = function() {
@@ -180,6 +284,7 @@ var Store = (function() {
   // get store from cache or fetch from server
   Store.prototype.fetch = function(storeId, options) {
     var fetchOptions = {};
+    var autoToJSON = this.autoToJSON;
     var self = this;
     var store, key, cacheKey, cachedStore;
 
@@ -193,30 +298,37 @@ var Store = (function() {
         reject(new Error("Store " + storeId + " not registered."));
       }
 
-      store.storeOptions = {};
-      for (key in options) {
-        if (options.hasOwnProperty(key)) {
-          store.storeOptions[key] = options[key];
-        }
-      }
+      store.storeOptions = createStoreOptions(options);
 
       if (!store.cacheKey) {
         reject(new Error("Store " + storeId + " has no cacheKey method."));
       }
 
-      cacheKey = store.cacheKey();
+      cacheKey = typeof store.cacheKey === "function" ? store.cacheKey() : store.cacheKey;
       cachedStore = self.cached[storeId][cacheKey];
 
       if (cachedStore) {
-        return resolve(cachedStore);
+        return resolve(autoToJSON ? cachedStore.toJSON() : cachedStore);
       } else {
         return store.fetch(fetchOptions).then(function() {
           self.cached[storeId][cacheKey] = store;
-          return resolve(store);
+          return resolve(autoToJSON ? store.toJSON() : store);
         }).catch(function(err) {
-          // We can't reject here, should resolve with 401 & 403 etc.
-          // TODO: handle other error statuses somehow
-          return resolve(store);
+          // TODO: make this list configurable?
+          // return empty store with these status codes
+          // this allows us to show proper data for logged-in users
+          // and prevents error for users who are not logged-in
+          var allowedStatusCodes = [401, 403];
+          var allowedStatus = allowedStatusCodes.some(function(statusCode) {
+            return statusCode === err.status;
+          });
+          if (allowedStatus) {
+            return resolve(store);
+          } else {
+            // reject for other statuses so
+            // error can be catched in router
+            return reject(err);
+          }
         });
       }
     });
@@ -255,7 +367,8 @@ var Sync = {
         settings.success(response.data);
         return resolve(response);
       }).catch(function(response) {
-        settings.error(response.data);
+        var error = response.data || response;
+        settings.error(error);
         return reject(response);
       });
     });
