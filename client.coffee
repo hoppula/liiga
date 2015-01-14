@@ -9,6 +9,6 @@ options.render = (options={}) ->
   React.render(options.component, appContainer)
 
 options.initialize = (client) ->
-  #React.initializeTouchEvents(true)
+  React.initializeTouchEvents(true)
 
 app = cerebellum.client(options)
