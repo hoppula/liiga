@@ -26,7 +26,8 @@ Game = React.createClass
       else "events"
 
     game = @props.game
-    [hours, minutes] = game.time.split(":")
+    gameTime = game.time or ""
+    [hours, minutes] = gameTime.split(":")
 
     <div className="game">
       <Navigation />

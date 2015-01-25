@@ -45,15 +45,19 @@ GameEvents = React.createClass
     <div>
 
       <table className="table table-striped game-events">
+        <tbody>
         {periodEvents.map (event, i) =>
           @event(event, i)
         }
+        </tbody>
       </table>
 
       <table className="table table-striped game-events other-events">
+        <tbody>
         {otherEvents.map (event, i) =>
           @event(event, i)
         }
+        </tbody>
       </table>
 
     </div>

@@ -29,20 +29,22 @@ RecentSchedule = React.createClass
       else
         "future"
     )
-    firstFuture = groups.future[0]
-    [..., lastPast] = groups.past
+    future = groups.future or []
+    past = groups.past or []
+    firstFuture = future[0]
+    [..., lastPast] = past
 
-    future: _.filter(groups.future, (game) ->
+    future: _.filter(future, (game) ->
       game.date is firstFuture.date
     )
-    past: _.filter(groups.past, (game) ->
+    past: _.filter(past, (game) ->
       game.date is lastPast.date
     )
     ongoing: groups.ongoing or []
 
   render: ->
     grouped = @grouped()
-    ongoing = if grouped.ongoing.length
+    ongoing = if grouped.ongoing?.length
       <div className="ongoing">
         <h4>Käynnissä</h4>
         <ListGroup>
@@ -58,7 +60,7 @@ RecentSchedule = React.createClass
 
     past = if grouped.past
       <div className="past">
-        <h4>Edelliset ({moment(grouped.past[0].date).format("DD.MM")})</h4>
+        <h4>Edelliset ({moment(grouped.past[0]?.date).format("DD.MM")})</h4>
         <ListGroup>
         {grouped.past.map (game) ->
           score = if game.homeScore and game.awayScore then "#{game.homeScore}-#{game.awayScore}" else ""
@@ -73,7 +75,7 @@ RecentSchedule = React.createClass
 
     future = if grouped.future
       <div className="future">
-        <h4>Seuraavat ({moment(grouped.future[0].date).format("DD.MM")})</h4>
+        <h4>Seuraavat ({moment(grouped.future[0]?.date).format("DD.MM")})</h4>
         <ListGroup>
         {grouped.future.map (game) ->
           teams = "#{game.home} - #{game.away}"

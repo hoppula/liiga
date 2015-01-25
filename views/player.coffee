@@ -8,18 +8,21 @@ Player = React.createClass
   render: ->
     player = @props.player
     team = @props.team
+    teamRoster = team.roster or []
+    teamStats = team.stats or {}
+    teamInfo = team.info or {}
     item =
-      title: team.info.name
-      url: team.info.url
+      title: team.info?.name
+      url: team.info?.url
 
     players =
       title: "Pelaajat",
-      items: team.roster.map (player) =>
+      items: teamRoster.map (player) =>
         title: "#{player.firstName} #{player.lastName}"
         url: "/joukkueet/#{team.info.id}/#{player.id}"
 
     statsType = if player.position is "MV" then "goalies" else "players"
-    stats = team.stats[statsType].filter((player) =>
+    stats = (teamStats[statsType] or []).filter((player) =>
       [id, slug] = player.id.split("/")
       id is @props.id
     )[0] or {}
@@ -126,7 +129,7 @@ Player = React.createClass
 
       <h1>{player.firstName} {player.lastName}</h1>
 
-      <h2><a className="team-logo #{team.info.id}" href="/joukkueet/#{team.info.id}"></a> #{player.number}</h2>
+      <h2><a className="team-logo #{teamInfo.id}" href="/joukkueet/#{teamInfo.id}"></a> #{player.number}</h2>
 
       <div><strong>Pelipaikka</strong> {position}</div>
       <div><strong>Syntynyt</strong> {birthday.format("DD.MM.YYYY")} ({moment().diff(player.birthday, "years")} vuotias)</div>

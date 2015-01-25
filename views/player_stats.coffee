@@ -12,8 +12,9 @@ PlayerStats = React.createClass
     sortType: "integer"
 
   render: ->
-    limit = if @props.limit then @props.limit else @props.stats.length
-    players = @props.stats.sort(@sort).slice(0, limit).map (player) =>
+    stats = @props.stats or []
+    limit = if @props.limit then @props.limit else stats.length
+    players = stats.sort(@sort).slice(0, limit).map (player) =>
       teamId = @props.teamId or player.teamId
       <tr key={player.id}>
         <td><a href="/joukkueet/#{teamId}/#{player.id}">{player.firstName} {player.lastName}</a></td>

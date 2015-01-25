@@ -14,7 +14,7 @@ StandingsTable = React.createClass
     sortType: "integer"
 
   render: ->
-    standings = @props.standings.sort(@sort).map (team, i) ->
+    standings = (@props.standings or []).sort(@sort).map (team, i) ->
       rowClass = switch
         when i is 6
           "in"

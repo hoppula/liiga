@@ -21,6 +21,9 @@ Team = React.createClass
       when "tilastot" then "stats"
       else "schedule"
 
+    team = @props.team or {}
+    teamInfo = team.info or {}
+
     <div>
       <Navigation />
 
@@ -28,19 +31,19 @@ Team = React.createClass
         <Jumbotron>
           <Row>
             <Col xs={12} md={6}>
-              <h1>{@logo()} {@props.team.info.name}</h1>
+              <h1>{if team.info then @logo() else ""} {teamInfo.name}</h1>
             </Col>
             <Col xs={12} md={6}>
               <div className="team-container">
                 <ul>
-                  <li>{@props.team.info.longName}</li>
-                  <li>{@props.team.info.address}</li>
-                  <li>{@props.team.info.email}</li>
+                  <li>{teamInfo.longName}</li>
+                  <li>{teamInfo.address}</li>
+                  <li>{teamInfo.email}</li>
                 </ul>
 
                 <ButtonToolbar>
-                  <Button bsStyle="primary" bsSize="large" href={@props.team.info.ticketsUrl}>Liput</Button>
-                  <Button bsStyle="primary" bsSize="large" href={@props.team.info.locationUrl}>Hallin sijainti</Button>
+                  <Button bsStyle="primary" bsSize="large" href={teamInfo.ticketsUrl}>Liput</Button>
+                  <Button bsStyle="primary" bsSize="large" href={teamInfo.locationUrl}>Hallin sijainti</Button>
                 </ButtonToolbar>
               </div>
             </Col>

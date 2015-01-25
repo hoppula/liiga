@@ -8,24 +8,26 @@ GoalieStats = require './goalie_stats'
 GameStats = React.createClass
 
   render: ->
-    homeId = Teams.nameToId(@props.stats.home.team)
-    awayId = Teams.nameToId(@props.stats.away.team)
+    home = @props.stats.home or {}
+    away = @props.stats.away or {}
+    homeId = Teams.nameToId(home.team)
+    awayId = Teams.nameToId(away.team)
     activeKey = if @props.away then "away" else "home"
 
     <div className="game-stats">
       <Nav bsStyle="tabs" activeKey={activeKey} ref="tabs">
-        <NavItem href="/ottelut/#{@props.id}/tilastot" eventKey="home">{@props.stats.home.team}</NavItem>
-        <NavItem href="/ottelut/#{@props.id}/tilastot/vieras" eventKey="away">{@props.stats.away.team}</NavItem>
+        <NavItem href="/ottelut/#{@props.id}/tilastot" eventKey="home">{home.team}</NavItem>
+        <NavItem href="/ottelut/#{@props.id}/tilastot/vieras" eventKey="away">{away.team}</NavItem>
       </Nav>
 
       <div className="tab-content" ref="panes">
         <TabPane key="home" animation={false} active={activeKey is "home"}>
-          <PlayerStats teamId={homeId} stats={@props.stats.home.players} />
-          <GoalieStats teamId={homeId} stats={@props.stats.home.goalies} playedAtLeast={0} />
+          <PlayerStats teamId={homeId} stats={home.players} />
+          <GoalieStats teamId={homeId} stats={home.goalies} playedAtLeast={0} />
         </TabPane>
         <TabPane key="away" animation={false} active={activeKey is "away"}>
-          <PlayerStats teamId={awayId} stats={@props.stats.away.players} />
-          <GoalieStats teamId={awayId} stats={@props.stats.away.goalies} playedAtLeast={0} />
+          <PlayerStats teamId={awayId} stats={away.players} />
+          <GoalieStats teamId={awayId} stats={away.goalies} playedAtLeast={0} />
         </TabPane>
       </div>
     </div>

@@ -8,7 +8,7 @@ options = require './options'
 appId = options.appId
 
 options.render = (document, options={}) ->
-  document("title").html options.title
+  document("title").html "LiigaOpas - #{options.title}"
   document("##{appId}").html React.renderToString(options.component)
   document.html()
 

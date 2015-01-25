@@ -34,11 +34,14 @@ GameLineups = React.createClass
     <Tooltip><strong>{player?.name}</strong></Tooltip>
 
   render: ->
-    homeTeam = Teams.nameToId(@props.lineUps.home.team)
-    awayTeam = Teams.nameToId(@props.lineUps.away.team)
+    home = @props.lineUps.home or {}
+    away = @props.lineUps.away or {}
+    homeLines = home.lines or []
+    homeTeam = Teams.nameToId(home.team)
+    awayTeam = Teams.nameToId(away.team)
 
-    lines = @props.lineUps.home.lines.map (line, i) =>
-      awayLine = @props.lineUps.away.lines[i]
+    lines = homeLines.map (line, i) =>
+      awayLine = away.lines[i]
       <Grid key={"line#{i}"}>
         <Row>
           {@lineTitle(i)}

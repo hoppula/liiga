@@ -13,14 +13,15 @@ GoalieStats = React.createClass
     sortType: "float"
 
   render: ->
-    maxGames = _.max(@props.stats, (player) ->
+    stats = @props.stats or []
+    maxGames = _.max(stats, (player) ->
       parseInt(player.games)
     ).games
     playedAtLeast = if typeof @props.playedAtLeast is "number"
       parseInt((@props.playedAtLeast / 100) * maxGames)
     else
       1
-    goalies = @props.stats.sort(@sort).filter (player) ->
+    goalies = stats.sort(@sort).filter (player) ->
       if player.games
         player.games >= playedAtLeast
       else

@@ -33,7 +33,7 @@ module.exports =
         when "tilastot" then "Tilastot"
         else "Otteluohjelma"
 
-      title: "Joukkueet - #{team.info.name} - #{subTitle}"
+      title: "Joukkueet - #{team.info?.name} - #{subTitle}"
       component: React.createElement TeamView,
         id: id
         standings: standings
@@ -42,9 +42,9 @@ module.exports =
 
   "/joukkueet/:id/:pid/:slug": (id, pid, slug) ->
     @store.fetch("team", id: id).then (team) ->
-      player = team.roster.filter((player) ->
+      player = team.roster?.filter((player) ->
         player.id is "#{pid}/#{slug}"
-      )[0]
+      )[0] or {}
       title: "Pelaajat - #{player.firstName} #{player.lastName}"
       component: React.createElement PlayerView,
         id: pid
@@ -66,7 +66,7 @@ module.exports =
     ], (schedule, events, lineUps, stats) ->
       game = schedule.filter((g) ->
         g.id is id
-      )[0]
+      )[0] or {}
 
       title: "Ottelu - #{game.home} vs #{game.away}"
       component: React.createElement GameView,
