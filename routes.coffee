@@ -1,13 +1,13 @@
 Q = require 'q'
 React = require 'react/addons'
 
-IndexView = require './views/index'
-TeamView = require './views/team'
-PlayerView = require './views/player'
-GameView = require './views/game'
-ScheduleView = require './views/schedule'
-StandingsView = require './views/standings'
-StatsView = require './views/stats'
+IndexView = React.createFactory require('./views/index')
+TeamView = React.createFactory require('./views/team')
+PlayerView = React.createFactory require('./views/player')
+GameView = React.createFactory require('./views/game')
+ScheduleView = React.createFactory require('./views/schedule')
+StandingsView = React.createFactory require('./views/standings')
+StatsView = React.createFactory require('./views/stats')
 
 module.exports =
   "/": ->
@@ -17,7 +17,7 @@ module.exports =
       @store.fetch("teams")
     ], (standings, schedule, teamsList) ->
       title: "Etusivu"
-      component: React.createElement IndexView,
+      component: IndexView
         standings: standings
         teams: teamsList
         schedule: schedule
@@ -34,7 +34,7 @@ module.exports =
         else "Otteluohjelma"
 
       title: "Joukkueet - #{team.info?.name} - #{subTitle}"
-      component: React.createElement TeamView,
+      component: TeamView
         id: id
         standings: standings
         team: team
@@ -42,11 +42,13 @@ module.exports =
 
   "/joukkueet/:id/:pid/:slug": (id, pid, slug) ->
     @store.fetch("team", id: id).then (team) ->
+
       player = team.roster?.filter((player) ->
         player.id is "#{pid}/#{slug}"
       )[0] or {}
+
       title: "Pelaajat - #{player.firstName} #{player.lastName}"
-      component: React.createElement PlayerView,
+      component: PlayerView
         id: pid
         player: player
         team: team
@@ -54,7 +56,7 @@ module.exports =
   "/ottelut": ->
     @store.fetch("schedule").then (schedule) ->
       title: "Otteluohjelma"
-      component: React.createElement ScheduleView,
+      component: ScheduleView
         schedule: schedule
 
   "/ottelut/:id/:active?/:away?": (id, active, away) ->
@@ -64,12 +66,13 @@ module.exports =
       @store.fetch("gameLineups", id: id)
       @store.fetch("gameStats", id: id)
     ], (schedule, events, lineUps, stats) ->
+
       game = schedule.filter((g) ->
         g.id is id
       )[0] or {}
 
       title: "Ottelu - #{game.home} vs #{game.away}"
-      component: React.createElement GameView,
+      component: GameView
         id: id
         game: game
         events: events
@@ -81,12 +84,12 @@ module.exports =
   "/sarjataulukko": ->
     @store.fetch("standings").then (standings) ->
       title: "Sarjataulukko"
-      component: React.createElement StandingsView,
+      component: StandingsView
         standings: standings
 
   "/tilastot/:active?": (active) ->
     @store.fetch("stats").then (stats) ->
       title: "Tilastot"
-      component: React.createElement StatsView,
+      component: StatsView
         stats: stats
         active: active
