@@ -922,3 +922,8 @@ table.table-striped.other-events > tbody > tr td {
 .game-lineups .goalies {
   margin-bottom: 40px;
 }
+.github {
+  margin-top: 30px;
+  margin-bottom: 30px;
+  text-align: center;
+}
