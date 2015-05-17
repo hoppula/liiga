@@ -18,6 +18,7 @@ PlayerStats = React.createClass
       teamId = @props.teamId or player.teamId
       <tr key={player.id}>
         <td><a href="/joukkueet/#{teamId}/#{player.id}">{player.firstName} {player.lastName}</a></td>
+        <td>{player.position}</td>
         <td>{player.games}</td>
         <td>{player.goals}</td>
         <td>{player.assists}</td>
@@ -40,6 +41,7 @@ PlayerStats = React.createClass
       <thead className="sortable-thead" onClick={@setSort}>
         <tr>
           <th data-sort="lastName" data-type="string">Nimi</th>
+          <th data-sort="position" data-type="string">PP</th>
           <th data-sort="games" data-type="integer">O</th>
           <th data-sort="goals" data-type="integer">M</th>
           <th data-sort="assists" data-type="integer">S</th>
