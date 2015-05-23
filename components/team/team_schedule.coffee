@@ -1,8 +1,8 @@
-React = require 'react/addons'
+React = require 'react'
 moment = require 'moment'
 _ = require 'lodash'
 
-Teams = require '../lib/teams'
+Teams = require '../../lib/teams'
 
 moment.locale('fi'
   months : [
@@ -58,7 +58,7 @@ TeamSchedule = React.createClass
 
     <div className="team-schedule table-responsive">
       <table className="table table-striped team-schedule">
-        {monthlyGames}
+        {monthlyGames.value()}
       </table>
     </div>
 

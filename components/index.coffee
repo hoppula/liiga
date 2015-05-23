@@ -1,13 +1,19 @@
-React = require 'react/addons'
-
-Navigation = require './navigation'
-TeamsList = require './teams_list'
-StandingsTable = require './standings_table'
-RecentSchedule = require './recent_schedule'
-
+React = require 'react'
 {Grid, Row, Col} = require 'react-bootstrap'
 
+TeamsList = require './index/teams_list'
+RecentSchedule = require './index/recent_schedule'
+StandingsTable = require './shared/standings_table'
+Navigation = require './shared/navigation'
+
 Index = React.createClass
+
+  statics:
+    title: "Etusivu"
+    stores: (request) ->
+      standings: {}
+      schedule: {}
+      teams: {}
 
   componentDidMount: ->
     window.scrollTo(0,0)

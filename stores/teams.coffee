@@ -1,4 +1,4 @@
-Collection = require('cerebellum').Collection
+Collection = require('cerebellum/collection')
 apiConfig = require '../config/api'
 
 Teams = Collection.extend

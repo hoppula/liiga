@@ -1,4 +1,4 @@
-Model = require('cerebellum').Model
+Model = require('cerebellum/model')
 apiConfig = require '../config/api'
 
 GameStats = Model.extend

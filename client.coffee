@@ -1,12 +1,16 @@
-React = require 'react/addons'
-cerebellum = require 'cerebellum'
+React = require 'react'
+cerebellum = require 'cerebellum/client'
+renderClient = require 'cerebellum-react/render-client'
 options = require './options'
 
 appContainer = document.getElementById(options.appId)
 
-options.render = (options={}) ->
-  document.getElementsByTagName("title")[0].innerHTML = "LiigaOpas - #{options.title}"
-  React.render(options.component, appContainer)
+options.render = renderClient(React, {
+  storeId: options.storeId
+  appId: options.appId
+  prependTitle: "LiigaOpas - "
+  convertProps: true
+})
 
 options.initialize = (client) ->
   React.initializeTouchEvents(true)
@@ -23,6 +27,7 @@ options.initialize = (client) ->
   client.store.on("fetch:teams", reRender)
   client.store.on("fetch:team", reRender)
 
+# enable instantResolve for immediately resolving fetches
 options.instantResolve = true
 
-app = cerebellum.client(options)
+cerebellum(options)

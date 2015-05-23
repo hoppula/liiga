@@ -1,7 +1,7 @@
-React = require 'react/addons'
+React = require 'react'
 
-PlayerStats = require './player_stats'
-GoalieStats = require './goalie_stats'
+PlayerStats = require '../shared/player_stats'
+GoalieStats = require '../shared/goalie_stats'
 
 TeamStats = React.createClass
 

@@ -1,4 +1,4 @@
-React = require 'react/addons'
+React = require 'react'
 moment = require 'moment'
 _ = require 'lodash'
 
@@ -18,23 +18,24 @@ TeamRoster = React.createClass
     , {})
 
   render: ->
+    mapPlayer = (player) =>
+      url = "/joukkueet/#{@props.teamId}/#{player.id}"
+      title = "#{player.firstName} #{player.lastName}"
+      <tr key={player.id}>
+        <td><a href={url}>{title}</a></td>
+        <td><strong>{player.number}</strong></td>
+        <td>{player.height}</td>
+        <td>{player.weight}</td>
+        <td>{player.shoots}</td>
+        <td>{moment().diff(player.birthday, "years")}</td>
+      </tr>
+
     groups = @groupedRoster().map (players, group) =>
       <tbody key={group}>
         <tr>
           <th colSpan=6>{group}</th>
         </tr>
-        {_.chain(players).flatten().map (player) =>
-          url = "/joukkueet/#{@props.teamId}/#{player.id}"
-          title = "#{player.firstName} #{player.lastName}"
-          <tr key={player.id}>
-            <td><a href={url}>{title}</a></td>
-            <td><strong>{player.number}</strong></td>
-            <td>{player.height}</td>
-            <td>{player.weight}</td>
-            <td>{player.shoots}</td>
-            <td>{moment().diff(player.birthday, "years")}</td>
-          </tr>
-        }
+        {_.chain(players).flatten().map(mapPlayer).value()}
       </tbody>
 
     <div className="team-roster table-responsive">
@@ -49,7 +50,7 @@ TeamRoster = React.createClass
             <th>Ikä</th>
           </tr>
         </thead>
-        {groups}
+        {groups.value()}
       </table>
     </div>
 

@@ -1,8 +1,9 @@
-React = require 'react/addons'
+React = require 'react'
 
-Navigation = require './navigation'
-TableSortMixin = require './mixins/table_sort'
-Teams = require '../lib/teams'
+Teams = require '../../lib/teams'
+
+Navigation = require '../shared/navigation'
+TableSortMixin = require '../mixins/table_sort'
 
 StandingsTable = React.createClass
 

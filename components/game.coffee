@@ -1,17 +1,38 @@
-React = require 'react/addons'
+React = require 'react'
 moment = require 'moment'
-
-Navigation = require './navigation'
-
 {Row, Col, Nav, NavItem, TabPane} = require 'react-bootstrap'
 
 Teams = require '../lib/teams'
 
-GameEvents = require './game_events'
-GameLineups = require './game_lineups'
-GameStats = require './game_stats'
+GameEvents = require './game/game_events'
+GameLineups = require './game/game_lineups'
+GameStats = require './game/game_stats'
+Navigation = require './shared/navigation'
+
+getGame = (schedule, id) ->
+  schedule.filter((g) ->
+    g.id is id
+  )[0] or {}
 
 Game = React.createClass
+
+  statics:
+    title: (props, request) ->
+      game = getGame(props.schedule, request.params.id)
+      "Ottelu - #{game.home} vs #{game.away}"
+
+    stores: (request) ->
+      schedule: {}
+      gameEvents: {id: request.params.id}
+      gameLineups: {id: request.params.id}
+      gameStats: {id: request.params.id}
+
+    preprocess: (props, request) ->
+      props.id = request.params.id
+      props.game = getGame(props.schedule, request.params.id)
+      props.active = request.params.active
+      props.away = !!request.params.away
+      props
 
   componentDidMount: ->
     window.scrollTo(0,0)
@@ -60,15 +81,15 @@ Game = React.createClass
 
       <div className="tab-content" ref="panes">
         <TabPane key="events" animation={false} active={activeKey is "events"}>
-          <GameEvents events={@props.events} game={@props.game} />
+          <GameEvents events={@props.gameEvents} game={@props.game} />
         </TabPane>
 
         <TabPane key="stats" animation={false} active={activeKey is "stats"}>
-          <GameStats id={@props.id} stats={@props.stats} away={@props.away} />
+          <GameStats id={@props.id} stats={@props.gameStats} away={@props.away} />
         </TabPane>
 
         <TabPane key="lineUps" animation={false} active={activeKey is "lineUps"}>
-          <GameLineups id={@props.id} lineUps={@props.lineUps} />
+          <GameLineups id={@props.id} lineUps={@props.gameLineups} />
         </TabPane>
       </div>
 

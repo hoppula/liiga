@@ -1,9 +1,14 @@
-React = require 'react/addons'
+React = require 'react'
 
-Navigation = require './navigation'
-StandingsTable = require './standings_table'
+Navigation = require './shared/navigation'
+StandingsTable = require './shared/standings_table'
 
 Standings = React.createClass
+
+  statics:
+    title: "Sarjataulukko"
+    stores: (request) ->
+      standings: {}
 
   componentDidMount: ->
     window.scrollTo(0,0)

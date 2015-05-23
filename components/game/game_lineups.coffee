@@ -1,8 +1,7 @@
-React = require 'react/addons'
-
+React = require 'react'
 {Row, Col, Grid, OverlayTrigger, Tooltip} = require 'react-bootstrap'
 
-Teams = require '../lib/teams'
+Teams = require '../../lib/teams'
 
 GameLineups = React.createClass
 

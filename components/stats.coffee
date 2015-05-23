@@ -1,11 +1,19 @@
-React = require 'react/addons'
+React = require 'react'
 {TabPane, Nav, NavItem} = require "react-bootstrap"
-Navigation = require './navigation'
 
-PlayerStats = require './player_stats'
-GoalieStats = require './goalie_stats'
+Navigation = require './shared/navigation'
+PlayerStats = require './shared/player_stats'
+GoalieStats = require './shared/goalie_stats'
 
 Stats = React.createClass
+
+  statics:
+    title: "Tilastot"
+    stores: (request) ->
+      stats: {}
+    preprocess: (props, request) ->
+      props.active = request.params.active
+      props
 
   componentDidMount: ->
     window.scrollTo(0,0)

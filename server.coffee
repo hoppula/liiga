@@ -1,22 +1,25 @@
-require('node-cjsx').transform()
+require('coffee-react/register')
 
-React = require 'react/addons'
+React = require 'react'
 compress = require 'compression'
-cerebellum = require 'cerebellum'
+cerebellum = require 'cerebellum/server'
+renderServer = require 'cerebellum-react/render-server'
 options = require './options'
 
 appId = options.appId
 
-options.render = (document, options={}) ->
-  document("title").html "LiigaOpas - #{options.title}"
-  document("##{appId}").html React.renderToString(options.component)
-  document.html()
+options.render = renderServer(React, {
+  storeId: options.storeId
+  appId: options.appId
+  prependTitle: "LiigaOpas - "
+  convertProps: true
+})
 
 options.middleware = [
   compress()
 ]
 
-app = cerebellum.server(options)
+app = cerebellum(options)
 app.useStatic()
 
 app.listen Number(process.env.PORT or 4000), ->

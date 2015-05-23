@@ -1,9 +1,10 @@
-React = require 'react/addons'
+React = require 'react'
 {Nav, NavItem, TabPane} = require 'react-bootstrap'
 
-Teams = require '../lib/teams'
-PlayerStats = require './player_stats'
-GoalieStats = require './goalie_stats'
+Teams = require '../../lib/teams'
+
+PlayerStats = require '../shared/player_stats'
+GoalieStats = require '../shared/goalie_stats'
 
 GameStats = React.createClass
 

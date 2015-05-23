@@ -1,6 +1,6 @@
-React = require 'react/addons'
+React = require 'react'
 
-TableSortMixin = require './mixins/table_sort'
+TableSortMixin = require '../mixins/table_sort'
 
 PlayerStats = React.createClass
 

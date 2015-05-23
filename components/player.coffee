@@ -1,9 +1,27 @@
-React = require 'react/addons'
+React = require 'react'
 moment = require 'moment'
 
-Navigation = require './navigation'
+Navigation = require './shared/navigation'
+
+getPlayer = (team, params) ->
+  team.roster?.filter((player) ->
+    player.id is "#{params.pid}/#{params.slug}"
+  )[0] or {}
 
 Player = React.createClass
+
+  statics:
+    title: (props, request) ->
+      player = getPlayer(props.team, request.params)
+      "Pelaajat - #{player.firstName} #{player.lastName}"
+
+    stores: (request) ->
+      team: {id: request.params.id}
+
+    preprocess: (props, request) ->
+      props.id = request.params.pid
+      props.player = getPlayer(props.team, request.params)
+      props
 
   render: ->
     player = @props.player

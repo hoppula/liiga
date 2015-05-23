@@ -1,9 +1,9 @@
-React = require 'react/addons'
+React = require 'react'
 {ListGroup, ListGroupItem} = require 'react-bootstrap'
 moment = require 'moment'
 _ = require 'lodash'
 
-Teams = require '../lib/teams'
+Teams = require '../../lib/teams'
 
 moment.locale('fi'
   months : [

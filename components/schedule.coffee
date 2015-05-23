@@ -1,9 +1,10 @@
-React = require 'react/addons'
+React = require 'react'
 moment = require 'moment'
 _ = require 'lodash'
 
-Navigation = require './navigation'
 Teams = require '../lib/teams'
+
+Navigation = require './shared/navigation'
 
 moment.locale('fi'
   months : [
@@ -14,6 +15,11 @@ moment.locale('fi'
 moment.locale('fi')
 
 Schedule = React.createClass
+
+  statics:
+    title: "Otteluohjelma"
+    stores: (request) ->
+      schedule: {}
 
   getInitialState: ->
     firstDate: moment().startOf("month")
@@ -105,7 +111,7 @@ Schedule = React.createClass
 
       <div className="table-responsive">
         {@showPrevious()}
-        {@monthlyGames()}
+        {@monthlyGames().value()}
         {@showNext()}
       </div>
     </div>

@@ -1,7 +1,7 @@
-React = require 'react/addons'
+React = require 'react'
 {Navbar, Nav, NavItem, DropdownButton, MenuItem} = require "react-bootstrap"
 
-Teams = require '../lib/teams'
+Teams = require '../../lib/teams'
 
 Navigation = React.createClass
 

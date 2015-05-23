@@ -1,7 +1,7 @@
-React = require 'react/addons'
+React = require 'react'
 _ = require 'lodash'
 
-TableSortMixin = require './mixins/table_sort'
+TableSortMixin = require '../mixins/table_sort'
 
 GoalieStats = React.createClass
 

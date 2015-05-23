@@ -1,13 +1,32 @@
-React = require 'react/addons'
-TeamSchedule = require './team_schedule'
-TeamStats = require './team_stats'
-TeamRoster = require './team_roster'
-Navigation = require './navigation'
-Teams = require '../lib/teams'
-
+React = require 'react'
 {TabPane, Jumbotron, ButtonToolbar, Button, Col, Row, Nav, NavItem} = require "react-bootstrap"
 
+Teams = require '../lib/teams'
+
+TeamSchedule = require './team/team_schedule'
+TeamStats = require './team/team_stats'
+TeamRoster = require './team/team_roster'
+Navigation = require './shared/navigation'
+
 Team = React.createClass
+
+  statics:
+    title: (props, request) ->
+      subTitle = switch request.params.active
+        when "pelaajat" then "Pelaajat"
+        when "tilastot" then "Tilastot"
+        else "Otteluohjelma"
+
+      "Joukkueet - #{props.team.info?.name} - #{subTitle}"
+
+    stores: (request) ->
+      standings: {}
+      team: {id: request.params.id}
+
+    preprocess: (props, request) ->
+      props.id = request.params.id
+      props.active = request.params.active
+      props
 
   componentDidMount: ->
     window.scrollTo(0,0)
