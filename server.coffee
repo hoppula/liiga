@@ -4,9 +4,9 @@ React = require 'react'
 compress = require 'compression'
 cerebellum = require 'cerebellum/server'
 renderServer = require 'cerebellum-react/render-server'
-options = require './options'
 
-appId = options.appId
+options = require './options'
+options.routeHandler = require 'cerebellum-react/route-handler'
 
 options.render = renderServer(React, {
   storeId: options.storeId

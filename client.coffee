@@ -2,8 +2,7 @@ React = require 'react'
 cerebellum = require 'cerebellum/client'
 renderClient = require 'cerebellum-react/render-client'
 options = require './options'
-
-appContainer = document.getElementById(options.appId)
+options.routeHandler = require 'cerebellum-react/route-handler'
 
 options.render = renderClient(React, {
   storeId: options.storeId
