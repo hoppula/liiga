@@ -23,7 +23,7 @@
   "dependencies": {
     "browserify": "^10.2.1",
     "catw": "^1.0.0",
-    "cerebellum": "^0.9.0",
+    "cerebellum": "^0.9.1",
     "cerebellum-react": "^1.2.1",
     "coffee-react": "^3.2.0",
     "coffee-reactify": "^3.0.0",
