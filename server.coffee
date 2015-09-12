@@ -2,24 +2,17 @@ require('coffee-react/register')
 
 React = require 'react'
 compress = require 'compression'
-cerebellum = require 'cerebellum/server'
-renderServer = require 'cerebellum-react/render-server'
+Server = require 'cerebellum/server'
+Cerebellum = require 'cerebellum-react'
 
 options = require './options'
-options.routeHandler = require 'cerebellum-react/route-handler'
-
-options.render = renderServer(React, {
-  storeId: options.storeId
-  appId: options.appId
-  prependTitle: "LiigaOpas - "
-  convertProps: true
-})
-
+options.prependTitle = "LiigaOpas - "
+options.convertProps = true
 options.middleware = [
   compress()
 ]
 
-app = cerebellum(options)
+app = Cerebellum(Server, React, options)
 app.useStatic()
 
 app.listen Number(process.env.PORT or 4000), ->
