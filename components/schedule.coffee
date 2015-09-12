@@ -79,15 +79,16 @@ Schedule = React.createClass
     @groupedSchedule().map (games, month) =>
       datesWithGames = _.chain(games).groupBy (game) ->
         moment(game.date).format("DD.MM.YYYY")
+      .value()
 
-      <table className="table table-striped team-schedule">
+      <table className="table table-striped team-schedule" key={month}>
         <tbody>
           <tr>
             <th colSpan=4>{moment(month, "YYYY-MM").format("MMMM")}</th>
           </tr>
         </tbody>
-        {datesWithGames.map (games, gameDate) =>
-          <tbody>
+        {for gameDate, games of datesWithGames
+          <tbody key={gameDate}>
             <tr>
               <th className="game-date" colSpan=4>{gameDate}</th>
             </tr>

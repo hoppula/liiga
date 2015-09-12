@@ -8,8 +8,11 @@ options.convertProps = true
 options.initialize = (client) ->
   React.initializeTouchEvents(true)
 
-  reRender = ->
-    client.router.replace(document.location.pathname)
+  reRender = (err ) ->
+    if err
+      console.log "Fetch error", err
+    else
+      client.router.replace(document.location.pathname)
 
   client.store.on("fetch:gameEvents", reRender)
   client.store.on("fetch:gameLineups", reRender)
