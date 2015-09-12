@@ -8,6 +8,7 @@ Teams =
     "Sport": "sport"
     "JYP": "jyp"
     "KalPa": "kalpa"
+    "KooKoo": "kookoo"
     "Kärpät": "karpat"
     "Lukko": "lukko"
     "Pelicans": "pelicans"
