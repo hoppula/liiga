@@ -50,7 +50,7 @@ RecentSchedule = React.createClass
         <ListGroup>
         {grouped.ongoing.map (game) ->
           teams = "#{game.home} - #{game.away}"
-          url = "http://liiga.fi/ottelut/2014-2015/runkosarja/#{game.id}/seuranta/"
+          url = "http://liiga.fi/ottelut/2015-2016/runkosarja/#{game.id}/seuranta/"
           <ListGroupItem key={game.id} header={teams} href={url}>ottelu alkanut {game.time}</ListGroupItem>
         }
         </ListGroup>
