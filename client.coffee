@@ -1,4 +1,5 @@
 React = require 'react'
+ReactDOM = require 'react-dom'
 Client = require 'cerebellum/client'
 Cerebellum = require 'cerebellum-react'
 
@@ -6,8 +7,6 @@ options = require './options'
 options.prependTitle = "LiigaOpas - "
 options.convertProps = true
 options.initialize = (client) ->
-  React.initializeTouchEvents(true)
-
   reRender = (err ) ->
     if err
       console.log "Fetch error", err
@@ -26,4 +25,4 @@ options.initialize = (client) ->
 # enable instantResolve for immediately resolving fetches
 options.instantResolve = true
 
-Cerebellum(Client, React, options)
+Cerebellum(Client, React, ReactDOM, options)

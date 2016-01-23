@@ -30,7 +30,7 @@ GameLineups = React.createClass
     </Col>
 
   tooltip: (player) ->
-    <Tooltip><strong>{player?.name}</strong></Tooltip>
+    <Tooltip id={player?.id}><strong>{player?.name}</strong></Tooltip>
 
   render: ->
     home = @props.lineUps.home or {}

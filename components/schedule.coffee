@@ -43,9 +43,11 @@ Schedule = React.createClass
   showPrevious: ->
     if not @state.previousVisible
       <table className="table table-striped">
-        <tr>
-          <th className="load-more" colSpan=4 onClick={@loadPrevious}>Näytä edelliset kuukaudet...</th>
-        </tr>
+        <tbody>
+          <tr>
+            <th className="load-more" colSpan=4 onClick={@loadPrevious}>Näytä edelliset kuukaudet...</th>
+          </tr>
+        </tbody>
       </table>
     else
       null
@@ -53,9 +55,11 @@ Schedule = React.createClass
   showNext: ->
     if not @state.nextVisible
       <table className="table table-striped">
-        <tr>
-          <th className="load-more" colSpan=4 onClick={@loadNext}>Näytä seuraavat kuukaudet...</th>
-        </tr>
+        <tbody>
+          <tr>
+            <th className="load-more" colSpan=4 onClick={@loadNext}>Näytä seuraavat kuukaudet...</th>
+          </tr>
+        </tbody>
       </table>
     else
       null

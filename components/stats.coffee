@@ -1,5 +1,5 @@
 React = require 'react'
-{TabPane, Nav, NavItem} = require "react-bootstrap"
+{Tabs, Tab, Nav, NavItem} = require "react-bootstrap"
 
 Navigation = require './shared/navigation'
 PlayerStats = require './shared/player_stats'
@@ -33,20 +33,20 @@ Stats = React.createClass
           <NavItem href="/tilastot" eventKey="players">Kenttäpelaajat</NavItem>
           <NavItem href="/tilastot/maalivahdit" eventKey="goalies">Maalivahdit</NavItem>
         </Nav>
-        <div className="tab-content" ref="panes">
-          <TabPane key="players" animation={false} active={activeKey is "players"}>
+        <Tabs activeKey={activeKey} animation={false}>
+          <Tab eventKey="players">
             <h2>Kenttäpelaajat</h2>
             <div className="table-responsive">
               <PlayerStats stats={@props.stats.scoringStats} limit={100} />
             </div>
-          </TabPane>
-          <TabPane key="goalies" animation={false} active={activeKey is "goalies"}>
+          </Tab>
+          <Tab eventKey="goalies">
             <h2>Maalivahdit (yli 25% pelanneet)</h2>
             <div className="table-responsive">
               <GoalieStats stats={@props.stats.goalieStats} playedAtLeast={25} />
             </div>
-          </TabPane>
-        </div>
+          </Tab>
+        </Tabs>
       </div>
     </div>
 

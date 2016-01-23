@@ -1,6 +1,6 @@
 React = require 'react'
 moment = require 'moment'
-{Row, Col, Nav, NavItem, TabPane} = require 'react-bootstrap'
+{Row, Col, Nav, NavItem, Tabs, Tab} = require 'react-bootstrap'
 
 Teams = require '../lib/teams'
 
@@ -48,7 +48,7 @@ Game = React.createClass
 
     game = @props.game
     gameTime = game.time or ""
-    [hours, minutes] = gameTime.split(":")
+    [date] = game.date.split("T")
 
     <div className="game">
       <Navigation />
@@ -62,7 +62,7 @@ Game = React.createClass
         <Col className="score" xs={4} md={4}>
           <h1>{game.homeScore} - {game.awayScore}</h1>
           <ul>
-            <li>{moment(game.date).add(hours, 'hours').add(minutes, 'minutes').format("DD.MM.YYYY HH:mm")}</li>
+            <li>{moment("#{date} #{gameTime}").format("DD.MM.YYYY HH:mm")}</li>
             <li>Yleisöä: {game.attendance}</li>
           </ul>
         </Col>
@@ -79,19 +79,19 @@ Game = React.createClass
         <NavItem href="/ottelut/#{@props.id}/ketjut" eventKey="lineUps">Ketjut</NavItem>
       </Nav>
 
-      <div className="tab-content" ref="panes">
-        <TabPane key="events" animation={false} active={activeKey is "events"}>
+      <Tabs activeKey={activeKey} animation={false}>
+        <Tab eventKey="events">
           <GameEvents events={@props.gameEvents} game={@props.game} />
-        </TabPane>
+        </Tab>
 
-        <TabPane key="stats" animation={false} active={activeKey is "stats"}>
+        <Tab eventKey="stats">
           <GameStats id={@props.id} stats={@props.gameStats} away={@props.away} />
-        </TabPane>
+        </Tab>
 
-        <TabPane key="lineUps" animation={false} active={activeKey is "lineUps"}>
+        <Tab eventKey="lineUps">
           <GameLineups id={@props.id} lineUps={@props.gameLineups} />
-        </TabPane>
-      </div>
+        </Tab>
+      </Tabs>
 
     </div>
 

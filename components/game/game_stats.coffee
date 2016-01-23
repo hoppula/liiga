@@ -1,5 +1,5 @@
 React = require 'react'
-{Nav, NavItem, TabPane} = require 'react-bootstrap'
+{Nav, NavItem, Tabs, Tab} = require 'react-bootstrap'
 
 Teams = require '../../lib/teams'
 
@@ -21,16 +21,16 @@ GameStats = React.createClass
         <NavItem href="/ottelut/#{@props.id}/tilastot/vieras" eventKey="away">{away.team}</NavItem>
       </Nav>
 
-      <div className="tab-content" ref="panes">
-        <TabPane key="home" animation={false} active={activeKey is "home"}>
+      <Tabs activeKey={activeKey} animation={false}>
+        <Tab eventKey="home">
           <PlayerStats teamId={homeId} stats={home.players} />
           <GoalieStats teamId={homeId} stats={home.goalies} playedAtLeast={0} />
-        </TabPane>
-        <TabPane key="away" animation={false} active={activeKey is "away"}>
+        </Tab>
+        <Tab eventKey="away">
           <PlayerStats teamId={awayId} stats={away.players} />
           <GoalieStats teamId={awayId} stats={away.goalies} playedAtLeast={0} />
-        </TabPane>
-      </div>
+        </Tab>
+      </Tabs>
     </div>
 
 module.exports = GameStats

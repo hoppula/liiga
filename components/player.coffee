@@ -143,7 +143,7 @@ Player = React.createClass
         </table>
 
     <div className="player">
-      <Navigation dropdown={players} item={item} />
+      <Navigation dropdown={players} />
 
       <h1>{player.firstName} {player.lastName}</h1>
 

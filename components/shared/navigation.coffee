@@ -1,41 +1,51 @@
 React = require 'react'
-{Navbar, Nav, NavItem, DropdownButton, MenuItem} = require "react-bootstrap"
+{Navbar, Nav, NavItem, NavDropdown, MenuItem} = require "react-bootstrap"
 
 Teams = require '../../lib/teams'
 
 Navigation = React.createClass
 
-  render: ->
-    brand = <a href="/" className="navbar-brand">LiigaOpas</a>
+  getInitialState: ->
+    expanded: false
 
+  toggleExpanded: (value) ->
+    @setState expanded: value
+
+  render: ->
     teams =
-      # disable for now, react bootstrap is buggy on mobile
-      # <DropdownButton title="Joukkueet">
-      #   {Object.keys(Teams.namesAndIds).map (name) ->
-      #     <MenuItem key={Teams.namesAndIds[name]} href="/joukkueet/#{Teams.namesAndIds[name]}">{name}</MenuItem>
-      #   }
-      # </DropdownButton>
-      null
+      <NavDropdown id="joukkueet" title="Joukkueet">
+        {Object.keys(Teams.namesAndIds).map (name) =>
+          <MenuItem key={Teams.namesAndIds[name]} href="/joukkueet/#{Teams.namesAndIds[name]}" onClick={() => @toggleExpanded(false)}>{name}</MenuItem>
+        }
+      </NavDropdown>
 
     if @props.item
       item = <NavItem href={@props.item.url}>{@props.item.title}</NavItem>
 
     if @props.dropdown
-      dropdown = <DropdownButton title={@props.dropdown.title}>
+      dropdown = <NavDropdown id="pelaajat" title={@props.dropdown.title}>
         {@props.dropdown.items.map (item) ->
           <MenuItem key={item.title} href={item.url}>{item.title}</MenuItem>
         }
-      </DropdownButton>
+      </NavDropdown>
 
-    <Navbar brand={brand} fixedTop toggleNavKey={0}>
-      <Nav className="bs-navbar-collapse" eventKey={0} role="navigation">
-        <NavItem href="/sarjataulukko">Sarjataulukko</NavItem>
-        <NavItem href="/tilastot">Tilastot</NavItem>
-        <NavItem href="/ottelut">Ottelut</NavItem>
-        {teams}
-        {item}
-        {dropdown}
-      </Nav>
+    <Navbar fixedTop expanded={@state.expanded} onToggle={this.toggleExpanded}>
+     <Navbar.Header>
+        <Navbar.Brand>
+          <a href="/" className="navbar-brand">LiigaOpas</a>
+        </Navbar.Brand>
+        <Navbar.Toggle />
+      </Navbar.Header>
+      <Navbar.Collapse>
+        <Nav>
+          <NavItem href="/sarjataulukko">Sarjataulukko</NavItem>
+          <NavItem href="/tilastot">Tilastot</NavItem>
+          <NavItem href="/ottelut">Ottelut</NavItem>
+          {teams}
+          {item}
+          {dropdown}
+        </Nav>
+      </Navbar.Collapse>
     </Navbar>
 
 module.exports = Navigation

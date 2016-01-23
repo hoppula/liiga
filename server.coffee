@@ -1,6 +1,7 @@
 require('coffee-react/register')
 
 React = require 'react'
+ReactDOM = require 'react-dom/server'
 compress = require 'compression'
 Server = require 'cerebellum/server'
 Cerebellum = require 'cerebellum-react'
@@ -12,7 +13,7 @@ options.middleware = [
   compress()
 ]
 
-app = Cerebellum(Server, React, options)
+app = Cerebellum(Server, React, ReactDOM, options)
 app.useStatic()
 
 app.listen Number(process.env.PORT or 4000), ->
