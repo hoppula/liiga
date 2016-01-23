@@ -1,7 +1,8 @@
 {
   "name": "liiga_frontend",
   "description": "",
-  "version": "0.2.0",
+  "version": "0.3.0",
+  "private": true,
   "main": "main.js",
   "scripts": {
     "build": "npm run build_lib & npm run build_app & npm run build_less",

@@ -2,9 +2,10 @@
 
 [liiga.pw](http://liiga.pw) source code.
 
-Written in Coffeescript with [cerebellum.js](https://github.com/SC5/cerebellum) & [React](https://github.com/facebook/react).
+Written in Coffeescript with [cerebellum.js](https://github.com/SC5/cerebellum), [cerebellum-react](https://github.com/hoppula/cerebellum-react) & [React](https://github.com/facebook/react).
 
 ## Get it up and running
+
 Install dependencies:
 
     npm install
@@ -22,6 +23,7 @@ Watch for changes and rebuild app
     npm run watch
 
 ## License
+
 MIT
 
-Copyright (c) 2015 Lari Hoppula
+Copyright (c) 2016 Lari Hoppula
