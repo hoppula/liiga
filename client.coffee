@@ -3,6 +3,7 @@ ReactDOM = require 'react-dom'
 Client = require 'cerebellum/client'
 Cerebellum = require 'cerebellum-react'
 
+require('./assets/less/styles.less')
 options = require './options'
 options.prependTitle = "LiigaOpas - "
 options.convertProps = true
