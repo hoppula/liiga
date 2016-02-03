@@ -2,5 +2,10 @@ node_modules
 npm-debug.log
 public/*
 !public/index.html
+!public/assets
+public/assets/fonts/*
+!public/assets/fonts/.gitkeep
+public/assets/svg/*
+!public/assets/svg/.gitkeep
 .DS_Store
 TODO
