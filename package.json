@@ -47,6 +47,6 @@
     "./config/api.coffee": "./config/api-browser.coffee"
   },
   "engines": {
-    "node": "5.x.x"
+    "node": "4.x.x"
   }
 }
