@@ -40,10 +40,9 @@ module.exports = {
         loader: ExtractTextPlugin.extract('style', 'css!less')
       },
       { test: /\.png$/, loader: "url?limit=10000" },
-      { test: /\.(jpg|svg)$/, loader: "file?name=../[path][name].[ext]" },
       {
-        test: /\.(ttf|eot|woff(2)?)(\?v=[0-9]\.[0-9]\.[0-9])?$/,
-        loader: "file?name=../[path][name].[ext]"
+        test: /\.(ttf|eot|svg|woff(2)?)(\?v=[0-9]\.[0-9]\.[0-9])?$/,
+        loader: "file?name=./[path][name].[ext]"
       }
     ]
   }
