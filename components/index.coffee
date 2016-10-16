@@ -5,6 +5,7 @@ TeamsList = require './index/teams_list'
 RecentSchedule = require './index/recent_schedule'
 StandingsTable = require './shared/standings_table'
 Navigation = require './shared/navigation'
+Spinner = require './shared/spinner'
 
 Index = React.createClass
 
@@ -24,7 +25,7 @@ Index = React.createClass
 
       <div className="jumbotron front-jumbo">
         <h1>LiigaOpas</h1>
-        <p>SM-Liigan tilastot nopeasti ja vaivattomasti</p>
+        <p>Liigan tilastot nopeasti ja vaivattomasti</p>
       </div>
 
       <TeamsList teams={@props.teams} />

@@ -28,7 +28,7 @@ Stats = React.createClass
 
       <h1>Tilastot</h1>
 
-      <div>
+      <div className="stats">
         <Nav bsStyle="tabs" activeKey={activeKey} ref="tabs">
           <NavItem href="/tilastot" eventKey="players">Kenttäpelaajat</NavItem>
           <NavItem href="/tilastot/maalivahdit" eventKey="goalies">Maalivahdit</NavItem>
@@ -41,7 +41,7 @@ Stats = React.createClass
             </div>
           </Tab>
           <Tab eventKey="goalies">
-            <h2>Maalivahdit (yli 25% pelanneet)</h2>
+            <div className="goalies-title"><h2>Maalivahdit</h2><span>(yli 25% pelanneet)</span></div>
             <div className="table-responsive">
               <GoalieStats stats={@props.stats.goalieStats} playedAtLeast={25} />
             </div>

@@ -1,11 +1,11 @@
 Teams =
   namesAndIds:
     "Ässät": "assat"
-    "Blues": "blues"
     "HIFK": "hifk"
     "HPK": "hpk"
     "Ilves": "ilves"
     "Sport": "sport"
+    "Jukurit": "jukurit"
     "JYP": "jyp"
     "KalPa": "kalpa"
     "KooKoo": "kookoo"
@@ -17,7 +17,7 @@ Teams =
     "TPS": "tps"
 
   logo: (name) ->
-    "/svg/#{@namesAndIds[name]}.svg"
+    "/assets/svg/#{@namesAndIds[name]}.svg"
 
   idToName: (id) ->
     ids = Object.keys(@namesAndIds).reduce (obj, name) =>

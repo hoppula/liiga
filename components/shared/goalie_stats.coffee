@@ -1,19 +1,18 @@
 React = require 'react'
 _ = require 'lodash'
 
-TableSortMixin = require '../mixins/table_sort'
+TableSort = require './table_sort'
+TableHeader = require './table_header'
+HeaderColumn = require './header_column'
+Row = require './row'
+Column = require './column'
+Spinner = require './spinner'
 
 GoalieStats = React.createClass
 
-  mixins: [TableSortMixin]
-
-  getInitialState: ->
-    sortField: "savingPercentage"
-    sortDirection: "desc"
-    sortType: "float"
-
   render: ->
     stats = @props.stats or []
+    return <Spinner /> if !stats.length
     maxGames = _.max(stats, (player) ->
       parseInt(player.games)
     ).games
@@ -21,56 +20,61 @@ GoalieStats = React.createClass
       parseInt((@props.playedAtLeast / 100) * maxGames)
     else
       1
-    goalies = stats.sort(@sort).filter (player) ->
+    goalies = stats.sort(@props.sort).filter (player) ->
       if player.games
         player.games >= playedAtLeast
       else
         true
     .map (player) =>
       teamId = @props.teamId or player.teamId
-      <tr key={player.id}>
-        <td><a href="/joukkueet/#{teamId}/#{player.id}">{player.firstName} {player.lastName}</a></td>
-        <td>{player.games}</td>
-        <td>{player.wins}</td>
-        <td>{player.ties}</td>
-        <td>{player.losses}</td>
-        <td>{player.saves}</td>
-        <td>{player.goalsAllowed}</td>
-        <td>{player.shutouts}</td>
-        <td>{player.goalsAverage}</td>
-        <td>{player.savingPercentage}</td>
-        <td>{player.goals}</td>
-        <td>{player.assists}</td>
-        <td>{player.points}</td>
-        <td>{player.penalties}</td>
-        <td>{player.winPercentage}</td>
-        <td colSpan=2>{player.minutes}</td>
-      </tr>
+      <Row key={player.id} sortField={@props.sortField}>
+        <Column name="lastName"><a href="/joukkueet/#{teamId}/#{player.id}">{player.firstName} {player.lastName}</a></Column>
+        <Column name="games">{player.games}</Column>
+        <Column name="wins">{player.wins}</Column>
+        <Column name="ties">{player.ties}</Column>
+        <Column name="losses">{player.losses}</Column>
+        <Column name="saves">{player.saves}</Column>
+        <Column name="goalsAllowed">{player.goalsAllowed}</Column>
+        <Column name="shutouts">{player.shutouts}</Column>
+        <Column name="goalsAverage">{player.goalsAverage}</Column>
+        <Column name="savingPercentage">{player.savingPercentage}</Column>
+        <Column name="goals">{player.goals}</Column>
+        <Column name="assists">{player.assists}</Column>
+        <Column name="points">{player.points}</Column>
+        <Column name="penalties">{player.penalties}</Column>
+        <Column name="winPercentage">{player.winPercentage}</Column>
+        <Column name="minutes" colSpan=2>{player.minutes}</Column>
+      </Row>
 
     <table className="table table-striped team-roster">
-      <thead className="sortable-thead" onClick={@setSort}>
-        <tr>
-          <th data-sort="lastName" data-type="string">Nimi</th>
-          <th data-sort="games" data-type="integer">PO</th>
-          <th data-sort="wins" data-type="integer">V</th>
-          <th data-sort="ties" data-type="integer">T</th>
-          <th data-sort="losses" data-type="integer">H</th>
-          <th data-sort="saves" data-type="integer">TO</th>
-          <th data-sort="goalsAllowed" data-type="integer">PM</th>
-          <th data-sort="shutouts" data-type="integer">NP</th>
-          <th data-sort="goalsAverage" data-type="float">KA</th>
-          <th data-sort="savingPercentage" data-type="float">T%</th>
-          <th data-sort="goals" data-type="integer">M</th>
-          <th data-sort="assists" data-type="integer">S</th>
-          <th data-sort="points" data-type="integer">P</th>
-          <th data-sort="penalties">R</th>
-          <th data-sort="winPercentage" data-type="float">V%</th>
-          <th data-sort="minutes" data-type="float" colSpan=2>Aika</th>
-        </tr>
-      </thead>
+      <TableHeader
+        onClick={(column, type) => @props.setSort(column, type)}
+        sortField={@props.sortField}
+        sortDirection={@props.sortDirection}>
+        <HeaderColumn sort="lastName" type="string">Nimi</HeaderColumn>
+        <HeaderColumn sort="games" type="integer">PO</HeaderColumn>
+        <HeaderColumn sort="wins" type="integer">V</HeaderColumn>
+        <HeaderColumn sort="ties" type="integer">T</HeaderColumn>
+        <HeaderColumn sort="losses" type="integer">H</HeaderColumn>
+        <HeaderColumn sort="saves" type="integer">TO</HeaderColumn>
+        <HeaderColumn sort="goalsAllowed" type="integer">PM</HeaderColumn>
+        <HeaderColumn sort="shutouts" type="integer">NP</HeaderColumn>
+        <HeaderColumn sort="goalsAverage" type="float">KA</HeaderColumn>
+        <HeaderColumn sort="savingPercentage" type="float">T%</HeaderColumn>
+        <HeaderColumn sort="goals" type="integer">M</HeaderColumn>
+        <HeaderColumn sort="assists" type="integer">S</HeaderColumn>
+        <HeaderColumn sort="points" type="integer">P</HeaderColumn>
+        <HeaderColumn sort="penalties">R</HeaderColumn>
+        <HeaderColumn sort="winPercentage" type="float">V%</HeaderColumn>
+        <HeaderColumn sort="minutes" type="float" colSpan=2>Aika</HeaderColumn>
+      </TableHeader>
       <tbody>
         {goalies}
       </tbody>
     </table>
 
-module.exports = GoalieStats
+module.exports = TableSort(
+  sortField: "savingPercentage"
+  sortDirection: "desc"
+  sortType: "float"
+)(GoalieStats)

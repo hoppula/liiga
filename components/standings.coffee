@@ -19,7 +19,7 @@ Standings = React.createClass
 
       <h1>Sarjataulukko</h1>
 
-      <div className="standings table-responsive">
+      <div className="standings table-responsive table-full">
         <StandingsTable standings={@props.standings} />
       </div>
     </div>

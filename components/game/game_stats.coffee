@@ -2,13 +2,20 @@ React = require 'react'
 {Nav, NavItem, Tabs, Tab} = require 'react-bootstrap'
 
 Teams = require '../../lib/teams'
-
+Spinner = require '../shared/spinner'
 PlayerStats = require '../shared/player_stats'
 GoalieStats = require '../shared/goalie_stats'
 
 GameStats = React.createClass
 
   render: ->
+    if !Object.keys(@props.stats).length
+      return (
+        <div className="table-responsive">
+          <Spinner />
+        </div>
+      )
+
     home = @props.stats.home or {}
     away = @props.stats.away or {}
     homeId = Teams.nameToId(home.team)

@@ -3,19 +3,18 @@ React = require 'react'
 Teams = require '../../lib/teams'
 
 Navigation = require '../shared/navigation'
-TableSortMixin = require '../mixins/table_sort'
+TableSort = require './table_sort'
+TableHeader = require './table_header'
+HeaderColumn = require './header_column'
+Row = require './row'
+Column = require './column'
+Spinner = require './spinner'
 
 StandingsTable = React.createClass
 
-  mixins: [TableSortMixin]
-
-  getInitialState: ->
-    sortField: "points"
-    sortDirection: "desc"
-    sortType: "integer"
-
   render: ->
-    standings = (@props.standings or []).sort(@sort).map (team, i) ->
+    return <div className="table-responsive"><Spinner /></div> if !@props.standings or !@props.standings.length
+    standings = (@props.standings or []).sort(@props.sort).map (team, i) =>
       rowClass = switch
         when i is 6
           "in"
@@ -23,43 +22,50 @@ StandingsTable = React.createClass
           "maybe"
         else
           ""
-      <tr className={rowClass} key={team.name}>
-        <td>{team.position}</td>
-        <td><a href="/joukkueet/#{Teams.nameToId(team.name)}">{team.name}</a></td>
-        <td>{team.games}</td>
-        <td>{team.wins}</td>
-        <td>{team.ties}</td>
-        <td>{team.loses}</td>
-        <td>{team.extraPoints}</td>
-        <td>{team.points}</td>
-        <td className="hide-on-mobile">{team.goalsFor}</td>
-        <td className="hide-on-mobile">{team.goalsAgainst}</td>
-        <td className="hide-on-mobile">{team.powerplayPercentage}</td>
-        <td className="hide-on-mobile">{team.shorthandPercentage}</td>
-        <td className="hide-on-mobile">{team.pointsPerGame}</td>
-      </tr>
+      <Row className={rowClass} key={team.name} sortField={@props.sortField}>
+        <Column name="position">{team.position}</Column>
+        <Column name="name" className="team-column #{Teams.nameToId(team.name)}">
+          <a href="/joukkueet/#{Teams.nameToId(team.name)}">{team.name}</a>
+        </Column>
+        <Column name="games">{team.games}</Column>
+        <Column name="wins">{team.wins}</Column>
+        <Column name="ties">{team.ties}</Column>
+        <Column name="loses">{team.loses}</Column>
+        <Column name="extraPoints">{team.extraPoints}</Column>
+        <Column name="points">{team.points}</Column>
+        <Column name="goalsFor">{team.goalsFor}</Column>
+        <Column name="goalsAgainst">{team.goalsAgainst}</Column>
+        <Column name="powerplayPercentage">{team.powerplayPercentage}</Column>
+        <Column name="shorthandPercentage">{team.shorthandPercentage}</Column>
+        <Column name="pointsPerGame">{team.pointsPerGame}</Column>
+      </Row>
 
     <table className="table team-schedule">
-      <thead className="sortable-thead" onClick={@setSort}>
-        <tr>
-          <th></th>
-          <th></th>
-          <th data-sort="games">O</th>
-          <th data-sort="wins">V</th>
-          <th data-sort="ties">T</th>
-          <th data-sort="loses">H</th>
-          <th data-sort="extraPoints">LP</th>
-          <th data-sort="points">P</th>
-          <th className="hide-on-mobile" data-sort="goalsFor">TM</th>
-          <th className="hide-on-mobile" data-sort="goalsAgainst">PM</th>
-          <th className="hide-on-mobile" data-sort="powerplayPercentage" data-type="float">YV%</th>
-          <th className="hide-on-mobile" data-sort="shorthandPercentage" data-type="float">AV%</th>
-          <th className="hide-on-mobile" data-sort="pointsPerGame" data-type="float">P/O</th>
-        </tr>
-      </thead>
+      <TableHeader
+        onClick={(column, type) => @props.setSort(column, type)}
+        sortField={@props.sortField}
+        sortDirection={@props.sortDirection}>
+          <HeaderColumn sort="position"></HeaderColumn>
+          <HeaderColumn sort="name" type="string"></HeaderColumn>
+          <HeaderColumn sort="games">O</HeaderColumn>
+          <HeaderColumn sort="wins">V</HeaderColumn>
+          <HeaderColumn sort="ties">T</HeaderColumn>
+          <HeaderColumn sort="loses">H</HeaderColumn>
+          <HeaderColumn sort="extraPoints">LP</HeaderColumn>
+          <HeaderColumn sort="points">P</HeaderColumn>
+          <HeaderColumn sort="goalsFor">TM</HeaderColumn>
+          <HeaderColumn sort="goalsAgainst">PM</HeaderColumn>
+          <HeaderColumn sort="powerplayPercentage" type="float">YV%</HeaderColumn>
+          <HeaderColumn sort="shorthandPercentage" type="float">AV%</HeaderColumn>
+          <HeaderColumn sort="pointsPerGame" type="float">P/O</HeaderColumn>
+      </TableHeader>
       <tbody>
         {standings}
       </tbody>
     </table>
 
-module.exports = StandingsTable
+module.exports = TableSort(
+  sortField: "points"
+  sortDirection: "desc"
+  sortType: "integer"
+)(StandingsTable)

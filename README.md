@@ -14,13 +14,9 @@ Build:
 
     npm run build
 
-Start (& reload server with nodemon on changes):
+Start (& hot reload code):
 
     npm start
-
-Watch for changes and rebuild app
-
-    npm run watch
 
 ## License
 

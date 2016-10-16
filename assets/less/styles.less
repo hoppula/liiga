@@ -1,5 +1,5 @@
 @import (inline) "_bootstrap.cosmo.min.css";
-@import url(http://fonts.googleapis.com/css?family=Raleway:400,700);
+@import url(https://fonts.googleapis.com/css?family=Sintony:400,700);
 
 @-ms-viewport {
   width: device-width;
@@ -25,15 +25,64 @@ body {
 }
 
 h1, h2, h3, h4, h5, h6 {
-  font-family: 'Raleway','Source Sans Pro',Calibri,Candara,Arial,sans-serif;
-  font-weight: 400;
+  font-family: 'Sintony', 'Source Sans Pro', Calibri, Candara, Arial, sans-serif;
+  font-weight: 700;
 }
 
 h1 {
   text-transform: uppercase;
-  font-weight: 700;
   font-size: 34px;
+  margin: 20px 0;
 }
+
+h2 {
+  margin: 20px 0;
+}
+
+.navbar>.container .navbar-brand, .navbar>.container-fluid .navbar-brand {
+  font-family: Sintony, sans-serif;
+  font-weight: 700;
+}
+
+.nav-tabs {
+  font-family: Sintony, sans-serif;
+  font-weight: 700;
+  border-bottom: 0;
+  margin: 10px 0 0px 0;
+  text-align: left;
+  padding: 0;
+  font-size: 18px;
+  text-transform: uppercase;
+  > li {
+    > a {
+      padding: 10px 15px;
+      border: 0;
+      color: #999;
+      &:hover {
+        background: transparent;
+        border: 0;
+        border-bottom: 2px solid #2980b9;
+      }
+    }
+    &.active {
+      > a {
+        border: 0;
+        border-bottom: 2px solid #2980b9;
+        &:focus {
+          border: 0;
+          border-bottom: 2px solid #2980b9;
+        }
+
+        &:hover {
+          border: 0;
+          border-bottom: 2px solid #2980b9;
+          background: transparent;
+        }
+      }
+    }
+  }
+}
+
 
 .jumbotron {
   background: transparent;
@@ -100,10 +149,6 @@ h1 {
   background-image: url("../svg/assat.svg");
 }
 
-.blues {
-  background-image: url("../svg/blues.svg");
-}
-
 .hifk {
   background-image: url("../svg/hifk.svg");
 }
@@ -118,6 +163,10 @@ h1 {
 
 .sport {
   background-image: url("../svg/sport.svg");
+}
+
+.jukurit {
+  background-image: url("../svg/jukurit.svg");
 }
 
 .jyp {
@@ -186,6 +235,36 @@ h1 {
   cursor: pointer;
   background: #000;
   color: #fff;
+
+  .lastName {
+    width: 200px;
+  }
+
+  th {
+    text-align: center;
+    &.selected {
+      //background-color: #34495e;
+      background-color: darken(#2980b9, 10%);
+    }
+  }
+}
+
+.table {
+  tr:nth-child(odd), tr:nth-child(even) {
+    td {
+      text-align: center;
+      &.selected {
+        background: lighten(#2980b9, 40%);
+        font-weight: bold;
+      }
+
+      &.team-column {
+        background-size: 15%;
+        background-position: center left;
+        background-repeat: no-repeat;
+      }
+    }
+  }
 }
 
 .schedule {
@@ -211,13 +290,33 @@ h1 {
   table.table-striped > tbody > tr.month-row > th {
     background: #000;
     color: #fff;
+    text-align: center;
   }
 }
 
-.team-roster {
-  table.table-striped > thead > tr > th {
+.team-roster, .player {
+  table.table > thead > tr > th {
     background: #000;
     color: #fff;
+    text-align: center;
+  }
+}
+
+.stats {
+  h2 {
+    margin: 10px 0;
+  }
+  .goalies-title {
+    h2 {
+      display: inline-block;
+      vertical-align: middle;
+    }
+    span {
+      display: inline-block;
+      padding-left: 10px;
+      font-size: 20px;
+      line-height: 35px;
+    }
   }
 }
 
@@ -227,20 +326,11 @@ h1 {
   }
 
   table > tbody > tr.in > td {
-    border-top: 1px solid #000;
+    border-top: 1px dashed #777;
   }
 
   table > tbody > tr.maybe > td {
-    border-top: 1px solid #000;
-  }
-
-
-  .hide-on-mobile {
-    display: none;
-
-    @media (min-width: 1200px) {
-      display: table-cell;
-    }
+    border-top: 1px dashed #777;
   }
 
 }
@@ -266,8 +356,26 @@ h1 {
   }
 }
 
-.table>thead>tr>th {
+.table > thead > tr > th {
   border-bottom: 0;
+  padding: 10px 0;
+  position: relative;
+}
+
+span.asc {
+  position: absolute;
+  display: inline-block;
+  top: 1px;
+  left: 0;
+  right: 0;
+}
+
+span.desc {
+  position: absolute;
+  display: inline-block;
+  bottom: 4px;
+  left: 0;
+  right: 0;
 }
 
 .sortable-thead th.active {
@@ -291,13 +399,14 @@ h1 {
       display: none;
       @media (min-width: 550px) {
         display: block;
+        margin-bottom: 0;
       }
     }
 
     img {
       display: inline;
       @media (min-width: 550px) {
-        display: none;
+        //display: none;
       }
     }
   }
@@ -308,19 +417,39 @@ h1 {
       display: none;
       @media (min-width: 550px) {
         display: block;
+        margin-bottom: 0;
       }
     }
 
     img {
       display: inline;
       @media (min-width: 550px) {
-        display: none;
+        //display: none;
       }
     }
   }
 
   ul {
     list-style: none;
+  }
+}
+
+.table-responsive {
+  width: 100%;
+  margin-bottom: 15.75px;
+  overflow-y: hidden;
+  overflow-x: auto;
+  border: 1px solid #dddddd;
+  -webkit-overflow-scrolling: touch;
+
+  table {
+    margin-bottom: 0;
+  }
+
+  &.table-full {
+    @media (min-width: 580px) {
+      border: 0;
+    }
   }
 }
 
@@ -336,6 +465,18 @@ table.table-striped.other-events > tbody > tr {
   td {
     text-align: center;
   }
+}
+
+.table > tbody > tr > th {
+  border-top: 0;
+}
+
+.table > tbody > tr > td {
+  border-top: 0;
+}
+
+.table > tbody+tbody {
+  border-top: 0;
 }
 
 .game-lineups {
@@ -378,10 +519,6 @@ table.table-striped.other-events > tbody > tr {
       color: #fff;
       background: #c11820;
     }
-    &.blues {
-      color: #fff;
-      background: #000066;
-    }
     &.hifk {
       color: #033167;
       background: #b30210;
@@ -397,6 +534,10 @@ table.table-striped.other-events > tbody > tr {
     &.sport {
       color: #000;
       background: #dc1e2d;
+    }
+    &.jukurit {
+      color: #e3a013;
+      background: #0055a5;
     }
     &.jyp {
       color: #ed1c24;
@@ -454,4 +595,56 @@ table.table-striped.other-events > tbody > tr {
   margin-top: 30px;
   margin-bottom: 30px;
   text-align: center;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@-webkit-keyframes spin {
+  from {
+    -webkit-transform: rotate(0deg);
+  }
+  to {
+    -webkit-transform: rotate(360deg);
+  }
+}
+
+@-moz-keyframes spin {
+  from {
+    -moz-transform: rotate(0deg);
+  }
+  to {
+    -moz-transform: rotate(360deg);
+  }
+}
+
+.spinner-container {
+  width: 60px;
+  margin: 50px auto;
+}
+
+.spinner {
+  -webkit-animation-iteration-count: infinite;
+  -webkit-animation-name: spin;
+  -webkit-animation-timing-function: linear;
+  -webkit-animation-duration: 1.5s;
+  -moz-animation-iteration-count: infinite;
+  -moz-animation-name: spin;
+  -moz-animation-timing-function: linear;
+  -moz-animation-duration: 1.5s;
+  animation-iteration-count: infinite;
+  animation-name: spin;
+  animation-timing-function: linear;
+  animation-duration: 1.5s;
+
+  &-md {
+    width: 60px;
+    height: 60px;
+  }
 }

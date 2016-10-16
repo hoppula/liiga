@@ -7,6 +7,7 @@ TeamSchedule = require './team/team_schedule'
 TeamStats = require './team/team_stats'
 TeamRoster = require './team/team_roster'
 Navigation = require './shared/navigation'
+Spinner = require './shared/spinner'
 
 Team = React.createClass
 
@@ -43,6 +44,26 @@ Team = React.createClass
     team = @props.team or {}
     teamInfo = team.info or {}
 
+    tabs = if !Object.keys(team).length
+      <div className="table-responsive">
+        <Spinner />
+      </div>
+    else
+      <Tabs activeKey={activeKey} animation={false}>
+        <Tab eventKey="schedule">
+          <h1>Ottelut</h1>
+          <TeamSchedule team={@props.team} />
+        </Tab>
+        <Tab eventKey="stats">
+          <h1>Tilastot</h1>
+          <TeamStats teamId={@props.id} stats={@props.team.stats} />
+        </Tab>
+        <Tab eventKey="players">
+          <h1>Pelaajat</h1>
+          <TeamRoster teamId={@props.id} roster={@props.team.roster} />
+        </Tab>
+      </Tabs>
+
     return (
       <div>
         <Navigation />
@@ -76,20 +97,7 @@ Team = React.createClass
               <NavItem href="/joukkueet/#{@props.id}/tilastot" eventKey="stats">Tilastot</NavItem>
               <NavItem href="/joukkueet/#{@props.id}/pelaajat" eventKey="players">Pelaajat</NavItem>
             </Nav>
-            <Tabs activeKey={activeKey} animation={false}>
-              <Tab eventKey="schedule">
-                <h1>Ottelut</h1>
-                <TeamSchedule team={@props.team} />
-              </Tab>
-              <Tab eventKey="stats">
-                <h1>Tilastot</h1>
-                <TeamStats teamId={@props.id} stats={@props.team.stats} />
-              </Tab>
-              <Tab eventKey="players">
-                <h1>Pelaajat</h1>
-                <TeamRoster teamId={@props.id} roster={@props.team.roster} />
-              </Tab>
-            </Tabs>
+            {tabs}
           </div>
 
         </div>

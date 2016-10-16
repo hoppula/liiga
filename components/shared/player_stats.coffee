@@ -1,68 +1,77 @@
 React = require 'react'
 
-TableSortMixin = require '../mixins/table_sort'
+TableSort = require './table_sort'
+TableHeader = require './table_header'
+HeaderColumn = require './header_column'
+Row = require './row'
+Column = require './column'
+Spinner = require './spinner'
 
 PlayerStats = React.createClass
 
-  mixins: [TableSortMixin]
-
-  getInitialState: ->
-    sortField: "points"
-    sortDirection: "desc"
-    sortType: "integer"
-
   render: ->
     stats = @props.stats or []
+    return <Spinner /> if !stats.length
     limit = if @props.limit then @props.limit else stats.length
-    players = stats.sort(@sort).slice(0, limit).map (player) =>
+    players = stats.sort(@props.sort).slice(0, limit).map (player) =>
       teamId = @props.teamId or player.teamId
-      <tr key={player.id}>
-        <td><a href="/joukkueet/#{teamId}/#{player.id}">{player.firstName} {player.lastName}</a></td>
-        <td>{player.position}</td>
-        <td>{player.games}</td>
-        <td>{player.goals}</td>
-        <td>{player.assists}</td>
-        <td>{player.points}</td>
-        <td>{player.penalties}</td>
-        <td>{player.plusMinus}</td>
-        <td>{player.plusses}</td>
-        <td>{player.minuses}</td>
-        <td>{player.powerPlayGoals}</td>
-        <td>{player.shortHandedGoals}</td>
-        <td>{player.winningGoals}</td>
-        <td>{player.shots}</td>
-        <td>{player.shootingPercentage}</td>
-        <td>{player.faceoffs}</td>
-        <td>{player.faceoffPercentage}</td>
-        <td>{player.playingTimeAverage}</td>
-      </tr>
+      <Row key={player.id} sortField={@props.sortField}>
+        <Column name="lastName">
+          <a href="/joukkueet/#{teamId}/#{player.id}">
+            {player.firstName} {player.lastName}
+          </a>
+        </Column>
+        <Column name="position">{player.position}</Column>
+        <Column name="games">{player.games}</Column>
+        <Column name="goals">{player.goals}</Column>
+        <Column name="assists">{player.assists}</Column>
+        <Column name="points">{player.points}</Column>
+        <Column name="penalties">{player.penalties}</Column>
+        <Column name="plusMinus">{player.plusMinus}</Column>
+        <Column name="plusses">{player.plusses}</Column>
+        <Column name="minuses">{player.minuses}</Column>
+        <Column name="powerPlayGoals">{player.powerPlayGoals}</Column>
+        <Column name="shortHandedGoals">{player.shortHandedGoals}</Column>
+        <Column name="winningGoals">{player.winningGoals}</Column>
+        <Column name="shots">{player.shots}</Column>
+        <Column name="shootingPercentage">{player.shootingPercentage}</Column>
+        <Column name="faceoffs">{player.faceoffs}</Column>
+        <Column name="faceoffPercentage">{player.faceoffPercentage}</Column>
+        <Column name="playingTimeAverage">{player.playingTimeAverage}</Column>
+      </Row>
 
     <table className="table table-striped team-roster">
-      <thead className="sortable-thead" onClick={@setSort}>
-        <tr>
-          <th data-sort="lastName" data-type="string">Nimi</th>
-          <th data-sort="position" data-type="string">PP</th>
-          <th data-sort="games" data-type="integer">O</th>
-          <th data-sort="goals" data-type="integer">M</th>
-          <th data-sort="assists" data-type="integer">S</th>
-          <th data-sort="points" data-type="integer">P</th>
-          <th data-sort="penalties" data-type="integer">R</th>
-          <th data-sort="plusMinus" data-type="integer">+/-</th>
-          <th data-sort="plusses" data-type="integer">+</th>
-          <th data-sort="minuses" data-type="integer">-</th>
-          <th data-sort="powerPlayGoals" data-type="integer">YVM</th>
-          <th data-sort="shortHandedGoals" data-type="integer">AVM</th>
-          <th data-sort="winningGoals" data-type="integer">VM</th>
-          <th data-sort="shots" data-type="integer">L</th>
-          <th data-sort="shootingPercentage" data-type="float">L%</th>
-          <th data-sort="faceoffs" data-type="integer">A</th>
-          <th data-sort="faceoffPercentage" data-type="float">A%</th>
-          <th data-sort="playingTimeAverage" data-type="float">Aika</th>
-        </tr>
-      </thead>
+      <TableHeader
+        onClick={(column, type) => @props.setSort(column, type)}
+        sortField={@props.sortField}
+        sortDirection={@props.sortDirection}
+      >
+        <HeaderColumn className="lastName" sort="lastName" type="string">Nimi</HeaderColumn>
+        <HeaderColumn sort="position" type="string">PP</HeaderColumn>
+        <HeaderColumn sort="games" type="integer">O</HeaderColumn>
+        <HeaderColumn sort="goals" type="integer">M</HeaderColumn>
+        <HeaderColumn sort="assists" type="integer">S</HeaderColumn>
+        <HeaderColumn sort="points" type="integer">P</HeaderColumn>
+        <HeaderColumn sort="penalties" type="integer">R</HeaderColumn>
+        <HeaderColumn sort="plusMinus" type="integer">+/-</HeaderColumn>
+        <HeaderColumn sort="plusses" type="integer">+</HeaderColumn>
+        <HeaderColumn sort="minuses" type="integer">-</HeaderColumn>
+        <HeaderColumn sort="powerPlayGoals" type="integer">YVM</HeaderColumn>
+        <HeaderColumn sort="shortHandedGoals" type="integer">AVM</HeaderColumn>
+        <HeaderColumn sort="winningGoals" type="integer">VM</HeaderColumn>
+        <HeaderColumn sort="shots" type="integer">L</HeaderColumn>
+        <HeaderColumn sort="shootingPercentage" type="float">L%</HeaderColumn>
+        <HeaderColumn sort="faceoffs" type="integer">A</HeaderColumn>
+        <HeaderColumn sort="faceoffPercentage" type="float">A%</HeaderColumn>
+        <HeaderColumn sort="playingTimeAverage" type="float">Aika</HeaderColumn>
+      </TableHeader>
       <tbody>
         {players}
       </tbody>
     </table>
 
-module.exports = PlayerStats
+module.exports = TableSort(
+  sortField: "points"
+  sortDirection: "desc"
+  sortType: "integer"
+)(PlayerStats)

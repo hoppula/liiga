@@ -1,3 +1,3 @@
 module.exports =
   url: "http://api.liiga.pw"
-  #url: "http://api:5000"
+  #url: "http://localhost:8080"

@@ -5,6 +5,7 @@ _ = require 'lodash'
 Teams = require '../lib/teams'
 
 Navigation = require './shared/navigation'
+Spinner = require './shared/spinner'
 
 moment.locale('fi'
   months : [
@@ -109,6 +110,20 @@ Schedule = React.createClass
       </table>
 
   render: ->
+
+    if !@props.schedule.length
+      return (
+          <div className="schedule">
+            <Navigation />
+
+            <h1>Otteluohjelma</h1>
+
+            <div className="table-responsive">
+              <Spinner />
+            </div>
+          </div>
+      )
+
     <div className="schedule">
       <Navigation />
 

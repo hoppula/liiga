@@ -31,25 +31,20 @@ TeamRoster = React.createClass
       </tr>
 
     groups = @groupedRoster().map (players, group) =>
-      <tbody key={group}>
+      <thead key={group}>
         <tr>
-          <th colSpan=6>{group}</th>
+          <th>{group}</th>
+          <th>Numero</th>
+          <th>Pituus</th>
+          <th>Paino</th>
+          <th>Kätisyys</th>
+          <th>Ikä</th>
         </tr>
         {_.chain(players).flatten().map(mapPlayer).value()}
-      </tbody>
+      </thead>
 
     <div className="team-roster table-responsive">
       <table className="table table-striped team-roster">
-        <thead>
-          <tr>
-            <th>Nimi</th>
-            <th>Numero</th>
-            <th>Pituus</th>
-            <th>Paino</th>
-            <th>Kätisyys</th>
-            <th>Ikä</th>
-          </tr>
-        </thead>
         {groups.value()}
       </table>
     </div>

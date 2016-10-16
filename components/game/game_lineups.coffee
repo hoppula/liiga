@@ -1,6 +1,6 @@
 React = require 'react'
 {Row, Col, Grid, OverlayTrigger, Tooltip} = require 'react-bootstrap'
-
+Spinner = require '../shared/spinner'
 Teams = require '../../lib/teams'
 
 GameLineups = React.createClass
@@ -33,6 +33,13 @@ GameLineups = React.createClass
     <Tooltip id={player?.id}><strong>{player?.name}</strong></Tooltip>
 
   render: ->
+    if !Object.keys(@props.lineUps).length
+      return (
+        <div className="table-responsive">
+          <Spinner />
+        </div>
+      )
+
     home = @props.lineUps.home or {}
     away = @props.lineUps.away or {}
     homeLines = home.lines or []

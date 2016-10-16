@@ -1,9 +1,13 @@
 React = require 'react'
 _ = require 'lodash'
+Spinner = require '../shared/spinner'
 
 GameEvents = React.createClass
 
   event: (event, i) ->
+
+    text = if (event.text or "").match(/\d-\d/) then <strong>{event.text}</strong> else event.text
+
     if event.header
       <tr key={event.header}>
         <th colSpan="3">{event.header}</th>
@@ -12,7 +16,7 @@ GameEvents = React.createClass
       <tr key={i}>
         <td>{@props.game[event.team]}</td>
         <td>{event.time}</td>
-        <td>{event.text}</td>
+        <td>{text}</td>
       </tr>
     else if event.team and not event.time
       home = if event.team is "home" then event.text else ""
@@ -30,13 +34,26 @@ GameEvents = React.createClass
       </tr>
 
   render: ->
-    periodEvents = Object.keys(_.pick(@props.events, "1. erä", "2. erä", "3. erä")).reduce (arr, key) =>
+    if !Object.keys(@props.events).length
+      return (
+        <div className="table-responsive">
+          <Spinner />
+        </div>
+      )
+
+    periodEvents = Object.keys(_.pick(@props.events, "1. erä", "2. erä", "3. erä", "Jatkoaika", "Voittomaalikilpailu")).reduce (arr, key) =>
       arr.push header: key
       arr = arr.concat @props.events[key]
       arr
     , []
 
-    otherEvents = Object.keys(_.omit(@props.events, "1. erä", "2. erä", "3. erä")).reduce (arr, key) =>
+    stats = Object.keys(_.pick(@props.events, "Maalivahdit", "Rangaistukset")).reduce (arr, key) =>
+      arr.push header: key
+      arr = arr.concat @props.events[key]
+      arr
+    , []
+
+    other = Object.keys(_.omit(@props.events, "1. erä", "2. erä", "3. erä", "Jatkoaika", "Voittomaalikilpailu", "Maalivahdit", "Rangaistukset")).reduce (arr, key) =>
       arr.push header: key
       arr = arr.concat @props.events[key]
       arr
@@ -52,9 +69,17 @@ GameEvents = React.createClass
         </tbody>
       </table>
 
+      <table className="table table-striped game-events stats-events">
+        <tbody>
+        {stats.map (event, i) =>
+          @event(event, i)
+        }
+        </tbody>
+      </table>
+
       <table className="table table-striped game-events other-events">
         <tbody>
-        {otherEvents.map (event, i) =>
+        {other.map (event, i) =>
           @event(event, i)
         }
         </tbody>
