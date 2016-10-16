@@ -8,7 +8,7 @@
     "start": "coffee server.coffee",
     "start:production": "NODE_ENV=production coffee server.coffee",
     "postinstall": "npm run build",
-    "build": "NODE_ENV=production webpack -p --config webpack.config.prod.js"
+    "build": "NODE_ENV=production webpack --config webpack.config.prod.js"
   },
   "author": "Lari Hoppula",
   "license": "MIT",
