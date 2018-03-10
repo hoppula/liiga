@@ -1,12 +1,10 @@
-require('coffee-react/register')
+import React from 'react'
+import ReactDOM from 'react-dom/server'
+import compress from 'compression'
+import Server from 'cerebellum/server'
+import Cerebellum from 'cerebellum-react'
 
-React = require 'react'
-ReactDOM = require 'react-dom/server'
-compress = require 'compression'
-Server = require 'cerebellum/server'
-Cerebellum = require 'cerebellum-react'
-
-options = require './options'
+import options from './options'
 options.prependTitle = "LiigaOpas - "
 options.convertProps = true
 

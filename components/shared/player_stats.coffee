@@ -1,14 +1,13 @@
-React = require 'react'
+import React from 'react'
 
-TableSort = require './table_sort'
-TableHeader = require './table_header'
-HeaderColumn = require './header_column'
-Row = require './row'
-Column = require './column'
-Spinner = require './spinner'
+import TableSort from './table_sort'
+import TableHeader from './table_header'
+import HeaderColumn from './header_column'
+import Row from './row'
+import Column from './column'
+import Spinner from './spinner'
 
 PlayerStats = React.createClass
-
   render: ->
     stats = @props.stats or []
     return <Spinner /> if !stats.length
@@ -70,7 +69,7 @@ PlayerStats = React.createClass
       </tbody>
     </table>
 
-module.exports = TableSort(
+export default TableSort(
   sortField: "points"
   sortDirection: "desc"
   sortType: "integer"

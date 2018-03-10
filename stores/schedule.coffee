@@ -1,10 +1,8 @@
-Collection = require('cerebellum/collection')
-apiConfig = require '../config/api'
+import Collection from 'cerebellum/collection'
+import apiConfig from '../config/api'
 
-Schedule = Collection.extend
+export default Schedule = Collection.extend
   cacheKey: ->
     "schedule"
 
   url: "#{apiConfig.url}/schedule.json"
-
-module.exports = Schedule

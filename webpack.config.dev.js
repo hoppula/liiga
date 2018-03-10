@@ -1,17 +1,17 @@
-var path = require('path')
-var webpack = require('webpack')
+var path = require("path");
+var webpack = require("webpack");
 
 module.exports = {
-  devtool: 'eval',
+  devtool: "eval",
   entry: [
-    'webpack-hot-middleware/client',
-    'webpack/hot/only-dev-server',
-    './client.coffee'
+    "webpack-hot-middleware/client",
+    "webpack/hot/only-dev-server",
+    "./client.coffee"
   ],
   output: {
-    path: path.join(__dirname, 'public'),
-    filename: 'app.js',
-    publicPath: '/'
+    path: path.join(__dirname, "public"),
+    filename: "app.js",
+    publicPath: "/"
   },
   plugins: [
     new webpack.HotModuleReplacementPlugin(),
@@ -24,7 +24,9 @@ module.exports = {
     loaders: [
       {
         test: /\.coffee$/,
-        loaders: ["react-hot", "coffee", "cjsx"]
+        loader: "coffee",
+        query: { transpile: { presets: ["es2015", "react"] } },
+        exclude: /node_modules/
       },
       {
         test: /\.less$/,

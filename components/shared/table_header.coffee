@@ -1,8 +1,7 @@
-React = require 'react'
-classnames = require 'classnames'
+import React from 'react'
+import classnames from 'classnames'
 
-TableHeader = React.createClass
-
+export default TableHeader = React.createClass
   render: ->
     direction = @props.sortDirection
     <thead className="sortable-thead">
@@ -22,5 +21,3 @@ TableHeader = React.createClass
         }
       </tr>
     </thead>
-
-module.exports = TableHeader

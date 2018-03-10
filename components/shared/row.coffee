@@ -1,8 +1,7 @@
-React = require 'react'
-classnames = require 'classnames'
+import React from 'react'
+import classnames from 'classnames'
 
-Row = React.createClass
-
+export default Row = React.createClass
   render: ->
     <tr key={@props.key} className={@props.className}>
       {
@@ -15,5 +14,3 @@ Row = React.createClass
         )
       }
     </tr>
-
-module.exports = Row

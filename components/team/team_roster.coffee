@@ -1,8 +1,8 @@
-React = require 'react'
-moment = require 'moment'
-_ = require 'lodash'
+import React from 'react'
+import moment from 'moment'
+import _ from 'lodash'
 
-TeamRoster = React.createClass
+export default TeamRoster = React.createClass
 
   groupedRoster: ->
     _.chain(@props.roster)
@@ -48,5 +48,3 @@ TeamRoster = React.createClass
         {groups.value()}
       </table>
     </div>
-
-module.exports = TeamRoster

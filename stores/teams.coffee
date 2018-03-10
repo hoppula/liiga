@@ -1,10 +1,8 @@
-Collection = require('cerebellum/collection')
-apiConfig = require '../config/api'
+import Collection from 'cerebellum/collection'
+import apiConfig from '../config/api'
 
-Teams = Collection.extend
+export default Teams = Collection.extend
   cacheKey: ->
     "teams"
 
   url: "#{apiConfig.url}/teams.json"
-
-module.exports = Teams

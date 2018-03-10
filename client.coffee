@@ -1,10 +1,11 @@
-React = require 'react'
-ReactDOM = require 'react-dom'
-Client = require 'cerebellum/client'
-Cerebellum = require 'cerebellum-react'
+import React from 'react'
+import ReactDOM from 'react-dom'
+import Client from 'cerebellum/client'
+import Cerebellum from 'cerebellum-react'
 
-require('./assets/less/styles.less')
-options = require './options'
+import './assets/less/styles.less'
+import options from './options'
+
 options.prependTitle = "LiigaOpas - "
 options.convertProps = true
 options.initialize = (client) ->

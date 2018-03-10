@@ -1,14 +1,14 @@
-React = require 'react'
+import React from 'react'
 
-Index = require('./components/index')
-Team = require('./components/team')
-Player = require('./components/player')
-Game = require('./components/game')
-Schedule = require('./components/schedule')
-Standings = require('./components/standings')
-Stats = require('./components/stats')
+import Index from './components/index'
+import Team from './components/team'
+import Player from './components/player'
+import Game from './components/game'
+import Schedule from './components/schedule'
+import Standings from './components/standings'
+import Stats from './components/stats'
 
-module.exports =
+export default
   "/": Index
   "/joukkueet/:id/:active?": Team
   "/joukkueet/:id/:pid/:slug": Player

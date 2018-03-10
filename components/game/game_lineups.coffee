@@ -1,9 +1,9 @@
-React = require 'react'
-{Row, Col, Grid, OverlayTrigger, Tooltip} = require 'react-bootstrap'
-Spinner = require '../shared/spinner'
-Teams = require '../../lib/teams'
+import React from 'react'
+import { Row, Col, Grid, OverlayTrigger, Tooltip } from 'react-bootstrap'
+import Spinner from '../shared/spinner'
+import Teams from '../../lib/teams'
 
-GameLineups = React.createClass
+export default GameLineups = React.createClass
 
   lineTitle: (i) ->
     title = if i < 4
@@ -77,5 +77,3 @@ GameLineups = React.createClass
     <div className="game-lineups">
       {lines}
     </div>
-
-module.exports = GameLineups

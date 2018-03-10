@@ -1,7 +1,6 @@
-React = require 'react'
+import React from 'react'
 
-TableSort = (options = {}) =>
-
+export default TableSort = (options = {}) =>
   { sortField, sortDirection, sortType } = options
 
   return (WrappedComponent) => React.createClass
@@ -57,5 +56,3 @@ TableSort = (options = {}) =>
         setSort: @setSort
         sort: @sort
       <WrappedComponent {...extraProps} {...@props} />
-
-module.exports = TableSort

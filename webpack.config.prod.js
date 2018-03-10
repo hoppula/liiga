@@ -1,22 +1,20 @@
-var path = require('path')
-var webpack = require('webpack')
-var ExtractTextPlugin = require("extract-text-webpack-plugin")
+var path = require("path");
+var webpack = require("webpack");
+var ExtractTextPlugin = require("extract-text-webpack-plugin");
 
 module.exports = {
-  devtool: 'source-map',
-  entry: [
-    './client.coffee'
-  ],
+  devtool: "source-map",
+  entry: ["./client.coffee"],
   output: {
-    path: path.join(__dirname, 'public'),
-    filename: 'app.js',
-    publicPath: '/'
+    path: path.join(__dirname, "public"),
+    filename: "app.js",
+    publicPath: "/"
   },
   plugins: [
     new webpack.optimize.OccurenceOrderPlugin(),
     new webpack.DefinePlugin({
-      'process.env': {
-        'NODE_ENV': JSON.stringify('production')
+      "process.env": {
+        NODE_ENV: JSON.stringify("production")
       }
     }),
     new webpack.optimize.UglifyJsPlugin({
@@ -33,11 +31,13 @@ module.exports = {
     loaders: [
       {
         test: /\.coffee$/,
-        loaders: ["coffee", "cjsx"]
+        loader: "coffee",
+        query: { transpile: { presets: ["es2015", "react"] } },
+        exclude: /node_modules/
       },
       {
         test: /\.less$/,
-        loader: ExtractTextPlugin.extract('style', 'css!less')
+        loader: ExtractTextPlugin.extract("style", "css!less")
       },
       { test: /\.png$/, loader: "url?limit=10000" },
       {

@@ -1,18 +1,10 @@
-React = require 'react'
-moment = require 'moment'
-_ = require 'lodash'
+import React from 'react'
+import moment from 'moment'
+import _ from 'lodash'
 
-Teams = require '../../lib/teams'
+import Teams from '../../lib/teams'
 
-moment.locale('fi'
-  months : [
-    "Tammikuu", "Helmikuu", "Maaliskuu", "Huhtikuu", "Toukokuu", "Kesäkuu", "Heinäkuu",
-    "Elokuu", "Syyskuu", "Lokakuu", "Marraskuu", "Joulukuu"
-  ]
-)
-moment.locale('fi')
-
-TeamSchedule = React.createClass
+export default TeamSchedule = React.createClass
 
   gameLink: (game) ->
     if moment(game.date) < moment()
@@ -43,7 +35,7 @@ TeamSchedule = React.createClass
     monthlyGames = @groupedSchedule().map (games, month) =>
       <tbody key={month}>
         <tr className="month-row">
-          <th colSpan=3>{moment(month, "YYYY-MM").format("MMMM")}</th>
+          <th colSpan={3}>{moment(month, "YYYY-MM").format("MMMM")}</th>
           <th>{attendanceTitle(month)}</th>
         </tr>
         {games.map (game) =>
@@ -61,5 +53,3 @@ TeamSchedule = React.createClass
         {monthlyGames.value()}
       </table>
     </div>
-
-module.exports = TeamSchedule

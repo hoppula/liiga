@@ -1,17 +1,16 @@
-React = require 'react'
+import React from 'react'
 
-Teams = require '../../lib/teams'
+import Teams from '../../lib/teams'
 
-Navigation = require '../shared/navigation'
-TableSort = require './table_sort'
-TableHeader = require './table_header'
-HeaderColumn = require './header_column'
-Row = require './row'
-Column = require './column'
-Spinner = require './spinner'
+import Navigation from '../shared/navigation'
+import TableSort from './table_sort'
+import TableHeader from './table_header'
+import HeaderColumn from './header_column'
+import Row from './row'
+import Column from './column'
+import Spinner from './spinner'
 
 StandingsTable = React.createClass
-
   render: ->
     return <div className="table-responsive"><Spinner /></div> if !@props.standings or !@props.standings.length
     standings = (@props.standings or []).sort(@props.sort).map (team, i) =>
@@ -64,7 +63,7 @@ StandingsTable = React.createClass
       </tbody>
     </table>
 
-module.exports = TableSort(
+export default TableSort(
   sortField: "points"
   sortDirection: "desc"
   sortType: "integer"

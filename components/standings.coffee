@@ -1,10 +1,9 @@
-React = require 'react'
+import React from 'react'
 
-Navigation = require './shared/navigation'
-StandingsTable = require './shared/standings_table'
+import Navigation from './shared/navigation'
+import StandingsTable from './shared/standings_table'
 
-Standings = React.createClass
-
+export default Standings = React.createClass
   statics:
     title: "Sarjataulukko"
     stores: (request) ->
@@ -23,5 +22,3 @@ Standings = React.createClass
         <StandingsTable standings={@props.standings} />
       </div>
     </div>
-
-module.exports = Standings

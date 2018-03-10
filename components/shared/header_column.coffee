@@ -1,6 +1,6 @@
-React = require 'react'
-SortAsc = require 'react-icons/lib/fa/sort-asc'
-SortDesc = require 'react-icons/lib/fa/sort-desc'
+import React from 'react'
+import SortAsc from 'react-icons/lib/fa/sort-asc'
+import SortDesc from 'react-icons/lib/fa/sort-desc'
 
 SortIcon = ({ direction }) ->
   <span className={direction}>
@@ -12,8 +12,7 @@ SortIcon = ({ direction }) ->
     }
   </span>
 
-HeaderColumn = React.createClass
-
+export default HeaderColumn = React.createClass
   getDefaultProps: ->
     type: "integer"
 
@@ -25,5 +24,3 @@ HeaderColumn = React.createClass
       <SortIcon direction={@props.sortDirection} />
       {@props.children}
     </th>
-
-module.exports = HeaderColumn

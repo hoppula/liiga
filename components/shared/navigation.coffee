@@ -1,10 +1,9 @@
-React = require 'react'
-{Navbar, Nav, NavItem, NavDropdown, MenuItem} = require "react-bootstrap"
+import React from 'react'
+import { Navbar, Nav, NavItem, NavDropdown, MenuItem } from "react-bootstrap"
 
-Teams = require '../../lib/teams'
+import Teams from '../../lib/teams'
 
-Navigation = React.createClass
-
+export default Navigation = React.createClass
   getInitialState: ->
     expanded: false
 
@@ -47,5 +46,3 @@ Navigation = React.createClass
         </Nav>
       </Navbar.Collapse>
     </Navbar>
-
-module.exports = Navigation

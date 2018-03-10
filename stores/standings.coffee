@@ -1,10 +1,8 @@
-Collection = require('cerebellum/collection')
-apiConfig = require '../config/api'
+import Collection from 'cerebellum/collection'
+import apiConfig from '../config/api'
 
-Standings = Collection.extend
+export default Standings = Collection.extend
   cacheKey: ->
     "standings"
 
   url: "#{apiConfig.url}/standings.json"
-
-module.exports = Standings

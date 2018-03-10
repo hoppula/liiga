@@ -1,14 +1,22 @@
-React = require 'react'
-{Grid, Row, Col} = require 'react-bootstrap'
+import React from 'react'
+import { Grid, Row, Col } from 'react-bootstrap'
+import moment from 'moment'
 
-TeamsList = require './index/teams_list'
-RecentSchedule = require './index/recent_schedule'
-StandingsTable = require './shared/standings_table'
-Navigation = require './shared/navigation'
-Spinner = require './shared/spinner'
+import TeamsList from './index/teams_list'
+import RecentSchedule from './index/recent_schedule'
+import StandingsTable from './shared/standings_table'
+import Navigation from './shared/navigation'
+import Spinner from './shared/spinner'
 
-Index = React.createClass
+moment.locale('fi'
+  months : [
+    "Tammikuu", "Helmikuu", "Maaliskuu", "Huhtikuu", "Toukokuu", "Kesäkuu", "Heinäkuu",
+    "Elokuu", "Syyskuu", "Lokakuu", "Marraskuu", "Joulukuu"
+  ]
+)
+moment.locale('fi')
 
+export default Index = React.createClass
   statics:
     title: "Etusivu"
     stores: (request) ->
@@ -46,5 +54,3 @@ Index = React.createClass
       </Grid>
 
     </div>
-
-module.exports = Index

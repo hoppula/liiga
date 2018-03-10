@@ -1,4 +1,4 @@
-Teams =
+export default Teams =
   namesAndIds:
     "Ässät": "assat"
     "HIFK": "hifk"
@@ -28,5 +28,3 @@ Teams =
 
   nameToId: (name) ->
     @namesAndIds[name]
-
-module.exports = Teams

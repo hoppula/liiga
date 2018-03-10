@@ -1,15 +1,12 @@
-React = require 'react'
+import React from 'react'
 
-PlayerStats = require '../shared/player_stats'
-GoalieStats = require '../shared/goalie_stats'
+import PlayerStats from '../shared/player_stats'
+import GoalieStats from '../shared/goalie_stats'
 
-TeamStats = React.createClass
-
+export default TeamStats = React.createClass
   render: ->
     stats = @props.stats or {}
     <div className="table-responsive">
       <PlayerStats stats={stats.players} />
       <GoalieStats stats={stats.goalies} />
     </div>
-
-module.exports = TeamStats

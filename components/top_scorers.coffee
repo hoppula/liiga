@@ -1,7 +1,6 @@
-React = require 'react'
+import React from 'react'
 
-TopScorers = React.createClass
-
+export default TopScorers = React.createClass
   render: ->
     <div className="table-responsive">
       <table className="table table-striped">
@@ -27,5 +26,3 @@ TopScorers = React.createClass
         }
       </table>
     </div>
-
-module.exports = TopScorers

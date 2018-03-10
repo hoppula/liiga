@@ -1,4 +1,4 @@
-TableSortMixin =
+export default TableSortMixin =
   setSort: (event) ->
     sort = event.target.dataset.sort
     if sort
@@ -38,5 +38,3 @@ TableSortMixin =
             1
           else
             0
-
-module.exports = TableSortMixin

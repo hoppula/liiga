@@ -1,21 +1,20 @@
-React = require 'react'
-moment = require 'moment'
-{Row, Col, Nav, NavItem, Tabs, Tab} = require 'react-bootstrap'
+import React from 'react'
+import moment from 'moment'
+import { Row, Col, Nav, NavItem, Tabs, Tab } from 'react-bootstrap'
 
-Teams = require '../lib/teams'
+import Teams from'../lib/teams'
 
-GameEvents = require './game/game_events'
-GameLineups = require './game/game_lineups'
-GameStats = require './game/game_stats'
-Navigation = require './shared/navigation'
+import GameEvents from './game/game_events'
+import GameLineups from './game/game_lineups'
+import GameStats from './game/game_stats'
+import Navigation from './shared/navigation'
 
 getGame = (schedule, id) ->
   schedule.filter((g) ->
     g.id is id
   )[0] or {}
 
-Game = React.createClass
-
+export default Game = React.createClass
   statics:
     title: (props, request) ->
       game = getGame(props.schedule, request.params.id)
@@ -94,5 +93,3 @@ Game = React.createClass
       </Tabs>
 
     </div>
-
-module.exports = Game

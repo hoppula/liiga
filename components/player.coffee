@@ -1,15 +1,14 @@
-React = require 'react'
-moment = require 'moment'
+import React from 'react'
+import moment from 'moment'
 
-Navigation = require './shared/navigation'
+import Navigation from './shared/navigation'
 
 getPlayer = (team, params) ->
   team.roster?.filter((player) ->
     player.id is "#{params.pid}/#{params.slug}"
   )[0] or {}
 
-Player = React.createClass
-
+export default Player = React.createClass
   statics:
     title: (props, request) ->
       player = getPlayer(props.team, request.params)
@@ -161,4 +160,3 @@ Player = React.createClass
 
     </div>
 
-module.exports = Player

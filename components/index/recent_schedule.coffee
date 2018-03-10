@@ -1,20 +1,11 @@
-React = require 'react'
-{ListGroup, ListGroupItem} = require 'react-bootstrap'
-moment = require 'moment'
-_ = require 'lodash'
+import React from'react'
+import { ListGroup, ListGroupItem } from 'react-bootstrap'
+import moment from 'moment'
+import _ from 'lodash'
 
-Teams = require '../../lib/teams'
+import Teams from '../../lib/teams'
 
-moment.locale('fi'
-  months : [
-    "Tammikuu", "Helmikuu", "Maaliskuu", "Huhtikuu", "Toukokuu", "Kesäkuu", "Heinäkuu",
-    "Elokuu", "Syyskuu", "Lokakuu", "Marraskuu", "Joulukuu"
-  ]
-)
-moment.locale('fi')
-
-RecentSchedule = React.createClass
-
+export default RecentSchedule = React.createClass
   grouped: ->
     current = moment()
     groups = _.groupBy(@props.schedule, (game) ->
@@ -91,5 +82,3 @@ RecentSchedule = React.createClass
       {past}
       {future}
     </div>
-
-module.exports = RecentSchedule

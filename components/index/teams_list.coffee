@@ -1,9 +1,8 @@
-React = require 'react'
+import React from 'react'
 
-Teams = require '../../lib/teams'
+import Teams from '../../lib/teams'
 
-TeamsList = React.createClass
-
+export default TeamsList = React.createClass
   render: ->
     <div className="row">
       <div className="teams-view col-xs-12 col-sm-12 col-md-12 col-lg-12">
@@ -16,5 +15,3 @@ TeamsList = React.createClass
         }
       </div>
     </div>
-
-module.exports = TeamsList

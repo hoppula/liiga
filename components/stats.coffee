@@ -1,12 +1,11 @@
-React = require 'react'
-{Tabs, Tab, Nav, NavItem} = require "react-bootstrap"
+import React from 'react'
+import { Tabs, Tab, Nav, NavItem } from "react-bootstrap"
 
-Navigation = require './shared/navigation'
-PlayerStats = require './shared/player_stats'
-GoalieStats = require './shared/goalie_stats'
+import Navigation from './shared/navigation'
+import PlayerStats from './shared/player_stats'
+import GoalieStats from './shared/goalie_stats'
 
-Stats = React.createClass
-
+export default Stats = React.createClass
   statics:
     title: "Tilastot"
     stores: (request) ->
@@ -49,5 +48,3 @@ Stats = React.createClass
         </Tabs>
       </div>
     </div>
-
-module.exports = Stats

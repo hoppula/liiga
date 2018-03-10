@@ -1,11 +1,10 @@
-Model = require('cerebellum/model')
-apiConfig = require '../config/api'
+import Model from 'cerebellum/model'
+import apiConfig from '../config/api'
 
-Team = Model.extend
+
+export default Team = Model.extend
   cacheKey: ->
     "teams/#{@storeOptions.id}"
 
   url: ->
     "#{apiConfig.url}/teams/#{@storeOptions.id}.json"
-
-module.exports = Team

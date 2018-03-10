@@ -1,15 +1,14 @@
-React = require 'react'
-_ = require 'lodash'
+import React from 'react'
+import _ from 'lodash'
 
-TableSort = require './table_sort'
-TableHeader = require './table_header'
-HeaderColumn = require './header_column'
-Row = require './row'
-Column = require './column'
-Spinner = require './spinner'
+import TableSort from './table_sort'
+import TableHeader from './table_header'
+import HeaderColumn from './header_column'
+import Row from './row'
+import Column from './column'
+import Spinner from './spinner'
 
 GoalieStats = React.createClass
-
   render: ->
     stats = @props.stats or []
     return <Spinner /> if !stats.length
@@ -43,7 +42,7 @@ GoalieStats = React.createClass
         <Column name="points">{player.points}</Column>
         <Column name="penalties">{player.penalties}</Column>
         <Column name="winPercentage">{player.winPercentage}</Column>
-        <Column name="minutes" colSpan=2>{player.minutes}</Column>
+        <Column name="minutes" colSpan={2}>{player.minutes}</Column>
       </Row>
 
     <table className="table table-striped team-roster">
@@ -66,14 +65,14 @@ GoalieStats = React.createClass
         <HeaderColumn sort="points" type="integer">P</HeaderColumn>
         <HeaderColumn sort="penalties">R</HeaderColumn>
         <HeaderColumn sort="winPercentage" type="float">V%</HeaderColumn>
-        <HeaderColumn sort="minutes" type="float" colSpan=2>Aika</HeaderColumn>
+        <HeaderColumn sort="minutes" type="float" colSpan={2}>Aika</HeaderColumn>
       </TableHeader>
       <tbody>
         {goalies}
       </tbody>
     </table>
 
-module.exports = TableSort(
+export default TableSort(
   sortField: "savingPercentage"
   sortDirection: "desc"
   sortType: "float"

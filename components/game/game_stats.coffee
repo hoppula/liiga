@@ -1,13 +1,12 @@
-React = require 'react'
-{Nav, NavItem, Tabs, Tab} = require 'react-bootstrap'
+import React from 'react'
+import { Nav, NavItem, Tabs, Tab } from 'react-bootstrap'
 
-Teams = require '../../lib/teams'
-Spinner = require '../shared/spinner'
-PlayerStats = require '../shared/player_stats'
-GoalieStats = require '../shared/goalie_stats'
+import Teams from '../../lib/teams'
+import Spinner from '../shared/spinner'
+import PlayerStats from '../shared/player_stats'
+import GoalieStats from '../shared/goalie_stats'
 
-GameStats = React.createClass
-
+export default GameStats = React.createClass
   render: ->
     if !Object.keys(@props.stats).length
       return (
@@ -39,5 +38,3 @@ GameStats = React.createClass
         </Tab>
       </Tabs>
     </div>
-
-module.exports = GameStats

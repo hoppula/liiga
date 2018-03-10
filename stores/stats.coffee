@@ -1,10 +1,8 @@
-Model = require('cerebellum/model')
-apiConfig = require '../config/api'
+import Model from 'cerebellum/model'
+import apiConfig from '../config/api'
 
-Stats = Model.extend
+export default Stats = Model.extend
   cacheKey: ->
     "stats"
 
   url: "#{apiConfig.url}/stats.json"
-
-module.exports = Stats

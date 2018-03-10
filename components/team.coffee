@@ -1,16 +1,14 @@
-React = require 'react'
-{Tabs, Tab, Jumbotron, ButtonToolbar, Button, Col, Row, Nav, NavItem} = require "react-bootstrap"
+import React from 'react'
+import { Tabs, Tab, Jumbotron, ButtonToolbar, Button, Col, Row, Nav, NavItem } from "react-bootstrap"
 
-Teams = require '../lib/teams'
+import Teams from '../lib/teams'
+import TeamSchedule from './team/team_schedule'
+import TeamStats from './team/team_stats'
+import TeamRoster from './team/team_roster'
+import Navigation from './shared/navigation'
+import Spinner from './shared/spinner'
 
-TeamSchedule = require './team/team_schedule'
-TeamStats = require './team/team_stats'
-TeamRoster = require './team/team_roster'
-Navigation = require './shared/navigation'
-Spinner = require './shared/spinner'
-
-Team = React.createClass
-
+export default Team = React.createClass
   statics:
     title: (props, request) ->
       subTitle = switch request.params.active
@@ -103,5 +101,3 @@ Team = React.createClass
         </div>
       </div>
     )
-
-module.exports = Team

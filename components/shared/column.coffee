@@ -1,10 +1,7 @@
-React = require 'react'
+import React from 'react'
 
-Column = React.createClass
-
+export default Column = React.createClass
   render: ->
     <td className={@props.className}>
       {@props.children}
     </td>
-
-module.exports = Column

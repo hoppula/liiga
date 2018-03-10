@@ -1,16 +1,14 @@
-React = require 'react'
-_ = require 'lodash'
-Spinner = require '../shared/spinner'
+import React from 'react'
+import _ from 'lodash'
+import Spinner from '../shared/spinner'
 
-GameEvents = React.createClass
-
+export default GameEvents = React.createClass
   event: (event, i) ->
-
     text = if (event.text or "").match(/\d-\d/) then <strong>{event.text}</strong> else event.text
 
     if event.header
       <tr key={event.header}>
-        <th colSpan="3">{event.header}</th>
+        <th colSpan={3}>{event.header}</th>
       </tr>
     else if event.team and event.time
       <tr key={i}>
@@ -86,7 +84,3 @@ GameEvents = React.createClass
       </table>
 
     </div>
-
-
-
-module.exports = GameEvents

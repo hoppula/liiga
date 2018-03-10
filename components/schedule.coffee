@@ -1,22 +1,12 @@
-React = require 'react'
-moment = require 'moment'
-_ = require 'lodash'
+import React from 'react'
+import moment from 'moment'
+import _ from 'lodash'
 
-Teams = require '../lib/teams'
+import Teams from '../lib/teams'
+import Navigation from './shared/navigation'
+import Spinner from './shared/spinner'
 
-Navigation = require './shared/navigation'
-Spinner = require './shared/spinner'
-
-moment.locale('fi'
-  months : [
-    "Tammikuu", "Helmikuu", "Maaliskuu", "Huhtikuu", "Toukokuu", "Kesäkuu", "Heinäkuu",
-    "Elokuu", "Syyskuu", "Lokakuu", "Marraskuu", "Joulukuu"
-  ]
-)
-moment.locale('fi')
-
-Schedule = React.createClass
-
+export default Schedule = React.createClass
   statics:
     title: "Otteluohjelma"
     stores: (request) ->
@@ -46,7 +36,7 @@ Schedule = React.createClass
       <table className="table table-striped">
         <tbody>
           <tr>
-            <th className="load-more" colSpan=4 onClick={@loadPrevious}>Näytä edelliset kuukaudet...</th>
+            <th className="load-more" colSpan={4} onClick={@loadPrevious}>Näytä edelliset kuukaudet...</th>
           </tr>
         </tbody>
       </table>
@@ -58,7 +48,7 @@ Schedule = React.createClass
       <table className="table table-striped">
         <tbody>
           <tr>
-            <th className="load-more" colSpan=4 onClick={@loadNext}>Näytä seuraavat kuukaudet...</th>
+            <th className="load-more" colSpan={4} onClick={@loadNext}>Näytä seuraavat kuukaudet...</th>
           </tr>
         </tbody>
       </table>
@@ -89,13 +79,13 @@ Schedule = React.createClass
       <table className="table table-striped team-schedule" key={month}>
         <tbody>
           <tr>
-            <th colSpan=4>{moment(month, "YYYY-MM").format("MMMM")}</th>
+            <th colSpan={4}>{moment(month, "YYYY-MM").format("MMMM")}</th>
           </tr>
         </tbody>
         {for gameDate, games of datesWithGames
           <tbody key={gameDate}>
             <tr>
-              <th className="game-date" colSpan=4>{gameDate}</th>
+              <th className="game-date" colSpan={4}>{gameDate}</th>
             </tr>
             {games.map (game) =>
               <tr key={game.id}>
@@ -135,5 +125,3 @@ Schedule = React.createClass
         {@showNext()}
       </div>
     </div>
-
-module.exports = Schedule
